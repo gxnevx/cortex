@@ -101,9 +101,14 @@ def _prune(folder: Path, days: float, pattern: str = "*") -> int:
 
 def daily(cfg: Any, force: bool = False) -> list[str]:
     """Uma vez por dia. Devolve o que precisa da atencao do dono."""
-    if not force and state().get("dia") == date.today().isoformat():
-        return []
     msgs: list[str] = []
+    hoje = date.today().isoformat()
+    m = check_downloads(cfg)
+    if m and state().get("aviso_download") != hoje:
+        _save(aviso_download=hoje)
+        msgs.append(m)
+    if not force and state().get("dia") == hoje:
+        return msgs
     try:
         backup()
     except Exception as e:
@@ -113,11 +118,8 @@ def daily(cfg: Any, force: bool = False) -> list[str]:
     am = paths.WORK / "amostras"
     if am.exists():
         n += sum(_prune(d, 7) for d in [am, *[x for x in am.rglob("*") if x.is_dir()]])
-    _save(dia=date.today().isoformat(), limpos=n)
+    _save(dia=hoje, limpos=n)
     _log.info("manutencao do dia: copia do banco feita, %d arquivo(s) velho(s) apagado(s)", n)
-    m = check_downloads(cfg)
-    if m:
-        msgs.append(m)
     return msgs
 
 
@@ -146,34 +148,56 @@ def check_downloads(cfg: Any, min_fail: int = 5) -> str | None:
         k in str(r["error"] or "").lower() for k in ("baixar", "download", "format is not available", "nao consegui ler", "http error"))]
     if len(rows) < min_fail or len(bad) < min_fail:
         return None
-    if cfg.get("manutencao.atualizar_ytdlp", False) and time.time() - float(state().get("ytdlp_ts") or 0) > 2 * 86400:
-        return update_ytdlp()
+    if cfg.get("manutencao.atualizar_ytdlp", False):
+        if andamento.read():
+            return None         # rodada em uso: troca o baixador quando ela terminar
+        if time.time() >= float(state().get("ytdlp_depois") or 0):
+            return update_ytdlp()
     return "os últimos vídeos não baixaram: o YouTube pode ter mudado e o baixador (yt-dlp) precisa de atualização"
 
 
+def _pip(*args: str) -> bool:
+    r = subprocess.run([sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "-q", *args], capture_output=True, text=True,
+                       timeout=900, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if r.returncode != 0:
+        _log.warning("pip: %s", (r.stderr or "")[-300:])
+    return r.returncode == 0
+
+
+def _ytdlp_version() -> str:
+    """Versao instalada, lida num processo novo (vazio = nao abre)."""
+    r = subprocess.run([sys.executable, "-c", "import yt_dlp, yt_dlp.version as v; yt_dlp.YoutubeDL({'quiet': True}); print(v.__version__)"],
+                       capture_output=True, text=True, timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return r.stdout.strip().splitlines()[-1] if r.returncode == 0 and r.stdout.strip() else ""
+
+
 def update_ytdlp() -> str | None:
-    """Atualiza o yt-dlp dentro do ambiente do CORTEX e volta a versao antiga se a nova nao abrir."""
-    _save(ytdlp_ts=time.time())
-    py = [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "-q"]
-    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-
-    def ver() -> str:
-        r = subprocess.run([sys.executable, "-c", "import yt_dlp; print(yt_dlp.version.__version__)"], capture_output=True, text=True,
-                           timeout=120, creationflags=flags)
-        return r.stdout.strip() if r.returncode == 0 else ""
-
-    old = ver()
-    subprocess.run([*py, "-U", "yt-dlp"], capture_output=True, timeout=600, creationflags=flags)
-    new = ver()
-    if not new and old:
-        subprocess.run([*py, f"yt-dlp=={old}"], capture_output=True, timeout=600, creationflags=flags)
-        return "a atualização do baixador deu errado e voltei para a versão anterior"
-    if new != old:
-        _log.info("yt-dlp atualizado: %s -> %s", old, new)
+    """Atualiza o yt-dlp com as pecas que ele exige na versao exata (por isso o [default]) e volta se a nova nao abrir."""
+    old = _ytdlp_version()
+    try:
+        ok = _pip("-U", "yt-dlp[default]")
+    except subprocess.TimeoutExpired:
+        ok = False
+    new = _ytdlp_version()
+    if not new or (not ok and new != old):
+        _save(ytdlp_depois=time.time() + 2 * 86400)
+        if old and _pip(f"yt-dlp[default]=={old}") and _ytdlp_version() == old:
+            return "a atualização do baixador deu errado e voltei para a versão anterior"
+        return "a atualização do baixador deu errado e não consegui voltar a versão anterior"
+    if not ok:      # sem internet, por exemplo: nada mudou, tenta de novo mais tarde
+        _save(ytdlp_depois=time.time() + 6 * 3600)
+        return None
+    if new == old:
+        _save(ytdlp_depois=time.time() + 12 * 3600)
+        return "os vídeos não estão baixando e o baixador (yt-dlp) já está na última versão; tento de novo em 12 h"
+    _save(ytdlp_depois=time.time() + 2 * 86400, reiniciar_ts=time.time())      # so vale depois de reabrir o programa
+    _log.info("yt-dlp atualizado: %s -> %s", old, new)
     return None
 
 
 def should_restart(started: float, now: datetime | None = None) -> bool:
-    """Reinicio da madrugada: ligado ha mais de 18 h, entre 3h e 6h."""
+    """Reinicio da madrugada (ligado ha mais de 18 h, entre 3h e 6h) ou logo apos trocar o baixador."""
     now = now or datetime.now()
+    if started < float(state().get("reiniciar_ts") or 0) <= time.time():
+        return True
     return time.time() - started > 18 * 3600 and 3 <= now.hour < 6

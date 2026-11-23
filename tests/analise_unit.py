@@ -240,6 +240,64 @@ from datetime import datetime as _D  # noqa: E402
 
 check("reinicio so de madrugada e com muitas horas ligado", M.should_restart(time.time() - 20 * 3600, _D(2026, 11, 25, 4)) and
       not M.should_restart(time.time() - 20 * 3600, _D(2026, 11, 25, 14)) and not M.should_restart(time.time() - 3600, _D(2026, 11, 25, 4)))
+
+# ------------------------------------------------------------------ atualizacao do baixador (sem internet, tudo simulado)
+M.andamento.read = lambda: None
+M._save(ytdlp_depois=0, reiniciar_ts=0)
+vers = {"v": "1"}
+pedidos: list[tuple] = []
+
+
+def pip_falso(alvo: str, ok: bool = True):
+    def f(*a):
+        pedidos.append(a)
+        if a[0] == "-U":
+            vers["v"] = alvo
+            return ok
+        vers["v"] = a[0].split("==")[1]
+        return True
+    return f
+
+
+M._ytdlp_version = lambda: vers["v"]
+M._pip = pip_falso("2")
+check("baixador atualizado com as pecas junto", M.update_ytdlp() is None and vers["v"] == "2" and pedidos[0] == ("-U", "yt-dlp[default]"))
+check("reabre o programa para valer, uma vez so", M.should_restart(time.time() - 60, _D(2026, 11, 25, 14)) and not M.should_restart(time.time() + 1, _D(2026, 11, 25, 14)))
+M._pip = pip_falso("")
+m = M.update_ytdlp()
+check("versao nova quebrada: volta a anterior", vers["v"] == "2" and "voltei" in m, (m, vers))
+M._pip = lambda *a: False
+M._save(ytdlp_depois=0)
+check("sem internet: nao muda nada e tenta depois", M.update_ytdlp() is None and vers["v"] == "2" and 5 * 3600 < M.state()["ytdlp_depois"] - time.time() < 7 * 3600)
+
+
+class _R:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def execute(self, *a):
+        return self
+
+    def fetchall(self):
+        return self.rows
+
+
+ruim = {"status": "falhou", "error": "nao consegui baixar o trecho 1-2s"}
+conn0, M.db.conn = M.db.conn, lambda: _R([ruim] * 5)
+ligado = Config({"manutencao": {"atualizar_ytdlp": True}})
+usou: list[int] = []
+upd0, M.update_ytdlp = M.update_ytdlp, lambda: usou.append(1)
+M._save(ytdlp_depois=0)
+M.check_downloads(ligado)
+check("5 downloads seguidos falhando: atualiza", usou == [1])
+M.andamento.read = lambda: {"pid": 1}
+M.check_downloads(ligado)
+check("rodada em uso: espera", usou == [1])
+M.andamento.read = lambda: None
+check("desligado: so avisa", "atualização" in (M.check_downloads(Config({})) or "") and usou == [1])
+M.db.conn = lambda: _R([ruim] * 4 + [{"status": "processado", "error": None}])
+check("um que baixou: nao mexe", M.check_downloads(ligado) is None and usou == [1])
+M.db.conn, M.update_ytdlp = conn0, upd0
 E.posts = real
 
 print(f"\n{'TUDO OK' if not fails else 'FALHAS: ' + ', '.join(fails)}")
