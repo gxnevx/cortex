@@ -281,7 +281,7 @@ class Autopilot:
         self.no_publish = no_publish
         self.state = State()
         self.stop = threading.Event()
-        self._urgent = 0.0
+        self._hot: set[str] = set()               # cortes da via rapida: saem primeiro no PROXIMO horario bom
         self.loghandler = LiveLogHandler()
         self._lock_file = paths.STATE / "autopiloto.lock"
         self.fast_lane: list = []                 # candidatos da via rapida (vigia), processados primeiro
@@ -371,9 +371,8 @@ class Autopilot:
         self.state.last_cycle = f"{datetime.now():%H:%M} | via rapida | {n} cortes | {summary.get('status')}"
         if n:
             self.state.cycles_ok += 1
-            # corta a espera do publicador: corte quente deve sair logo (respeitando as regras da conta)
-            self._urgent = time.time() + 1800     # momento explodindo: nao espera a janela
-            self.state.next_post = min(self.state.next_post, time.time() + random.uniform(60, 300))
+            # corte quente passa na frente da fila, mas sai no horario bom da rede (nunca fora da janela)
+            self._hot |= {str(x.get("id")) for x in summary.get("clips", [])}
         self.state.set_prod(f"via rapida ok: +{n} cortes na fila")
         return True
 
@@ -577,7 +576,7 @@ class Autopilot:
                 platforms, reasons = [], []
                 for p in logged:
                     ok, why = policy.can_post(p, cfg)
-                    if ok and not self.dry_run and time.time() > self._urgent and not policy.slot_due(p, cfg):
+                    if ok and not self.dry_run and not policy.slot_due(p, cfg):
                         ok, why = False, f"proximo horario {datetime.fromtimestamp(policy.next_slot(p, cfg)):%d/%m %H:%M}"
                     (platforms.append(p) if ok else reasons.append(f"{p}: {why}"))
                 if not platforms:
@@ -594,7 +593,9 @@ class Autopilot:
                 q = [c for c in queue(cfg) if c.plan.id not in self.state.tested_ids
                      and any(not db.already_posted(c.plan.id, p) and db.failed_attempts(c.plan.id, p) < MAX_TENTATIVAS
                              for p in platforms)]
-                q.sort(key=lambda c: sum(db.failed_attempts(c.plan.id, p) for p in platforms))   # estavel
+                # estavel: quem falhou vai para o fim; via rapida com nota boa passa na frente (menos no meio de uma serie)
+                q.sort(key=lambda c: (sum(db.failed_attempts(c.plan.id, p) for p in platforms),
+                                      0 if c.plan.id in self._hot and (c.plan.score or 0) >= 72 and not c.plan.part else 1))
                 if not q:
                     self.state.set_pub("fila vazia - esperando o produtor")
                     self.state.next_post = time.time() + 120
