@@ -19,12 +19,12 @@ from . import ffmpeg as ff
 _log = get_log(__name__)
 
 W, H = 1080, 1920
-SEAM = 820                     # emenda tela/webcam (o titulo fica em cima dela)
-SCREEN_TOP = 84               # acima disso fica a marca
-SCREEN_MAX_H = 560             # sobra uma faixa para o titulo entre a tela e a webcam
-TITLE_Y = 612                  # centro do titulo
-CAM_H = 800                    # webcam de SEAM ate SEAM+CAM_H (abaixo disso fica a interface da rede)
-CAPTION_Y = 1464               # legenda no peito da pessoa, abaixo do rosto
+SEAM = 925                       # topo da webcam
+SCREEN_TOP = 110                       # topo da tela
+SCREEN_MAX_H = 520                       # a tela termina em 630; a faixa 630-925 e so do titulo
+TITLE_Y = 768                       # centro da faixa do titulo
+CAM_H = 750                       # webcam de SEAM ate SEAM+CAM_H; abaixo fica a interface da rede
+CAPTION_Y = 520                       # legenda no rodape da tela, como legenda de filme (nao cobre a pessoa)
 N_FRAMES = 28
 
 
@@ -220,7 +220,8 @@ def compose(source: Path, start: float, dur: float, info: dict, cfg=None, track=
     scale = max(W / cw, hc / ch)
     fw_, fh_ = int(cw * scale) // 2 * 2 + 2, int(ch * scale) // 2 * 2 + 2
     fx = lay.face_x * fw_                                   # centro do rosto na webcam ampliada
-    ox = int(min(max(0, fx - W / 2), fw_ - W)) // 2 * 2
+    side = 220                                              # sobra dos lados (borda esticada) para centralizar a pessoa
+    ox = int(min(max(0, side + fx - W / 2), fw_ + 2 * side - W)) // 2 * 2
     oy = int(min(max(0, fh_ - hc), max(0.0, lay.face_top * fh_ - 90))) // 2 * 2   # folga acima da cabeca p/ o titulo
     out = paths.TMP / f"react_{short_hash(f'{source}{start}{time.time()}')}.mp4"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -231,8 +232,12 @@ def compose(source: Path, start: float, dur: float, info: dict, cfg=None, track=
              f"scale={W}:{H}:flags=bilinear,eq=brightness=-0.16:saturation=1.2,setsar=1[bg];"
              f"[b]crop={scw}:{sch}:{sx}:{sy},scale={W}:{hs}:force_original_aspect_ratio=increase:flags=bicubic,"
              f"crop={W}:{hs},setsar=1[ct];"
-             f"[c]crop={cw}:{ch}:{cx}:{cy},scale={fw_}:{fh_}:flags=bicubic,crop={W}:{hc}:{ox}:{oy},unsharp=5:5:0.5,setsar=1[cam];"
-             f"[bg][ct]overlay=0:{y1}[t];[t][cam]overlay=0:{SEAM},format=yuv420p[v]")
+             f"[c]crop={cw}:{ch}:{cx}:{cy},split=2[c1][c2];"
+             f"[c1]scale={fw_}:{fh_}:flags=bicubic,unsharp=5:5:0.5,pad={fw_ + 2 * side}:{fh_}:{side}:0,"
+             f"fillborders=left={side}:right={side}:mode=smear,crop={W}:{hc}:{ox}:{oy},setsar=1[cam];"
+             f"[c2]scale=270:{(H - SEAM) // 4}:force_original_aspect_ratio=increase,crop=270:{(H - SEAM) // 4},boxblur=12:2,"
+             f"scale={W}:{H - SEAM}:flags=bilinear,eq=brightness=-0.18,setsar=1[camb];"
+             f"[bg][ct]overlay=0:{y1}[t];[t][camb]overlay=0:{SEAM}[u];[u][cam]overlay=0:{SEAM},format=yuv420p[v]")
     args = ["-threads", threads, "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", str(source), "-filter_complex", graph, "-map", "[v]",
             "-map", "0:a?", "-c:v", "libx264", "-preset", "superfast", "-crf", "17", "-c:a", "aac", "-b:a", "192k", str(out)]
     try:

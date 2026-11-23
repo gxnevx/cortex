@@ -501,10 +501,15 @@ class Planner:
                 tslots = [("topo", 0.0), ("topo_alto", 0.5), ("abaixo_emenda", 5.0)]
         else:
             tslots = [("topo", 0.0), ("topo_alto", 0.5), ("acima_video", 1.0)]
+        if getattr(self, "title_only", None):
+            tslots = [x for x in tslots if x[0] in self.title_only]
         brand_opts = [(None, None, 0.0, None)]
         if self.brands:
             slots = [("topo_dir", "pilha", 0.0), ("topo_dir", "linha", 0.3), ("topo_esq", "pilha", 1.0),
-                     ("topo_esq", "linha", 1.3), ("base_esq", "linha", 2.5), ("abaixo_legenda", "linha", 3.0)]
+                     ("topo_esq", "linha", 1.3), ("base_esq", "linha", 2.5), ("base_esq", "pilha", 2.8), ("abaixo_legenda", "linha", 3.0)]
+            only = getattr(self, "brand_only", None)
+            if only:
+                slots = [x for x in slots if x[0] in only]
             brand_opts = []
             for bi, br in enumerate(self.brands):
                 brand_opts += [(sl, ar, c + 4.0 * bi, br) for sl, ar, c in slots]

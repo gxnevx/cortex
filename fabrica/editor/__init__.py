@@ -303,7 +303,7 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
         if stack:
             from . import react as _react
 
-            cap_geo.default_y = _react.CAPTION_Y
+            cap_geo.default_y, cap_geo.forced = _react.CAPTION_Y, True
 
         # ---------- etiqueta de nome (lower third: quem fala + onde), ~2,6 s depois do teaser
         tag = None
@@ -358,6 +358,8 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
                                    cta=cta, cta_s=cta_s, brand=brands, info=info, seam=_react.TITLE_Y if stack else layouts.split_seam(cfg))
         if stack:
             planner.zb_opts = (1.0,)      # o quadro montado nao se mexe
+            planner.brand_only = ("base_esq",)      # marca embaixo, fora do filme e do rosto
+            planner.title_only = ("emenda",)        # titulo so na faixa dele
         scene = planner.plan()
         timings["plano_s"] = round(time.time() - t_plan, 2)
         lost = ((make_title is not None and scene.title is None) or (bool(brands) and scene.brand is None)
