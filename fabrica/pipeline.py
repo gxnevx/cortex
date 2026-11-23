@@ -643,6 +643,8 @@ def _sortear(plans: list[ClipPlan], cfg: Config) -> None:
             e.pop("layout")
         else:
             p.layout = "blur" if e["layout"] == "A" else "full"
+        if p.part:
+            e.pop("cta")        # serie sempre chama para a proxima parte
         if e["emoji"] == "B":
             t = _EMOJI_RE.sub("", p.title).strip()
             if len(t) >= 12:

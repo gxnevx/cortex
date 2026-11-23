@@ -386,10 +386,17 @@ def show_analysis(cfg: Config, rodar: bool = False) -> None:
         for k, tit in (("padrao", "Padrão"), ("proximo_teste", "Próximo teste"), ("alerta", "Alerta")):
             if a.get(k):
                 ui.info(f"{tit}: {a[k]}")
-    h = (estrategia.state().get("historico") or [])[-1:]
-    for x in h:
+    from . import auditor
+
+    reg = auditor.linhas()
+    ui.rule("AUDITOR (decide, confere e desfaz sozinho)")
+    for d in reg:
+        ui.info(d)
+    if not reg:
+        ui.dim("Nenhuma mudança ainda: ele só mexe com números suficientes (a partir de 8 posts com 20 h em cada rede).")
+    for x in (estrategia.state().get("historico") or [])[-1:]:
         for d in x.get("decisoes", []):
-            ui.dim(f"Decisão: {d}")
+            ui.dim(f"Quantidade: {d}")
 
 
 def show_clips(n: int = 20) -> None:
@@ -490,7 +497,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--fundo", action="store_true", help="sem janela (o menu e 'cortex acompanhar' mostram o andamento)")
     sub.add_parser("acompanhar", help="painel ao vivo do que esta rodando (fechar nao para nada)")
     sub.add_parser("parar", help="desliga o automatico")
-    sub.add_parser("vigia", help=argparse.SUPPRESS)
+    vg = sub.add_parser("vigia", help=argparse.SUPPRESS)
+    vg.add_argument("--espera", type=float, default=0)
     sub.add_parser("pedidos", help=argparse.SUPPRESS)
     ia = sub.add_parser("inicio-automatico", help="liga/desliga o piloto ao entrar no Windows")
     ia.add_argument("acao", choices=["ligar", "desligar"])
@@ -574,8 +582,11 @@ def main(argv: list[str] | None = None) -> int:
 
             menu.stop_autopilot()
         elif args.cmd == "vigia":
+            import time
+
             from . import fundo
 
+            time.sleep(min(60, max(0, args.espera)))
             fundo.ensure()
         elif args.cmd == "pedidos":
             from . import autopilot, fundo

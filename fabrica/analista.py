@@ -74,7 +74,7 @@ def analisar(cfg: Any, force: bool = False) -> dict | None:
         from .brain import get_brain
         from .brain.base import extract_json
 
-        b = get_brain(cfg, tarefa="clips")
+        b = get_brain(cfg, tarefa="analise")
         if b.name == "claude":
             d = extract_json(b._run(p, SYSTEM)) or {}
         elif not force:
@@ -124,8 +124,9 @@ def ciclo(cfg: Any) -> list[str]:
     r = numeros.collect(cfg)
     if r["lidos"]:
         _log.info("numeros: %d lido(s), %d falha(s)", r["lidos"], r["falhas"])
-    news += experimentos.adotar()
-    news += [x for x in estrategia.decidir(cfg) if " para " in x]
+    from . import auditor
+
+    news += auditor.ciclo(cfg)
     a = analisar(cfg)
     if a and a.get("alerta"):
         news.append(a["alerta"])

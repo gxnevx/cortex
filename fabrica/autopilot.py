@@ -281,6 +281,7 @@ class Autopilot:
         self.no_publish = no_publish
         self.state = State()
         self.stop = threading.Event()
+        self._fast_day = ["", 0]
         self._hot: set[str] = set()               # cortes da via rapida: saem primeiro no PROXIMO horario bom
         self.loghandler = LiveLogHandler()
         self._lock_file = paths.STATE / "autopiloto.lock"
@@ -338,6 +339,14 @@ class Autopilot:
                     self.stop.wait(120)  # nao le metricas no meio de um upload
                     continue
                 try:
+                    from . import manutencao
+
+                    for m in manutencao.daily(cfg):
+                        self.state.alert(m)
+                        notify.toast("CORTEX: manutenção", m, cfg)
+                except Exception as e:
+                    _log.warning("manutencao: %s", str(e)[:200])
+                try:
                     from . import analista
 
                     for m in analista.ciclo(cfg):
@@ -362,14 +371,26 @@ class Autopilot:
                 _log.error("metricas: %s\n%s", e, traceback.format_exc())
             self.stop.wait(float(cfg.get("autopiloto.intervalo_metricas_min", 30)) * 60)
 
+    def _fast_ok(self, cfg: Config) -> bool:
+        """Via rapida so quando vale: fila abaixo do ideal, Claude disponivel e no maximo N por dia."""
+        from . import uso_ia
+
+        day = datetime.now().strftime("%Y%m%d")
+        if self._fast_day[0] != day:
+            self._fast_day = [day, 0]
+        return (len(queue(cfg)) < target_queue(cfg) and self._fast_day[1] < int(cfg.get("busca.via_rapida.max_por_dia", 4))
+                and (uso_ia.pode_claude(cfg, "clips") or not cfg.get("cerebro.produzir_so_com_claude", True)))
+
     def _run_fast_lane(self, cfg: Config) -> bool:
         """Processa a via rapida, se houver. Devolve True se rodou algo."""
         from .pipeline import RunOptions, run
 
         with self.fast_lock:
-            batch, self.fast_lane = self.fast_lane[:3], self.fast_lane[3:]
+            self.fast_lane.sort(key=lambda c: -(c.score or 0))      # so o mais forte; o resto esfria
+            batch, self.fast_lane = self.fast_lane[:1], []
         if not batch:
             return False
+        self._fast_day[1] += 1
         self.state.cycles += 1
         self.state.set_prod(f"VIA RAPIDA: {len(batch)} momento(s) explodindo")
         opts = RunOptions(trigger="via_rapida", candidates=batch, n_videos=len(batch), publish_mode="fila",
@@ -430,8 +451,7 @@ class Autopilot:
                     with self.fast_lock:
                         self.fast_lane.clear()
                 if (self.fast_lane and storage.free_gb() >= float(cfg.get("armazenamento.espaco_minimo_livre_gb", 2))
-                        and len(queue(cfg)) < int(cfg.get("autopiloto.fila_maxima", 12))
-                        and not self._wait_user(cfg, 1)):
+                        and self._fast_ok(cfg) and not self._wait_user(cfg, 1)):
                     if self._run_fast_lane(cfg):
                         free_memory()
                         continue
@@ -447,6 +467,11 @@ class Autopilot:
                 newest = max((self._created(c) for c in qlist), default=0.0)
                 stale = capacity(cfg) > 0 and (now - newest) > force_h and (now - last_run) > force_h
                 need = q < target or stale
+                from . import uso_ia
+
+                # sem Claude (teto do dia) os cortes saem fracos e quase todos sao descartados: so produz se faltar para hoje
+                if need and cfg.get("cerebro.produzir_so_com_claude", True) and not uso_ia.pode_claude(cfg, "clips"):
+                    need = q < max(1, capacity(cfg))
                 if due and need and q < max_q and not self._wait_user(cfg, q):
                     if storage.free_gb() < float(cfg.get("armazenamento.espaco_minimo_livre_gb", 2)):
                         self.state.set_prod("disco quase cheio: limpando e arquivando no OneDrive...")
@@ -620,6 +645,13 @@ class Autopilot:
                         self.state.paused_platforms[r.platform] = time.time() + 3600
                         self.state.alert(f"{r.platform}: {r.error.split(':', 1)[1].strip()[:90]}")
                         notify.toast("CORTEX precisa de voce", f"{r.platform}: {r.error.split(':', 1)[1].strip()}", cfg)
+                from . import manutencao
+
+                for p in platforms:
+                    m = None if self.dry_run else manutencao.breaker(p, cfg)
+                    if m:
+                        self.state.alert(m)
+                        notify.toast("CORTEX precisa de você", m, cfg)
                 if self.dry_run:
                     self.state.tested_ids.add(clip.plan.id)
                 ok = [r.platform for r in results if r.ok]
@@ -784,6 +816,9 @@ class Autopilot:
     def run(self, headless: bool = False) -> int:
         paths.ensure_dirs()
         self._single_instance()
+        from . import manutencao
+
+        manutencao.ensure_db()
         STOP_FILE.unlink(missing_ok=True)
         logging.getLogger("fabrica").addHandler(self.loghandler)
         if self.cfg.get("autopiloto.prioridade_baixa", True):
@@ -825,6 +860,11 @@ class Autopilot:
         _log.info("Automatico parado")
         for w in workers:
             w.join(timeout=3)
+        if getattr(self, "_restart", False):
+            from . import fundo
+
+            fundo.spawn(["vigia", "--espera", "8"])     # liga de novo em segundos, sem esperar o Windows
+            os._exit(0)
         if getattr(self, "_stuck", False):
             andamento.end()
             os._exit(3)   # o vigia do Windows liga de novo em ate 10 min
@@ -839,6 +879,13 @@ class Autopilot:
         while not self.stop.is_set():
             if STOP_FILE.exists():
                 STOP_FILE.unlink(missing_ok=True)
+                return
+            from . import fundo, manutencao
+
+            if (manutencao.should_restart(self.state.started) and fundo.wanted() and not andamento.read()
+                    and not self.state.pub_activity.startswith("publicando")):
+                _log.info("reinicio da madrugada")
+                self._restart = True
                 return
             run = andamento.read()
             if run and run.get("pid") == os.getpid() and time.time() - float(run.get("msg_desde") or time.time()) > 2.5 * 3600:

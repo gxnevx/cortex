@@ -185,6 +185,12 @@ class ClaudeBrain(LLMBrain):
     def _pick_raw(self, video: Candidate, transcript: Transcript, cfg, limit: int, sig, sig_summary: str) -> list[dict]:
         auto = str(_cfg_get(cfg, "execucao.cortes_por_video", "auto")).strip().lower() == "auto"
         full = transcript.text_with_timestamps()
+        lim = int(_cfg_get(self.cfg, "cerebro.claude_max_caracteres", 60_000) or 60_000)
+        if len(full) > lim:     # video longo: so as regioes com sinal (publico, chat, volume, palavras). Um pedido por video
+            foco = self._focus(video, transcript, cfg, lim)
+            if foco:
+                logger.info("video longo: mando %d mil caracteres das melhores regioes (de %d mil)", len(foco) // 1000, len(full) // 1000)
+                full = foco
         if len(full) <= MAX_CHARS:
             chunks = [(full, "")]
         else:
@@ -202,6 +208,32 @@ class ClaudeBrain(LLMBrain):
             logger.debug("claude: %d cortes sugeridos (%s)", len(items), note or "vídeo inteiro")
             raws.extend(items)
         return raws
+
+    def _focus(self, video: Candidate, transcript: Transcript, cfg, lim: int) -> str:
+        """Texto das regioes mais quentes, com contexto em volta, na ordem do video."""
+        try:
+            wins = sorted(self._heuristic().candidate_windows(video, transcript, cfg, max_clips=24), key=lambda w: -w["score"])
+        except Exception as e:
+            logger.debug("foco: %s", safe_text(e))
+            return ""
+        spans: list[list[float]] = []
+        total = 0
+        for w in wins:
+            a, b = max(0.0, w["start"] - 100), w["end"] + 120
+            size = len(transcript.slice(a, b, rebase=False).text_with_timestamps())
+            if total + size > lim:
+                continue
+            total += size
+            spans.append([a, b])
+        spans.sort()
+        merged: list[list[float]] = []
+        for a, b in spans:
+            if merged and a <= merged[-1][1] + 20:
+                merged[-1][1] = max(merged[-1][1], b)
+            else:
+                merged.append([a, b])
+        parts = [transcript.slice(a, b, rebase=False).text_with_timestamps() for a, b in merged]
+        return "\n[... trecho do meio sem destaque ...]\n".join(parts) if len(merged) >= 2 else ""
 
     def _rank_raw(self, trends: list[Trend], cfg, limit: int) -> list[dict]:
         prompt = prompts.trends_prompt(trends[:80], cfg, limit)

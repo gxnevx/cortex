@@ -173,6 +173,73 @@ E.posts = lambda rede, days=45: ps([4000] * 5, 75)
 E.decidir(cfg, force=True)
 check("menos de 8 posts: nao mexe", not E.state().get("quantidade"), E.state())
 check("uma decisao por dia", E.decidir(cfg) == [])
+
+# ------------------------------------------------------------------ auditor
+from fabrica import auditor as A, manutencao as M, policy as POL, uso_ia, db  # noqa: E402
+
+A.STATE = TMP / "aud.json"
+agora = time.time()
+
+
+def linha(dias: float, views: int, hora: int | None = None) -> dict:
+    ts = agora - dias * 86400
+    if hora is not None:
+        import datetime as _dt
+
+        d = _dt.datetime.fromtimestamp(ts).replace(hour=hora, minute=10)
+        ts = d.timestamp()
+    return {**ps([views], 60)[0], "idade_h": (agora - ts) / 3600, "views": views}
+
+
+rng = random.Random(9)
+E.posts = lambda rede, days=45: [linha(d, int(math.exp(rng.gauss(math.log(900), 0.4)))) for d in range(12, 24)] + \
+    [linha(1 + d * 0.8, int(math.exp(rng.gauss(math.log(250), 0.4)))) for d in range(10)]
+st = {"valores": {"regua": 72}, "registro": [{"ts": agora - 11 * 86400, "chave": "regua", "antes": 68, "depois": 72, "porque": "teste", "redes": ["youtube"], "estado": "conferindo"}]}
+m = A.conferir(st, cfg)
+check("auditor desfaz o que piorou", st["valores"]["regua"] == 68 and st["registro"][0]["estado"] == "desfeita" and "desfiz" in m[0], (m, st))
+check("e nao tenta de novo por 21 dias", A._bloqueado(st, "regua"))
+E.posts = lambda rede, days=45: [linha(d, int(math.exp(rng.gauss(math.log(300), 0.4)))) for d in range(12, 24)] + \
+    [linha(1 + d * 0.8, int(math.exp(rng.gauss(math.log(1500), 0.4)))) for d in range(10)]
+st = {"valores": {"regua": 72}, "registro": [{"ts": agora - 11 * 86400, "chave": "regua", "antes": 68, "depois": 72, "porque": "teste", "redes": ["youtube"], "estado": "conferindo"}]}
+m = A.conferir(st, cfg)
+check("auditor mantem o que melhorou", st["valores"]["regua"] == 72 and st["registro"][0]["estado"] == "aprovada", st)
+E.posts = lambda rede, days=45: [linha(1 + d, 500) for d in range(6)]
+st = {"registro": [{"ts": agora - 3 * 86400, "chave": "regua", "antes": 68, "depois": 72, "porque": "teste", "redes": ["youtube"], "estado": "conferindo"}]}
+check("poucos posts: continua conferindo", A.conferir(st, cfg) == [] and st["registro"][0]["estado"] == "conferindo")
+cfgw = Config({"publicacao": {"plataformas": ["youtube"], "max_posts_por_dia": {"youtube": 2}},
+               "autopiloto": {"janelas_por_rede": {"youtube": {"padrao": ["22:00-23:30", "10:30-12:00", "20:00-21:30"]}}}})
+E.posts = lambda rede, days=45: [linha(d + 1, 4000 if d % 2 else 200, 10 if d % 2 else 22) for d in range(24)]
+E.posts = (lambda f: (lambda rede, days=45: f(rede)))(lambda rede: [linha(d + 2, 5000, 11) for d in range(12)] + [linha(d + 2, 150, 22) for d in range(12)])
+st = {}
+m = A.ajustar_horarios(st, cfgw)
+check("horario que rende mais vira o principal", st.get("valores", {}).get("janelas.youtube", [""])[0] == "10:30-12:00", (m, st))
+E.posts = lambda rede, days=45: [linha(d + 2, 400, 22 if d % 2 else 11) for d in range(24)]
+st = {}
+check("sem diferenca nos horarios: nao mexe", A.ajustar_horarios(st, cfgw) == [], st)
+A.STATE.unlink(missing_ok=True)
+
+# ------------------------------------------------------------------ cota do Claude e manutencao
+uso_ia.hoje = lambda motor: 20
+c25 = Config({"cerebro": {"claude_max_chamadas_dia": 25}})
+check("escolher cortes para antes, sobra para julgar e analisar", not uso_ia.pode_claude(c25, "clips") and uso_ia.pode_claude(c25, "curadoria")
+      and uso_ia.pode_claude(c25, "analise"))
+import sqlite3  # noqa: E402
+
+M.STATE, M.BACKUP = TMP / "man.json", TMP / "bk"
+M.paths.DB_PATH = TMP / "b.db"
+cx = sqlite3.connect(M.paths.DB_PATH)
+cx.execute("create table posts (id integer)")
+cx.execute("insert into posts values (7)")
+cx.commit()
+cx.close()
+check("copia do banco", M.backup().exists())
+M.paths.DB_PATH.write_bytes(b"lixo" * 500)
+check("banco corrompido: volta a copia boa", M.ensure_db() == "restaurado" and sqlite3.connect(M.paths.DB_PATH).execute("select id from posts").fetchone()[0] == 7)
+check("banco bom: nao mexe", M.ensure_db() == "ok")
+from datetime import datetime as _D  # noqa: E402
+
+check("reinicio so de madrugada e com muitas horas ligado", M.should_restart(time.time() - 20 * 3600, _D(2026, 11, 25, 4)) and
+      not M.should_restart(time.time() - 20 * 3600, _D(2026, 11, 25, 14)) and not M.should_restart(time.time() - 3600, _D(2026, 11, 25, 4)))
 E.posts = real
 
 print(f"\n{'TUDO OK' if not fails else 'FALHAS: ' + ', '.join(fails)}")

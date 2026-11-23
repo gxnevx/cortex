@@ -117,7 +117,10 @@ def _saude(cfg: Config) -> dict:
         from . import estrategia
 
         try:
-            _SAUDE["v"] = {"saude": estrategia.linhas(cfg), "viral": {p: estrategia.viral(p, cfg)["texto"] for p in
+            from . import auditor
+
+            _SAUDE["v"] = {"auditor": (auditor.linhas(1) or ["medindo; mexe sozinho quando tiver números suficientes"])[0],
+                           "saude": estrategia.linhas(cfg), "viral": {p: estrategia.viral(p, cfg)["texto"] for p in
                                                                      cfg.get("publicacao.plataformas", ["youtube", "tiktok"])}}
         except Exception as e:
             from . import log
@@ -172,6 +175,8 @@ def summary(s: dict) -> Text:
             line(NOMES.get(p, p), f"login ok | {r['hoje']} de {r['limite']} hoje | próximo {when(r.get('proximo') or 0)}", ui.C_OK)
     for rot, txt, nivel in s.get("saude") or []:
         line(rot, txt, {"ótima": ui.C_OK, "boa": ui.C_OK, "regular": ui.C_YEL, "fraca": ui.C_RED}.get(nivel, ui.C_DIM))
+    if s.get("auditor"):
+        line("Auditor", s["auditor"], ui.C_CYAN)
     for rede, txt in (s.get("viral") or {}).items():
         line("Viral " + NOMES.get(rede, rede), txt, ui.C_DIM)
     if s["ultimo_post"]:

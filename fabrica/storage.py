@@ -96,7 +96,8 @@ def cleanup(cfg: Config, aggressive: bool = False) -> dict:
             age_d = (now - f.stat().st_mtime) / 86400
             key = str(f.with_suffix(".mp4").resolve()).lower()
             st = status_by_path.get(key, "orfao")
-            if st in ("publicado", "rejeitado", "expirado", "falhou", "orfao") and (aggressive or age_d > keep_days):
+            lim = min(keep_days, 2) if st in ("rejeitado", "expirado", "falhou") else keep_days
+            if st in ("publicado", "rejeitado", "expirado", "falhou", "orfao") and (aggressive or age_d > lim):
                 freed += _rm(f)
 
     # 3) limite total da pasta work

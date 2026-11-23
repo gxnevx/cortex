@@ -445,6 +445,8 @@ def build_post_text(plan: ClipPlan, platform: str, cfg: Any, video_title: str | 
     tags = htags.choose(plan, platform, cfg, video_title=video_title, channel=channel)
     tag_line = " ".join(tags)
     call = htags.cta(plan, platform, cfg)
+    if (getattr(plan, "exp", None) or {}).get("cta") == "B":     # sorteado para sair sem pedido de comentario
+        call = ""
 
     if platform == "youtube":
         title = post_title(plan, cfg, YT_TITLE_MAX, emojis, lang)

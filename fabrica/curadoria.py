@@ -108,7 +108,7 @@ def _ask_claude(items: list[tuple[RenderedClip, str]], cfg: Any) -> dict[int, di
     from .brain import get_brain
     from .brain.base import extract_json, list_from_json
 
-    b = get_brain(cfg, tarefa="clips")
+    b = get_brain(cfg, tarefa="curadoria")
     if b.name != "claude":
         return None
     try:
@@ -154,7 +154,9 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
             verdict[c.plan.id] = (False, why, c.plan.score, "")
         else:
             judged.append((c, fala))
-    minimum = float(cfg.get("curadoria.nota_minima", 68))
+    from . import auditor
+
+    minimum = float(auditor.get("regua") or cfg.get("curadoria.nota_minima", 68))
     skip: set[str] = set()
     for k in range(0, len(judged), 8):
         lote = judged[k:k + 8]

@@ -53,9 +53,12 @@ def teto_claude(cfg) -> int:
     return int(cfg.get("cerebro.claude_max_chamadas_dia", 25)) if cfg is not None else 25
 
 
-def pode_claude(cfg) -> bool:
-    """Ainda ha cota do Claude hoje? (0 = Claude desligado no roteamento economico)."""
-    return hoje("claude") < teto_claude(cfg)
+RESERVA = {"clips": 6, "curadoria": 1, "analise": 0}     # chamadas guardadas para o que vem depois
+
+
+def pode_claude(cfg, tarefa: str | None = None) -> bool:
+    """Ainda ha cota do Claude hoje para esta tarefa? Escolher cortes para antes, para sobrar para julgar e analisar."""
+    return hoje("claude") < teto_claude(cfg) - (RESERVA.get(tarefa or "", 0) if teto_claude(cfg) >= 12 else 0)
 
 
 def resumo(cfg=None) -> str:

@@ -182,6 +182,15 @@ def score_candidate(c: Candidate, *, now: float | None = None, window_h: float =
     if isinstance(sat, dict) and sat.get("pular_melhor_momento"):
         score *= float(sat.get("multa", 0.7))
         reasons.insert(0, f"assunto saturado ({sat.get('canais')} canais ja cortaram hoje): vai no 2o/3o melhor momento")
+    try:
+        from .. import auditor
+
+        w = float((auditor.get("canais") or {}).get(c.channel, 1.0))
+        if abs(w - 1.0) >= 0.05:
+            score *= w
+            reasons.append(f"canal {'rende bem' if w > 1 else 'rende pouco'} aqui (x{w:.2f})")
+    except Exception:
+        pass
     c.score = round(_clamp(score, 0, 100), 1)
     # motivos mais importantes primeiro, sem repeticao
     seen, out = set(), []

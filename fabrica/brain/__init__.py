@@ -52,7 +52,7 @@ def get_brain(cfg, force: str | None = None, refresh: bool = False, tarefa: str 
     if motor == "auto" and economica:
         from .. import uso_ia
 
-        if tarefa == "trends" or not uso_ia.pode_claude(cfg):
+        if tarefa == "trends" or not uso_ia.pode_claude(cfg, tarefa):
             chain = ["ollama"]
     notes: list[str] = []
     for m in chain:

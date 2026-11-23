@@ -118,6 +118,7 @@ busca:
   via_rapida:
     ativa: true
     intervalo_min: 10
+    max_por_dia: 4                # via rapida: no maximo 4 por dia
     twitch_views_min: 1500
     kick_views_min: 1000
     yt_vph_min: 5000
@@ -155,6 +156,8 @@ cerebro:
   # e o Claude (modelo leve) so para escolher os cortes, ate o teto diario. Acabou o teto: Ollama.
   estrategia: economica           # economica | qualidade (Claude em tudo, gasta mais cota)
   claude_modelo: haiku            # haiku = o modelo mais leve e barato do Claude (vazio = padrao da conta)
+  produzir_so_com_claude: true    # sem o Claude (teto do dia) so produz se faltar corte para hoje
+  claude_max_caracteres: 60000    # video longo: manda so as melhores regioes
   claude_max_chamadas_dia: 25     # teto de chamadas do Claude por dia (0 = nunca usar o Claude)
   ollama_modelo: qwen3:4b-instruct   # para usar: ollama pull qwen3:4b-instruct (2,5 GB)
   ollama_url: http://127.0.0.1:11434
@@ -290,3 +293,9 @@ estrategia:
   decide_quantidade: true         # muda a quantidade por dia, 1 passo por vez, so com 8+ posts medidos
   teto: {youtube: 3, tiktok: 6}   # nunca passa disso
   viral_views: 10000              # o que conta como "viral" na estimativa
+
+# ---------------------------------------------------------------------
+# MANUTENCAO AUTOMATICA
+# ---------------------------------------------------------------------
+manutencao:
+  atualizar_ytdlp: false          # true = atualiza o baixador sozinho quando os downloads falharem em serie

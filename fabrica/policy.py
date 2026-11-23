@@ -151,12 +151,29 @@ DEFAULT_SLOTS = {
 }
 
 
+def base_windows(platform: str, cfg: Config) -> list[str]:
+    """Janelas padrao da rede na ordem da pesquisa/config."""
+    table = (cfg.get("autopiloto.janelas_por_rede", {}) or {}).get(platform) or DEFAULT_SLOTS.get(platform) or {}
+    return list(table.get("padrao") or [])
+
+
 def _slot_times(platform: str, cfg: Config, day: date) -> list[tuple[float, float]]:
     """[(horario sorteado, fim da janela)] do dia, por prioridade. O sorteio e fixo por dia/rede/janela."""
     import random
 
     table = (cfg.get("autopiloto.janelas_por_rede", {}) or {}).get(platform) or DEFAULT_SLOTS.get(platform) or {}
-    wins = table.get(_DAYS[day.weekday()]) or table.get("padrao") or prime_windows(cfg, datetime(day.year, day.month, day.day))
+    from . import auditor
+
+    ordem = auditor.get(f"janelas.{platform}")
+    if ordem and table.get("padrao") and sorted(ordem) != sorted(table["padrao"]):
+        ordem = None        # o config mudou: a ordem antiga nao vale mais
+    wins = table.get(_DAYS[day.weekday()]) or ordem or table.get("padrao") or prime_windows(cfg, datetime(day.year, day.month, day.day))
+    wins = list(wins)
+    rng = random.Random(f"explora{day}{platform}")
+    n = daily_limit(platform, cfg)
+    if cfg.get("autopiloto.explorar_horarios", True) and 1 < n < len(wins) and rng.random() < 0.15:
+        j = rng.randrange(n, len(wins))
+        wins[n - 1], wins[j] = wins[j], wins[n - 1]
     out = []
     for i, w in enumerate(wins):
         a, b = (datetime.strptime(x.strip(), "%H:%M") for x in str(w).split("-"))
