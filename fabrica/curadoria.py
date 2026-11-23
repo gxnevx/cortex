@@ -9,6 +9,7 @@ Partes de uma mesma serie entram ou saem juntas. Tudo fica registrado e aparece 
 from __future__ import annotations
 
 import re
+import time
 import unicodedata
 from pathlib import Path
 from typing import Any
@@ -27,8 +28,17 @@ def _plain(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", "".join(c for c in t if not unicodedata.combining(c))).strip()
 
 
+_retry = [0.0]      # sem o Claude (teto do dia), os sensiveis esperam e sao julgados mais tarde
+
+
 def pending(cfg: Any) -> list[RenderedClip]:
     """Cortes prontos que ninguem julgou ainda (os que o dono pediu para ver antes ficam com ele)."""
+    if time.time() < _retry[0]:
+        return [c for c in _pending() if not (c.plan.category in ("politica", "noticias", "polemica") or c.plan.tipo == "noticia")]
+    return _pending()
+
+
+def _pending() -> list[RenderedClip]:
     rows = db.conn().execute(
         """SELECT c.id FROM clips c LEFT JOIN runs r ON r.id = c.run_id
            WHERE c.status='renderizado' AND COALESCE(c.curador, '') = ''
@@ -62,7 +72,7 @@ def _rules(c: RenderedClip, fala: str, cfg: Any) -> str | None:
         return f"curto demais ({c.duration:.0f} s), sem contexto"
     if is_generic(p.title):
         return "título genérico"
-    if len(fala.split()) < 25:
+    if len(fala.split()) < (6 if p.tipo == "reacao" else 25):
         return "quase não tem fala"
     return None
 
@@ -77,13 +87,14 @@ def _prompt(items: list[tuple[RenderedClip, str]]) -> str:
     body = "\n\n".join(blocks)
     return f"""Dê nota para estes cortes de vídeo (TikTok e YouTube Shorts). O canal posta os melhores e descarta o resto.
 
-Como o espectador vê: título grande na tela o tempo todo, etiqueta com o nome do programa, legenda da fala e crédito. Muitos abrem com um GANCHO (1 a 3 s da frase mais forte, repetida depois), então a primeira frase da fala pode parecer solta: isso é proposital. A fala vem de transcrição automática, com erros e sem identificar quem fala; julgue o conteúdo, não a transcrição. Conversa de podcast é naturalmente solta: não exija começo de redação.
+Como o espectador vê: título grande na tela o tempo todo, etiqueta com o nome do programa, legenda da fala e crédito. Muitos abrem com um GANCHO (1 a 3 s da frase mais forte, repetida depois), então a primeira frase da fala pode parecer solta: isso é proposital. A fala vem de transcrição automática, com erros e sem identificar quem fala; julgue o conteúdo, não a transcrição. Conversa de podcast é naturalmente solta: não exija começo de redação. No tipo "reacao" (choro, grito, susto, rage) a imagem conta a história: pouca fala ou fala quebrada é normal, julgue pela emoção e pelo assunto.
 
 Para cada corte devolva:
 - "nota": 0 a 100, chance de segurar quem está rolando o feed, COMPARANDO os cortes entre si e usando a escala toda. Pesa a favor: frase forte, treta, piada, revelação, história, curiosidade completa, reação, assunto em que todo mundo tem opinião. Pesa contra: enrolação, assunto difícil de entender mesmo com o título, sem nenhum momento marcante.
-- "fatal": true só se não pode ir ao ar: propaganda; menor de idade exposto; ódio contra grupo; vítima real de crime violento tratada com deboche, sensualização ou exposição da vida íntima; o título mente sobre o que é dito; acusa pessoa real e identificável de crime sem ser caso público (caso julgado, noticiado ou contado por jornalista é público); ou impossível de entender. Senão false.
+- "fatal": true só se não pode ir ao ar: propaganda; a maior parte é só trecho de filme, série, jogo de futebol, TV ou música de terceiros, sem ninguém reagindo ou comentando (bloqueio por direitos autorais; react em que a pessoa aparece reagindo e opinando pode); menor de idade exposto; ódio contra grupo; vítima real de crime violento tratada com deboche, sensualização ou exposição da vida íntima; o título mente sobre o que é dito; o título ou o texto na tela afirma como fato uma acusação que na fala é de outra pessoa (o certo é dizer quem acusa); acusa pessoa real e identificável de crime sem ser caso público (caso julgado, noticiado ou contado por jornalista é público); ou impossível de entender. Senão false.
 - "motivo": até 12 palavras.
 - "titulo": só se o título atual estiver fraco ou errado. Português do Brasil, 35 a 75 caracteres, 1 emoji no fim. Se usar aspas, copie a frase exatamente como está na fala. Curiosidade usa o nome real da coisa; tutorial usa título direto. Senão "".
+Em react, título e gancho têm que usar a frase ou cena marcante, não uma fala aleatória do filme. Em games, sem raiva, briga, susto, risada forte, curiosidade explicada ou polêmica, a nota é no máximo 40.
 Se dois cortes são quase iguais, dê nota menor ao pior.
 
 CORTES
@@ -144,11 +155,16 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
         else:
             judged.append((c, fala))
     minimum = float(cfg.get("curadoria.nota_minima", 68))
+    skip: set[str] = set()
     for k in range(0, len(judged), 8):
         lote = judged[k:k + 8]
         dec = _ask_claude(lote, cfg)
         for i, (c, fala) in enumerate(lote, 1):
             d = (dec or {}).get(i)
+            if dec is None and (c.plan.category in ("politica", "noticias", "polemica") or c.plan.tipo == "noticia"):
+                skip.add(c.plan.id)     # acusacao ou noticia sobre gente de verdade: so com o Claude lendo
+                _retry[0] = time.time() + 3600
+                continue
             if d is None:
                 ok = c.plan.score >= minimum + (4 if dec is None else 0)
                 verdict[c.plan.id] = (ok, "nota dos sinais do público", c.plan.score, "")
@@ -163,6 +179,7 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
             # so troca o titulo se o atual e generico ou cita o que nao foi dito
             troca = t if _good_title(t, fala) and not _good_title(c.plan.title, fala) else ""
             verdict[c.plan.id] = (not fatal and final >= minimum - 6, str(d.get("motivo") or "")[:120], nota, troca)
+    clips = [c for c in clips if c.plan.id not in skip]
     # serie: todas as partes ou nenhuma (vale a media das notas, a nao ser que alguma parte nao possa ir ao ar)
     series: dict[str, list[RenderedClip]] = {}
     for c in clips:
@@ -173,7 +190,7 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
         if media >= minimum - 6 and any(verdict[c.plan.id][0] for c in parts):
             for c in parts:
                 v = verdict[c.plan.id]
-                verdict[c.plan.id] = (True, v[1], v[2], "")
+                verdict[c.plan.id] = (True, v[1], v[2], v[3])
         elif any(not verdict[c.plan.id][0] for c in parts):
             why = next(verdict[c.plan.id][1] for c in parts if not verdict[c.plan.id][0])
             for c in parts:
@@ -181,7 +198,11 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
                 verdict[c.plan.id] = (False, f"série incompleta: {why}" if v[0] else v[1], v[2], "")
     for c in clips:
         ok, why, nota, title = verdict[c.plan.id]
-        if title and not c.plan.part:
+        if title:
+            if c.plan.part:
+                from .brain.base import series_title
+
+                title = series_title(title, c.plan.part, c.plan.parts_total)
             c.plan.title = title
         if ok:
             c.plan.score = round(0.5 * c.plan.score + 0.5 * nota, 1)

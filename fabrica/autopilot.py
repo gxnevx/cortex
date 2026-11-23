@@ -281,6 +281,7 @@ class Autopilot:
         self.no_publish = no_publish
         self.state = State()
         self.stop = threading.Event()
+        self._urgent = 0.0
         self.loghandler = LiveLogHandler()
         self._lock_file = paths.STATE / "autopiloto.lock"
         self.fast_lane: list = []                 # candidatos da via rapida (vigia), processados primeiro
@@ -371,6 +372,7 @@ class Autopilot:
         if n:
             self.state.cycles_ok += 1
             # corta a espera do publicador: corte quente deve sair logo (respeitando as regras da conta)
+            self._urgent = time.time() + 1800     # momento explodindo: nao espera a janela
             self.state.next_post = min(self.state.next_post, time.time() + random.uniform(60, 300))
         self.state.set_prod(f"via rapida ok: +{n} cortes na fila")
         return True
@@ -522,38 +524,11 @@ class Autopilot:
         return [p for p, ok in self.state.logins.items() if ok]
 
     def _next_post_time(self, cfg: Config, platforms: list[str]) -> float:
-        """Proximo horario de post: respeita intervalo minimo por rede, limite do dia e horario nobre.
-
-        Com poucos posts sobrando no dia, guarda o ultimo para o horario nobre.
-        Sempre adiciona uma variacao aleatoria (nada de intervalos exatos).
-        """
+        """Proximo horario de post entre as redes (melhores janelas de cada uma, ver policy.DEFAULT_SLOTS)."""
         from . import policy
 
-        now = datetime.now()
-        start, end = cfg.get("autopiloto.janela_publicacao", ["07:30", "00:30"])
-        remaining = sum(max(0, policy.effective_limit(p, cfg) - db.posts_today(p)) for p in platforms)
-        if remaining <= 0:
-            return next_window_start(now, start).timestamp() + random.uniform(5, 40) * 60
-        earliest = max([policy.ready_at(p, cfg) for p in platforms if
-                        policy.effective_limit(p, cfg) - db.posts_today(p) > 0] or [time.time()])
-        earliest = max(earliest, time.time())
-        jitter = random.uniform(*cfg.get("autopiloto.variacao_min", [7, 25])) * 60
-        target = earliest + jitter
-        primes = policy.prime_windows(cfg, now)
-        if not in_prime(datetime.fromtimestamp(target), primes):
-            # quantos posts ainda cabem hoje? se for o ultimo, espera o horario nobre
-            per_platform_left = max(policy.effective_limit(p, cfg) - db.posts_today(p) for p in platforms)
-            if per_platform_left <= 1:
-                for r in primes:
-                    a, _b = r.split("-")
-                    h, m = _parse_hm(a)
-                    ps = now.replace(hour=h, minute=m, second=0, microsecond=0)
-                    if ps.timestamp() > target:
-                        return ps.timestamp() + random.uniform(0, 20) * 60
-        mins_left = minutes_until_window_end(datetime.fromtimestamp(target), start, end)
-        if mins_left < 1 or not in_window(datetime.fromtimestamp(target), start, end):
-            return next_window_start(now, start).timestamp() + random.uniform(5, 40) * 60
-        return target
+        ts = [t for t in (policy.next_slot(p, cfg) for p in platforms) if t]
+        return max(time.time() + 20, min(ts)) if ts else time.time() + 3600
 
     def publisher(self) -> None:
         from .pipeline import MAX_TENTATIVAS, publish_clips
@@ -602,6 +577,8 @@ class Autopilot:
                 platforms, reasons = [], []
                 for p in logged:
                     ok, why = policy.can_post(p, cfg)
+                    if ok and not self.dry_run and time.time() > self._urgent and not policy.slot_due(p, cfg):
+                        ok, why = False, f"proximo horario {datetime.fromtimestamp(policy.next_slot(p, cfg)):%d/%m %H:%M}"
                     (platforms.append(p) if ok else reasons.append(f"{p}: {why}"))
                 if not platforms:
                     not_logged = [p for p, ok in self.state.logins.items() if not ok]
@@ -624,7 +601,7 @@ class Autopilot:
                     continue
                 clip = q[0]
                 self.state.set_pub(f"publicando: {clip.plan.title[:50]}")
-                results, actions = publish_clips(cfg, [clip], self.dry_run, AutopilotReporter(self.state))
+                results, actions = publish_clips(cfg, [clip], self.dry_run, AutopilotReporter(self.state), only=platforms)
                 for a in actions:
                     self.state.alert(a)
                 for r in results:

@@ -158,6 +158,22 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
         raise ValueError(f"trecho curto demais ({dur:.2f}s)")
 
     g = (lambda k, d: cfg.get(k, d)) if cfg is not None else (lambda k, d: d)
+    if layout is None and g("edicao.separar_webcam", True):
+        from . import react
+
+        comp = None
+        try:
+            comp = react.compose(source, start, dur, info, cfg, key=str(getattr(plan, "source_id", "") or ""))
+        except Exception as e:  # noqa: BLE001
+            _log.warning("separar webcam ignorado: %s", e)
+        if comp is not None:
+            try:
+                rc = render_clip(comp, 0.0, dur, plan, captions, cfg, out_path, layout="stack", on_progress=on_progress,
+                                 video=video, platforms=platforms)
+                rc.layout = "react"
+                return rc
+            finally:
+                comp.unlink(missing_ok=True)
     fps = int(g("edicao.fps", 30) or 30)
     threads = max(1, min(6, int(g("edicao.threads", 6) or 6)))   # teto de 6 para nao saturar a CPU
     timings: dict[str, float] = {}
@@ -167,7 +183,8 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
     if not any(lib.values()):
         lib = backgrounds.ensure_library(cfg)
     # auto: decide pela categoria do plano (sem deteccao de rosto), escolha estavel por corte
-    lay = layouts.choose_layout(info, plan, cfg, override=layout, has_backgrounds=any(lib.values()))
+    stack = layout == "stack"       # video ja montado pelo react.py: tela em cima, webcam embaixo
+    lay = "full" if stack else layouts.choose_layout(info, plan, cfg, override=layout, has_backgrounds=any(lib.values()))
     bg = None
     if lay == "split":
         bg = background or backgrounds.pick(cfg, dur)
@@ -176,7 +193,9 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
 
     # ---------- jump cuts (pausas longas e silencio do comeco)
     cut = None
-    if g("edicao.cortar_silencios", True) and captions is not None:
+    # reacao/react: o silencio faz parte (a cena passa na tela, a pessoa reage)
+    calado = stack or getattr(plan, "tipo", "") == "reacao"
+    if g("edicao.cortar_silencios", True) and captions is not None and not calado:
         t0 = time.time()
         try:
             energy = jumpcut.audio_energy(source, start, dur) if info["has_audio"] else None
@@ -226,6 +245,10 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
         except Exception as e:  # noqa: BLE001
             _log.warning("analise de rosto falhou, recorte central: %s", e)
             track = None
+        if stack and track is not None:
+            from . import react as _react
+
+            _react.only_bottom_faces(track)
         timings["rosto_s"] = round(time.time() - t0, 2)
     cam_cuts = [time_map(s.t0) if time_map else s.t0 for s in (track.shots[1:] if track else [])]
     pieces = None
@@ -258,7 +281,7 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
         main_pre = cut.video_filter() if (cut is not None and teaser is None) else ""
         mot = layouts.Motion(pre=main_pre, track=track, time_map=time_map, zoom=zplan, follow_face=follow,
                              info=info, pieces=pieces)
-        framing = layouts.build_framing(lay, info, cfg, mot)
+        framing = layouts.stack_framing() if stack else layouts.build_framing(lay, info, cfg, mot)
         splits = [T + x for x in cut.cut_times_out()] if cut is not None else []
         segs = faces.segments(track, total, time_map, pieces, splits=splits) if track is not None else []
 
@@ -276,7 +299,11 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
         bar_on = (bool(g("edicao.barra_progresso", True)) and title_always
                   and total > float(g("edicao.barra_min_s", 35) or 0))
         bar_h = int(g("edicao.barra_altura", 8) or 8) if bar_on else 0
-        cap_geo = _caption_geo(cfg, lay, caps, total, T)
+        cap_geo = _caption_geo(cfg, "split" if stack else lay, caps, total, T)
+        if stack:
+            from . import react as _react
+
+            cap_geo.default_y = _react.CAPTION_Y
 
         # ---------- etiqueta de nome (lower third: quem fala + onde), ~2,6 s depois do teaser
         tag = None
@@ -326,9 +353,11 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
 
         # ---------- plano da cena: nada cobre o rosto, nada encosta em nada
         t_plan = time.time()
-        planner = safezone.Planner(lay=lay, total=total, teaser=T, framing=framing, segs=segs, cfg=cfg,
+        planner = safezone.Planner(lay="split" if stack else lay, total=total, teaser=T, framing=framing, segs=segs, cfg=cfg,
                                    make_title=make_title, bar_h=bar_h, cap=cap_geo, tag=tag, tag_dur=tag_dur,
-                                   cta=cta, cta_s=cta_s, brand=brands, info=info, seam=layouts.split_seam(cfg))
+                                   cta=cta, cta_s=cta_s, brand=brands, info=info, seam=_react.TITLE_Y if stack else layouts.split_seam(cfg))
+        if stack:
+            planner.zb_opts = (1.0,)      # o quadro montado nao se mexe
         scene = planner.plan()
         timings["plano_s"] = round(time.time() - t_plan, 2)
         lost = ((make_title is not None and scene.title is None) or (bool(brands) and scene.brand is None)
@@ -356,7 +385,7 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
                 scene.items.append(edge)
             else:
                 bar_flag = False
-        ass_path = captions_mod.build_ass(caps, total, cfg, lay, work / "leg.ass", watermark="",
+        ass_path = captions_mod.build_ass(caps, total, cfg, "split" if stack else lay, work / "leg.ass", watermark="",
                                           progress_bar=bar_flag,
                                           caption_y=scene.cap_y, category=category, bar_rect=bar_rect,
                                           teaser_until=T,

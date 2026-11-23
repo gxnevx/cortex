@@ -145,9 +145,10 @@ def ytdlp_opts(cfg, **extra) -> dict:
     ff = tools.ffmpeg()
     if ff:
         opts["ffmpeg_location"] = str(Path(ff).parent)
-    ck = _cookiefile()
-    if ck:
-        opts["cookiefile"] = ck
+    if _cfg_get(cfg, "download.usar_cookies", False):   # desligado: com a conta logada o YouTube nao entrega os formatos
+        ck = _cookiefile()
+        if ck:
+            opts["cookiefile"] = ck
     opts.update(extra)
     return opts
 
@@ -316,6 +317,7 @@ def _moment_signals(c: Candidate, info: dict, cfg) -> None:
         r = momentos.comment_marks(c, cfg, duration=c.duration)
         if r is not None:
             found["comment_marks"] = r["marks"]
+            found["top_comments"] = r.get("top") or []
             found["comentarios_info"] = {k: r[k] for k in ("lidos", "com_tempo", "tempo_s")}
 
     def run_chat():

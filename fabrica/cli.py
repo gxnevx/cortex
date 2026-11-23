@@ -100,12 +100,6 @@ def do_login(cfg: Config, platform: str) -> int:
         if cfg.get("publicacao.aquecimento.ativo", True):
             ui.dim("Conta registrada. Aquecimento: nos primeiros dias o CORTEX posta pouco de proposito "
                    "(protege a conta nova). Ajuste em config.yaml > publicacao > aquecimento.")
-        try:
-            p = publish.export_cookies_txt(cfg)
-            if p:
-                ui.dim("cookies exportados para o downloader (evita bloqueio 'nao sou robo' do YouTube)")
-        except Exception:
-            pass
         return 0
     ui.warn(f"Nao detectei o login no {platform}. Tente de novo.")
     return 1

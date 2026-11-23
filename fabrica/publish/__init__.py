@@ -355,7 +355,7 @@ def _run_queue(queue: list[tuple[RenderedClip, str]], cfg: Any, dry_run: bool, e
                         except Exception:
                             pass
                 _after(r, p, cfg, dry_run, emit, record, blocked, posted, last_end)
-            if "youtube" in todo and "youtube" not in blocked and cfg.get("publicacao.exportar_cookies", True):
+            if "youtube" in todo and "youtube" not in blocked and cfg.get("publicacao.exportar_cookies", False):
                 try:  # cookies frescos para o yt-dlp
                     export_cookies_txt(cfg, session=session)
                 except Exception as e:

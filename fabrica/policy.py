@@ -132,6 +132,79 @@ def can_post(platform: str, cfg: Config) -> tuple[bool, str]:
     return True, "ok"
 
 
+# Melhores janelas por rede, em ordem de PRIORIDADE (docs/ideias/benchmark_canais.md, horario de Brasilia):
+# YouTube: 22h-24h 1,73x | 10h-12h 1,36x | 20h-22h 1,28x | 18h-20h 0,78x | 8h-10h 0,69x
+# TikTok:  20h-22h 2,25x | 10h-12h 1,34x | 14h-16h 1,20x | 18h-20h 0,91x | 6h-8h 0,72x
+DEFAULT_SLOTS = {
+    "youtube": {"padrao": ["22:00-23:30", "10:30-12:00", "20:00-21:30", "12:30-14:00"],
+                "qua": ["22:00-23:30", "12:00-14:00", "10:00-11:30"],
+                "sab": ["16:00-17:30", "10:30-12:00", "12:30-14:00"],
+                "dom": ["18:30-20:30", "10:30-12:00", "22:00-23:30"]},
+    "tiktok": {"padrao": ["20:00-21:45", "10:30-12:00", "14:00-15:30", "22:30-23:45"],
+               "sab": ["21:30-23:30", "18:30-20:00", "10:30-12:00", "14:00-15:30"]},
+}
+
+
+def _slot_times(platform: str, cfg: Config, day: date) -> list[tuple[float, float]]:
+    """[(horario sorteado, fim da janela)] do dia, por prioridade. O sorteio e fixo por dia/rede/janela."""
+    import random
+
+    table = (cfg.get("autopiloto.janelas_por_rede", {}) or {}).get(platform) or DEFAULT_SLOTS.get(platform) or {}
+    wins = table.get(_DAYS[day.weekday()]) or table.get("padrao") or prime_windows(cfg, datetime(day.year, day.month, day.day))
+    out = []
+    for i, w in enumerate(wins):
+        a, b = (datetime.strptime(x.strip(), "%H:%M") for x in str(w).split("-"))
+        ta = datetime(day.year, day.month, day.day, a.hour, a.minute).timestamp()
+        tb = datetime(day.year, day.month, day.day, b.hour, b.minute).timestamp()
+        rnd = random.Random(f"{day}{platform}{i}{w}").uniform(0.05, 0.75)
+        out.append((ta + (tb - ta) * rnd, tb))
+    return out
+
+
+def slots_today(platform: str, cfg: Config) -> list[tuple[float, float]]:
+    """Horarios de post que ainda valem hoje (em ordem). Janela perdida (PC desligado) e trocada pela proxima boa."""
+    now = time.time()
+    limit = effective_limit(platform, cfg)
+    left = limit - db.posts_today(platform)
+    if left <= 0:
+        return []
+    last, gap = last_post_ts(platform) or 0.0, min_interval_s(platform, cfg)
+    allw = _slot_times(platform, cfg, date.today())
+    ok = [(max(t, last + gap), end) for t, end in allw]
+    ok = [(t, end) for t, end in ok if t <= end and end > now and last < t]
+    chosen: list[tuple[float, float]] = []
+    for t, end in ok:                     # prioridade, respeitando o intervalo entre os escolhidos
+        if len(chosen) < left and all(abs(t - c) >= gap for c, _ in chosen):
+            chosen.append((t, end))
+    return sorted(chosen)
+
+
+def slot_due(platform: str, cfg: Config) -> bool:
+    """Esta na hora de postar nesta rede?"""
+    return any(t <= time.time() <= end + 1200 for t, end in slots_today(platform, cfg))
+
+
+def next_slot(platform: str, cfg: Config) -> float:
+    """Proximo horario de post desta rede (hoje ou nos proximos dias; 0 = nenhum previsto)."""
+    s = slots_today(platform, cfg)
+    if s:
+        return max(s[0][0], time.time())
+    for k in range(1, 8):
+        day = date.today() + timedelta(days=k)
+        n = _limit_on(platform, cfg, day)
+        if n > 0:
+            return min(t for t, _ in _slot_times(platform, cfg, day)[:n])
+    return 0.0
+
+
+def _limit_on(platform: str, cfg: Config, day: date) -> int:
+    n = 0
+    for d, v in plan_steps(platform, cfg):
+        if d <= day:
+            n = v
+    return n
+
+
 def prime_windows(cfg: Config, when: datetime | None = None) -> list[str]:
     when = when or datetime.now()
     table = cfg.get("autopiloto.horarios_nobres_semana") or DEFAULT_PRIME

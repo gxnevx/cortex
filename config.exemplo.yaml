@@ -37,6 +37,16 @@ autopiloto:
   prioridade_baixa: true          # processamento pesado com prioridade baixa no Windows
   pausa_entre_videos_s: 20        # respiro para a CPU esfriar entre um video e outro
   # Horario nobre (BRT) por dia da semana - medido em 1.049 Shorts de canais de cortes BR (21h-24h rende 1,4x a 2,3x)
+  # Melhores janelas de post por rede, da mais forte para a mais fraca (pesquisa em docs/ideias/benchmark_canais.md)
+  janelas_por_rede:
+    youtube:
+      padrao: ["22:00-23:30", "10:30-12:00", "20:00-21:30", "12:30-14:00"]
+      qua: ["22:00-23:30", "12:00-14:00", "10:00-11:30"]
+      sab: ["16:00-17:30", "10:30-12:00", "12:30-14:00"]
+      dom: ["18:30-20:30", "10:30-12:00", "22:00-23:30"]
+    tiktok:
+      padrao: ["20:00-21:45", "10:30-12:00", "14:00-15:30", "22:30-23:45"]
+      sab: ["21:30-23:30", "18:30-20:00", "10:30-12:00", "14:00-15:30"]
   horarios_nobres_semana:
     seg: ["12:00-14:00", "21:00-23:30"]
     ter: ["12:00-14:00", "21:00-23:30"]
@@ -177,6 +187,7 @@ corte:
   max_cortes_mesma_fonte_dia: 4   # uma serie de 3 partes + 1 corte
 
 edicao:
+  separar_webcam: true            # video com webcam + tela: tela no meio e webcam grande embaixo
   zooms: false                    # zoom que vai e volta nas falas (o dono nao gosta)
   # split -> video em cima + fundo (gameplay/ASMR) embaixo | blur -> fundo desfocado
   # full  -> tela cheia (rosto/podcast) | auto -> escolhe pelo conteudo
@@ -236,7 +247,7 @@ publicacao:
     # [dia_inicial, dia_final, posts_por_dia] contados a partir do 1o login na Fabrica
     # pesquisa oficial (docs/ideias/contas_e_monetizacao.md): dias 0-2 sem post (use a conta na mao),
     # recomendado era: semana 1: 1/dia, semanas 2-4: 2/dia, mes 2 em diante: ate 4/dia (o teto max_posts_por_dia limita o YouTube a 2)
-    tabela: [[0, 28, 2], [29, 99999, 4]]    # o dono quis postar desde o primeiro dia (2 por dia em cada rede)
+    tabela: [[0, 28, 3], [29, 99999, 4]]    # posta desde o primeiro dia: 3 no TikTok e 2 no YouTube (teto dele)
   contas:                         # contas do canal (as senhas NAO ficam aqui: o login fica salvo no navegador do CORTEX)
     youtube: {criada_em: ""}
     tiktok: {criada_em: ""}

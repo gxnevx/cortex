@@ -188,7 +188,9 @@ def comment_marks(c, cfg, duration: float | None = None) -> dict | None:
     marks = strong + weak
     dt = time.time() - t0
     _log.info("comentarios %s: %d lidos, %d com horario, %d momentos (%.1fs)", c.id, len(comments), k, len(marks), dt)
-    return {"marks": marks, "lidos": len(comments), "com_tempo": k, "tempo_s": round(dt, 1)}
+    top = sorted((x for x in comments if 12 <= len(x["text"]) <= 220), key=lambda x: -x["likes"])[:10]
+    return {"marks": marks, "lidos": len(comments), "com_tempo": k, "tempo_s": round(dt, 1),
+            "top": [re.sub(r"\s+", " ", x["text"]).strip()[:160] for x in top]}
 
 
 # ====================================================================== chat

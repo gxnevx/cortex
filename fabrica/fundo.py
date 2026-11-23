@@ -105,7 +105,11 @@ def clear_requests() -> int:
 
 def serve_requests(cfg_loader, runner) -> int:
     """Processo de fundo: atende os pedidos um a um, esperando a vez se ja houver uma rodada."""
-    if andamento.alive(andamento.read_json(WORKER)):
+    from .publish import guard
+
+    lock = guard.PublishLock()          # so um atendente, mesmo que dois comecem juntos
+    lock.path = WORKER.with_suffix(".lock")
+    if not lock.acquire():
         return 0
     andamento.write_json(WORKER, andamento.me())
     try:
@@ -125,6 +129,7 @@ def serve_requests(cfg_loader, runner) -> int:
                 _save([req] + requests())
                 time.sleep(30)
     finally:
+        lock.release()
         try:
             WORKER.unlink()
         except OSError:

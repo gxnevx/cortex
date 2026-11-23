@@ -98,15 +98,10 @@ def snapshot(cfg: Config | None = None) -> dict:
         q = autopilot.queue(cfg)
     except Exception:
         q = []
-    proximo = float(hb.get("proximo_post") or 0) if on else 0.0
-    libera = [policy.plan_steps(p, cfg) for p in plats if lg.get(p)]
-    primeiros = [next((d for d, n in s if n > 0), None) for s in libera]
-    primeiros = [d for d in primeiros if d]
-    if primeiros and min(primeiros) > datetime.now().date():  # conta nova: o primeiro post so sai nesse dia
-        start = str((cfg.get("autopiloto.janela_publicacao", ["07:30", "00:30"]) or ["07:30"])[0])
-        h, m = (int(x) for x in start.split(":"))
-        d = min(primeiros)
-        proximo = max(proximo, datetime(d.year, d.month, d.day, h, m).timestamp())
+    prox = {p: policy.next_slot(p, cfg) for p in plats if redes[p]["login"] and not redes[p]["pausa"]}
+    for p, t in prox.items():
+        redes[p]["proximo"] = t
+    proximo = min([t for t in prox.values() if t], default=0.0)
     last = db.conn().execute("SELECT platform, url, ts FROM posts WHERE ok=1 AND dry_run=0 ORDER BY ts DESC LIMIT 1").fetchone()
     return {"automatico": on, "querido": fundo.wanted(), "batida": hb, "rodada": andamento.read(), "pedidos": fundo.requests(),
             "redes": redes, "precisa": precisa, "fila": q, "proximo_post": proximo, "memoria": mem, "disco": free,
@@ -155,7 +150,7 @@ def summary(s: dict) -> Text:
         elif not r["login"]:
             line(NOMES.get(p, p), "sem login", ui.C_RED)
         else:
-            line(NOMES.get(p, p), f"login ok | {r['hoje']} de {r['limite']} hoje | {', '.join(r['plano'].split(', ')[:2])}", ui.C_OK)
+            line(NOMES.get(p, p), f"login ok | {r['hoje']} de {r['limite']} hoje | próximo {when(r.get('proximo') or 0)}", ui.C_OK)
     if s["ultimo_post"]:
         u = s["ultimo_post"]
         line("Último post", f"{NOMES.get(u['platform'], u['platform'])} {datetime.fromtimestamp(u['ts']):%d/%m %H:%M} {u['url'] or ''}")
@@ -227,6 +222,8 @@ def render(s: dict) -> Layout:
     for p, x in s["redes"].items():
         st = Text(f"{x['hoje']}/{x['limite']} hoje", style="bold white")
         st.append(" login ok" if x["login"] else " SEM LOGIN", style=ui.C_OK if x["login"] else ui.C_RED)
+        if x.get("proximo"):
+            st.append(f" | {datetime.fromtimestamp(x['proximo']):%d/%m %H:%M}", style=ui.C_YEL)
         if x["pausa"]:
             st.append(" PARADO", style=f"bold {ui.C_YEL}")
         day.add_row(NOMES.get(p, p), st)

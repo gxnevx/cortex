@@ -151,6 +151,10 @@ def cut_flow(cfg: Config) -> None:
                                                    ("nao_publicar", "Só salvar os vídeos"), ("voltar", "Voltar")])
     if after in (None, "voltar"):
         return
+    from . import autopilot
+
+    if after == "auto" and autopilot.running():
+        after = "fila"      # o automatico julga e posta nos melhores horarios
     n = int(cfg.get("execucao.videos_por_execucao", 5))
     req = {"publish": after, "videos": len(urls) if urls else n}
     if urls:

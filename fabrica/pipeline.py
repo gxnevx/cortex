@@ -667,6 +667,8 @@ def refine_with_captions(p: ClipPlan, captions: Transcript, cfg: Config, rep: Re
         spans = [s for s in polemic_spans(words, cfg, min_s, max_s)
                  if s["start"] >= min_gap and s["score"] >= min_score and (s.get("tipos") is None or s.get("tipos"))]
         best = spans[0] if spans else None
+    if best is None and brain_has and p.tipo == "reacao" and 1.0 <= p.teaser_end - p.teaser_start <= 5.0:
+        return captions     # a frase famosa e da cena (a transcricao nao pega): abre pelo tempo que a IA marcou
     if best is None:
         p.teaser_start = p.teaser_end = None  # sem frase forte: melhor sem gancho do que gancho fraco
         p.teaser_text = ""
@@ -1035,6 +1037,12 @@ def run(cfg: Config, opts: RunOptions, rep: Reporter | None = None) -> dict:
             # 2 ─ descoberta
             rep.stage(2, TOTAL, "Descobrindo o que esta em alta" if search_mode != "link" else "Lendo os links")
             cands = discover(cfg, opts, brain_trends, rep, summary, run_id, n_videos)
+            from .brain import games as _games
+
+            soltos = [] if opts.urls else [c for c in cands if _games.plain_gameplay(c)]
+            if soltos:
+                cands = [c for c in cands if c not in soltos]
+                rep.info(f"{len(soltos)} gameplay(s) comum(ns) de fora (sem reacao nem curiosidade)")
             if not opts.urls and brain.name != "claude" and cfg.get("busca.estrangeiro.exige_claude", True):
                 fora = [c for c in cands if (c.extra or {}).get("estrangeiro")]
                 if fora:
@@ -1196,13 +1204,16 @@ def _merge_posts(summary: dict, results) -> None:
 MAX_TENTATIVAS = 3
 
 
-def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Reporter) -> tuple[list, list[str]]:
+def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Reporter,
+                  only: list[str] | None = None) -> tuple[list, list[str]]:
     """Checa login de cada rede e publica. Devolve (resultados, acoes necessarias)."""
     from . import publish
 
     actions: list[str] = []
     platforms = []
     for p in cfg.get("publicacao.plataformas", ["youtube", "tiktok"]):
+        if only is not None and p not in only:
+            continue
         try:
             logged = publish.check_login(p, cfg)
         except Exception as e:

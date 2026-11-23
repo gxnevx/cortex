@@ -163,7 +163,32 @@ def _video_block(video: Candidate) -> str:
     if video.description:
         d = " ".join(video.description.split())[:400]
         lines.append(f"Descrição: {d}")
+    tc = (video.extra or {}).get("top_comments") or []
+    if tc:
+        lines.append("O que o público mais comentou (use para achar a frase ou cena que ficou famosa): " + " / ".join(tc[:8]))
     return "\n".join(lines)
+
+
+_REACT = re.compile(r"\breact|reag|rea[cç][aã]o|assistindo|trailer|tr[aá]iler", re.I)
+
+
+def kind_rules(video: Candidate) -> str:
+    """Regras extras por tipo de video (react de trailer/clipe, games)."""
+    from . import games
+
+    out = ""
+    if _REACT.search(video.title or ""):
+        out += """
+REACT (a pessoa assiste a um trailer, clipe ou vídeo e comenta):
+- Monte UMA série de 2 a 3 partes: a parte 1 abre na frase ou cena que ficou FAMOSA (veja os comentários do público e o que é mais repetido), com a pessoa assistindo e reagindo; a seguinte continua a reação; a última é a OPINIÃO final dela (gostou, odiou, teoria). As partes podem vir de momentos diferentes do vídeo, em ordem.
+- Na parte 1, inclua a cena da frase famosa INTEIRA (um pouco antes até a reação da pessoa depois dela). "teaser_inicio"/"teaser_fim" = os 2 a 4 segundos exatos em que a frase é dita; "teaser_texto" = essa frase (com o nome certo). O título diz o filme/jogo/música e a frase, não uma fala aleatória.
+- Se não houver frase ou reação marcante, devolva a lista vazia.
+"""
+    if games.is_game(video):
+        out += """
+GAMES: só vale (1) reação forte de verdade (rage quit, grito, xingamento, susto, briga, choro de rir) ou (2) curiosidade explicada (easter egg, segredo, teoria, detalhe escondido) ou (3) opinião polêmica sobre o jogo. Exploração, missão, conversa solta e "olha que bonito" NÃO valem. Se não houver nada assim, devolva a lista vazia: {"cortes":[]}.
+"""
+    return out
 
 
 _LANG_NAMES = {"en": "INGLÊS", "es": "ESPANHOL", "fr": "FRANCÊS", "it": "ITALIANO", "de": "ALEMÃO", "ja": "JAPONÊS"}
@@ -219,6 +244,8 @@ O QUE É UM BOM CORTE
 - Autocontido: quem nunca viu o vídeo entende o que está acontecendo.
 - Termina no clímax, na punchline ou na resposta: não corte antes do desfecho e não deixe "rabo" depois.
 - Prefira: treta, polêmica, opinião forte, momento engraçado, reação exagerada, história surpreendente, revelação, frase de efeito, lance absurdo de jogo.
+- A transcrição é automática e erra nomes: no título, gancho e teaser escreva o nome certo (ex.: "a mim, meus ex" num vídeo dos X-Men é "A mim, meus X-Men!"). Use o título do vídeo e os comentários para descobrir.
+- Nunca inclua despedida ("vou ficando por aqui", "se inscreve no canal").
 - Evite: propaganda/patrocínio, pedido de inscrição, silêncio, música, trechos sem contexto, fala arrastada.
 - Os cortes NÃO podem se sobrepor.
 {series}
@@ -226,6 +253,7 @@ O QUE É UM BOM CORTE
 QUANTIDADE: {qty}
 PONTUAÇÃO ("pontuacao", de 0 a 100) = chance real de viralizar. Seja exigente: 85 ou mais só para momentos excepcionais; abaixo de {min_score} o corte será descartado.
 
+{kind_rules(video)}
 TIPO DO CORTE (campo "tipo")
 {TIPO_RULES}
 
@@ -356,8 +384,9 @@ Prefira: treta, opinião forte, frase chocante, piada, revelação, lance absurd
 - "pontuacao": 0 a 100, chance real de viralizar.
 - "hashtags": 3, específicas do assunto.
 - "categoria": uma de {CATEGORIAS_TXT}.{foreign_block(video)}
+- A transcrição é automática e erra nomes: no título e no gancho escreva o nome certo. Nunca inclua despedida nem pedido de inscrição.
 - {short_tone(cfg)}
-
+{kind_rules(video)}
 VÍDEO
 {_video_block(video)[:500]}
 

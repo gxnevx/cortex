@@ -1026,6 +1026,15 @@ def finalize_plans(raw_plans: list[dict | ClipPlan], video: Candidate, transcrip
         if len(lst) == 1:
             singles.append(lst[0])
             continue
+        if any(n["start"] - p["end"] > 15 for p, n in zip(lst, lst[1:])):   # react: partes de momentos diferentes
+            fixed = []
+            for x in lst[:max_parts]:
+                ps, pe = tl.snap_start(x["start"]), tl.snap_end(x["end"])
+                fixed.append((ps, min(pe, ps + dmax)))
+            best = max(lst, key=lambda x: x["score"])
+            meta = {**dict(lst[0]), "score": best["score"]}
+            groups.append(_Group(fixed, meta, meta["score"], series=lst[0]["series"], titles=[x.get("title", "") for x in lst]))
+            continue
         a, b = lst[0]["start"], max(x["end"] for x in lst)
         s0 = tl.snap_start(a)
         e0 = tl.snap_end(b)
@@ -1207,6 +1216,8 @@ def _tipo(m: dict, video) -> str:
     from . import prompts
 
     t = str(m.get("tipo") or "")
+    if prompts._REACT.search(video.title or "") and t in ("", "fala"):
+        return "reacao"
     return t if t in prompts.TIPOS else prompts.infer_tipo(video, normalize_category(m.get("category")))
 
 

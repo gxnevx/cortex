@@ -273,6 +273,12 @@ class Framing:
                 or not self.dy.constant or abs(self.dy.base) > 1e-6)
 
 
+def stack_framing() -> Framing:
+    """Video em pe ja montado (react.py): quadro inteiro, sem movimento."""
+    geo = Geo("blur", W, H, W, H, 0, W, H, 0, 0)
+    return Framing(geo, Steps(0.0), None, dynamic=False)
+
+
 def build_framing(layout: str, info: dict, cfg=None, motion: Motion | None = None) -> Framing:
     """Monta o modelo do movimento (sem reenquadramento: zb=1, dy=0)."""
     from . import faces as _faces

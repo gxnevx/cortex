@@ -29,6 +29,19 @@ def is_curiosity(video: Candidate) -> bool:
     return bool(_CURIOUS.search(video.title or ""))
 
 
+_PLAIN = re.compile(r"gameplay|explorando|jogando|zerando|campanha|miss(ão|ões|ao|oes)|detonado|walkthrough|playthrough|"
+                    r"#\s*\d{1,3}\b|\bep(is[oó]dio)?\.?\s*\d|parte\s*\d|ao vivo jogando", re.I)
+_REACTION = re.compile(r"rage|surt|put[oa]\b|raiva|brig|trei?ta|xing|grit|susto|chor|odiei|lixo|pol[eê]mic|hack|banid|"
+                       r"react|reag|absurd|imposs[ií]vel|record|fail", re.I)
+
+
+def plain_gameplay(video: Candidate) -> bool:
+    """Gameplay comum (exploracao, missoes), sem reacao nem curiosidade no titulo e sem "mais repetidos" do publico."""
+    t = video.title or ""
+    return (is_game(video) and bool(_PLAIN.search(t)) and not _REACTION.search(t) and not is_curiosity(video)
+            and not (video.extra or {}).get("heatmap"))
+
+
 def strong_reaction(span: dict | None) -> bool:
     return bool(span and set(span.get("tipos") or ()) & STRONG)
 
