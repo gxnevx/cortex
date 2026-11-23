@@ -1,0 +1,709 @@
+{
+  "_meta": {
+    "versao": "2026-11-23",
+    "revisar_ate": "2027-01-22",
+    "guia": "docs/ideias/criativo_genz.md",
+    "notas": [
+      "Templates usam {placeholders}; o cerebro preenche com nomes curtos reais do trecho.",
+      "Toda palavra-chave do titulo deve existir na transcricao do corte (anti-clickbait).",
+      "Metricas de retencao vindas de blogs de fornecedores sao direcionais; regras de plataforma vem de fontes oficiais."
+    ],
+    "aliases_temas_config": {
+      "politica": "politica",
+      "polemica": "polemica",
+      "humor": "humor",
+      "games": "games",
+      "esportes": "futebol",
+      "futebol": "futebol",
+      "podcast": "podcast_storytime",
+      "entretenimento": "celebridades",
+      "celebridades": "celebridades",
+      "noticias": "noticias"
+    }
+  },
+
+  "placeholders": {
+    "pessoa": "nome curto de quem protagoniza o trecho (ex.: Casimiro)",
+    "pessoa2": "segunda pessoa citada",
+    "convidado": "convidado do podcast/entrevista",
+    "politico": "nome do politico como e conhecido (sem cargo pejorativo)",
+    "adversario": "outro politico/debatedor",
+    "streamer": "nome do streamer",
+    "jogo": "nome curto do jogo (ex.: GTA 6)",
+    "jogador": "nome do jogador de futebol",
+    "time": "nome do clube/selecao",
+    "celebridade": "nome da celebridade",
+    "participante": "participante de reality",
+    "reality": "nome do reality (ex.: A Fazenda)",
+    "programa": "nome do podcast/programa (ex.: Flow, Podpah)",
+    "tema": "assunto em 1-3 palavras",
+    "numero": "numero em digitos",
+    "valor": "valor em dinheiro formatado (ex.: R$ 2 milhoes)",
+    "lugar": "local (ex.: Camara, CPI, estudio)",
+    "fato_curto": "fato em ate 6 palavras",
+    "frase_curta": "citacao curta, ate 6 palavras",
+    "situacao": "situacao em ate 5 palavras",
+    "segredo": "o que foi descoberto, ate 4 palavras",
+    "revelacao": "a virada, ate 4 palavras",
+    "previsao": "previsao feita, ate 5 palavras",
+    "alvo": "quem/o que foi imitado",
+    "acao": "acao vergonhosa em ate 4 palavras",
+    "data": "data curta (ex.: 12/11) - obrigatoria se a fala tem mais de 7 dias",
+    "data_curta": "data curta",
+    "canal_original": "canal/perfil de origem"
+  },
+
+  "limites_plataforma": {
+    "youtube": {
+      "titulo_max_chars": 100,
+      "titulo_alvo_chars": [40, 60],
+      "titulo_visivel_chars_aprox": 40,
+      "emojis_titulo": [1, 2],
+      "hashtags_titulo_max": 1,
+      "hashtags_descricao": [3, 4],
+      "hashtag_shorts": "opcional; no maximo 1 vez na descricao",
+      "duracao_alvo_s": [25, 50],
+      "duracao_max_s_com_risco_content_id": 59,
+      "observacao": "Short >60s com qualquer reivindicacao de Content ID e bloqueado globalmente."
+    },
+    "tiktok": {
+      "descricao_max_chars": 4000,
+      "primeira_linha_alvo_chars": [45, 80],
+      "visivel_antes_do_mais_chars_aprox": 80,
+      "emojis_total": [1, 3],
+      "hashtags": [3, 5],
+      "duracao_alvo_alcance_s": [20, 45],
+      "duracao_alvo_monetizacao_s": [61, 75],
+      "observacao": "Creator Rewards paga apenas videos >1 min; conteudo nao original e manipulacao de curtidas/seguidores ficam fora do For You."
+    },
+    "titulo_no_video": {
+      "max_chars": 45,
+      "max_palavras_gancho": 7,
+      "max_linhas": 2,
+      "emojis": [0, 2]
+    }
+  },
+
+  "hooks_por_categoria": {
+    "politica": [
+      "{politico} foi confrontado ao vivo 😳",
+      "A pergunta que travou {politico}",
+      "{politico} x {adversario}: quem jantou? 🍽️",
+      "O momento que {politico} perdeu a paciência",
+      "{politico} explicou {tema} em {numero}s",
+      "Ninguém esperava essa resposta 👀",
+      "Isso foi dito no {lugar} 🏛️"
+    ],
+    "polemica": [
+      "{pessoa} falou o que ninguém fala 🗣️",
+      "Esse papo dividiu o estúdio",
+      "Ele tá certo ou passou do ponto? 🤔",
+      "A opinião mais impopular do {programa}",
+      "O clima pesou depois disso 😬",
+      "O estúdio ficou em silêncio 😶"
+    ],
+    "humor": [
+      "{pessoa} não tava preparado 💀",
+      "Ninguém tankou essa história 😭",
+      "Olha a cara dele no final 💀",
+      "{pessoa} contando como {situacao} 😭",
+      "-1000 de aura em {numero} segundos 📉",
+      "O fim dessa história KKKKKK"
+    ],
+    "games": [
+      "{streamer} viu isso no {jogo} e coringou",
+      "O detalhe do {jogo} que ninguém viu 👀",
+      "Ele perdeu tudo em {numero} segundos 📉",
+      "A jogada mais absurda do {jogo}",
+      "Esse bug do {jogo} é surreal 💀",
+      "{numero} horas de {jogo} pra isso 😭"
+    ],
+    "futebol": [
+      "{jogador} falou a real sobre o {time}",
+      "O bastidor que ninguém contou ⚽",
+      "Quanto ele ganhava no {time} 💸",
+      "Torcedor do {time}, não assiste 📉",
+      "A resenha pegou fogo aqui 🔥",
+      "Ele cravou isso antes de todo mundo 🎯"
+    ],
+    "podcast_storytime": [
+      "{convidado} descobriu isso no pior dia",
+      "A história mais bizarra do {programa} 😳",
+      "Isso aconteceu de verdade 🫣",
+      "Ele ganhou {valor} com {situacao} 💸",
+      "O conselho que mudou a vida dele",
+      "Ninguém sabia disso sobre {tema} 👀",
+      "Plot twist no final 😳"
+    ],
+    "celebridades": [
+      "{celebridade} expôs {pessoa} ao vivo 👀",
+      "{participante} perdeu a linha 😳",
+      "A indireta pra {pessoa} 🐍",
+      "{celebridade} finalmente contou o motivo",
+      "Ninguém entendeu essa atitude 🤨",
+      "Ela ficou gag com isso 😳"
+    ],
+    "noticias": [
+      "O que muda pra você com {tema}",
+      "{tema} explicado em {numero}s",
+      "Por que todo mundo fala de {tema}?",
+      "O detalhe de {tema} que passou batido",
+      "🚨 {fato_curto}",
+      "{pessoa} explica o caso {tema}"
+    ],
+    "universal": [
+      "POV: você tá nessa mesa 💀",
+      "Espera ele terminar a frase...",
+      "Ele não esperava essa pergunta",
+      "De 0 a 100 em {numero} segundos",
+      "A virada no final 👀",
+      "Isso aqui é {numero}/10 de vergonha 🫠"
+    ],
+    "_regras": {
+      "max_palavras": 7,
+      "max_chars": 40,
+      "max_emojis": 1,
+      "diferente_do_titulo_do_post_max_sobreposicao": 0.5,
+      "payoff_ate_s": 15,
+      "urgente_somente_se_fato_menor_que_horas": 24,
+      "aberturas_proibidas": [
+        "Você não vai acreditar",
+        "Olha isso",
+        "Assista até o final",
+        "Isso é chocante",
+        "Fala, galera",
+        "Você sabia que",
+        "Imperdível",
+        "INSANO",
+        "Ninguém fala sobre isso",
+        "URGENTE!!!",
+        "Muitos não sabem"
+      ]
+    }
+  },
+
+  "titulos_por_categoria": {
+    "politica": [
+      {"t": "{politico} foi confrontado ao vivo e a resposta... 😳", "emocao": "choque"},
+      {"t": "{politico} x {adversario}: quem jantou nesse debate? 🍽️", "emocao": "treta"},
+      {"t": "A pergunta que deixou {politico} sem saída 👀", "emocao": "revelacao"},
+      {"t": "{politico} perdeu a paciência no {lugar} 😬", "emocao": "treta"},
+      {"t": "O que {politico} disse sobre {tema} (fala completa)", "emocao": "revelacao"},
+      {"t": "{politico} riu na hora errada 💀", "emocao": "vergonha_alheia"},
+      {"t": "{politico} explicou {tema} e o estúdio travou", "emocao": "choque"}
+    ],
+    "polemica": [
+      {"t": "{pessoa} hablou sobre {tema} e dividiu o estúdio 🗣️", "emocao": "treta"},
+      {"t": "Opinião impopular: {frase_curta} 🤔", "emocao": "polemica"},
+      {"t": "{pessoa} falou a real sobre {tema} e ninguém rebateu", "emocao": "revelacao"},
+      {"t": "Ele tá certo ou viajou? {tema} 👀", "emocao": "treta"},
+      {"t": "O clima pesou quando {pessoa} falou de {tema} 😬", "emocao": "treta"},
+      {"t": "{pessoa} deu um crashout ao vivo 💀", "emocao": "treta"},
+      {"t": "Isso é rage bait ou verdade? 🤨", "emocao": "polemica"}
+    ],
+    "humor": [
+      {"t": "{pessoa} contando sobre {situacao} KKKKKK 😭", "emocao": "risada"},
+      {"t": "Ninguém tankou essa história do {pessoa} 💀", "emocao": "risada"},
+      {"t": "A cara do {pessoa} no final 💀", "emocao": "risada"},
+      {"t": "{pessoa} perdeu -1000 de aura nessa 📉", "emocao": "vergonha_alheia"},
+      {"t": "O {pessoa} esqueceu que tava ao vivo 😭", "emocao": "vergonha_alheia"},
+      {"t": "socorro, {pessoa} imitando {alvo} 😹", "emocao": "risada"},
+      {"t": "{pessoa} sendo {pessoa} por {numero} segundos 🗿", "emocao": "risada"}
+    ],
+    "games": [
+      {"t": "{streamer} viu isso no {jogo} e coringou 💀", "emocao": "choque"},
+      {"t": "{jogo}: o detalhe que ninguém percebeu 👀", "emocao": "revelacao"},
+      {"t": "{streamer} perdeu {valor} em {numero} segundos 📉", "emocao": "vergonha_alheia"},
+      {"t": "Isso no {jogo} é peak demais 🔥", "emocao": "hype"},
+      {"t": "{streamer} achou o bug mais bizarro do {jogo}", "emocao": "choque"},
+      {"t": "W ou L? A jogada do {streamer} no {jogo} 🎮", "emocao": "hype"},
+      {"t": "{jogo} mal saiu e o {streamer} já fez ISSO", "emocao": "hype"}
+    ],
+    "futebol": [
+      {"t": "{jogador} falou a real sobre o {time} ⚽", "emocao": "revelacao"},
+      {"t": "O bastidor do {time} que ninguém contou 👀", "emocao": "revelacao"},
+      {"t": "{pessoa} cravou: {previsao} 🎯", "emocao": "hype"},
+      {"t": "{jogador} revelou quanto ganhava no {time} 💸", "emocao": "revelacao"},
+      {"t": "Torcedor do {time}, melhor nem ver isso 📉", "emocao": "treta"},
+      {"t": "{pessoa} escolheu o GOAT e a resenha pegou fogo 🐐", "emocao": "treta"},
+      {"t": "{jogador} mogou todo mundo nessa resposta", "emocao": "hype"}
+    ],
+    "podcast_storytime": [
+      {"t": "{convidado} contou a história mais bizarra do {programa} 😳", "emocao": "choque"},
+      {"t": "{convidado} descobriu {segredo} no pior momento possível", "emocao": "choque"},
+      {"t": "Isso aconteceu mesmo com {convidado}? 🫣", "emocao": "curiosidade"},
+      {"t": "{convidado} ganhou {valor} com {situacao} 💸", "emocao": "revelacao"},
+      {"t": "O conselho que mudou a vida de {convidado}", "emocao": "emocao"},
+      {"t": "{convidado} explicou {tema} melhor que qualquer aula 🧠", "emocao": "revelacao"},
+      {"t": "Plot twist: {convidado} era {revelacao} 😳", "emocao": "choque"}
+    ],
+    "celebridades": [
+      {"t": "{celebridade} expôs {pessoa} sem dó 👀", "emocao": "treta"},
+      {"t": "{participante} deu crashout na {reality} 😬", "emocao": "treta"},
+      {"t": "A indireta de {celebridade} pra {pessoa} 🐍", "emocao": "treta"},
+      {"t": "{celebridade} chorou falando de {tema} 🥹", "emocao": "emocao"},
+      {"t": "Ninguém entendeu a atitude de {participante} 🤨", "emocao": "vergonha_alheia"},
+      {"t": "{celebridade} serviu demais aqui ✨", "emocao": "hype"},
+      {"t": "{participante} ficou gag com o que ouviu 😳", "emocao": "choque"}
+    ],
+    "noticias": [
+      {"t": "{fato_curto}: o que muda pra você 👀", "emocao": "revelacao"},
+      {"t": "Entenda {tema} em {numero} segundos", "emocao": "curiosidade"},
+      {"t": "Por que todo mundo tá falando de {tema}?", "emocao": "curiosidade"},
+      {"t": "{pessoa} explica o caso {tema} 📰", "emocao": "revelacao"},
+      {"t": "O detalhe de {tema} que passou batido", "emocao": "revelacao"},
+      {"t": "🚨 {fato_curto} ({data})", "emocao": "urgente", "condicao": "fato com menos de 24h"}
+    ]
+  },
+
+  "titulos_por_emocao": {
+    "choque": ["Ninguém tava pronto pra essa resposta 😳"],
+    "risada": ["Não consigo ver isso sem rir 😭"],
+    "treta": ["O clima ficou tenso em 3, 2, 1... 😬"],
+    "revelacao": ["{pessoa} finalmente contou o motivo 👀"],
+    "fofura": ["{pessoa} falando de {pessoa2} é a coisa mais fofa 🥹"],
+    "vergonha_alheia": ["Senti a vergonha daqui 🫠"],
+    "emocao": ["{pessoa} segurou o choro falando disso 🥀"],
+    "indignacao": ["{pessoa} perdeu a paciência, e com razão? 😤"],
+    "hype": ["Esse momento foi peak {programa} 🔥"],
+    "w": ["W gigante do {pessoa} 📈"],
+    "l": ["L histórico: {pessoa} {acao} 📉"],
+    "curiosidade": ["Ninguém me contou isso sobre {tema} 🤔"]
+  },
+
+  "regras_titulo": {
+    "caps_max_palavras": 1,
+    "caps_distribuicao": {"uma_palavra": 0.50, "nenhuma": 0.45, "titulo_todo": 0.05},
+    "emojis_distribuicao": {"0": 0.15, "1": 0.45, "2": 0.35, "3": 0.05},
+    "emoji_repetido_proibido": true,
+    "emoji_posicao": ["fim", "apos_palavra_chave"],
+    "tamanho_distribuicao": {"curto_25_40": 0.40, "medio_40_60": 0.45, "longo_60_90": 0.15},
+    "giria_max_por_titulo": 1,
+    "giria_prob_max": 0.33,
+    "reticencias_prob_max": 0.15,
+    "exclamacao_multipla_proibida": true,
+    "risada_formato": "KKKKKK (6-8 Ks, maiusculo)",
+    "nome_primeiro": true,
+    "palavras_chave_devem_estar_na_transcricao": true,
+    "similaridade_max_jaccard_ultimos_30": 0.6
+  },
+
+  "emojis_por_emocao": {
+    "choque": ["😳", "🤯", "👀", "😶", "🫢", "‼️"],
+    "risada": ["😭", "💀", "😹", "🤭", "🗿"],
+    "treta": ["😬", "🗣️", "🍿", "🥊", "😤", "⚔️"],
+    "revelacao": ["👀", "🤫", "🫣", "🧐", "🔓"],
+    "fofura": ["🥹", "🫶", "🥺", "💗", "🧸", "✨"],
+    "vergonha_alheia": ["🫠", "😬", "🤡", "🙈", "💀"],
+    "emocao": ["🥀", "💔", "🥲", "😔", "🕊️"],
+    "indignacao": ["😤", "🙄", "😒", "🤨"],
+    "hype": ["🔥", "📈", "🏆", "🐐", "⚡"],
+    "w": ["📈", "🏆", "🐐"],
+    "l": ["📉", "🥀", "💀", "😵‍💫"],
+    "curiosidade": ["🤔", "👀", "🧩"],
+    "polemica": ["🗣️", "🤔", "⚖️", "🤨"],
+    "dinheiro": ["💸", "🤑", "💰"],
+    "urgente": ["🚨", "📰", "⚠️"],
+    "nicho": {
+      "politica": ["🏛️", "🎙️", "🗳️", "⚖️"],
+      "games": ["🎮", "🕹️", "👾"],
+      "futebol": ["⚽", "🏟️", "🧤", "🏆"],
+      "podcast_storytime": ["🎙️", "🎧"],
+      "celebridades": ["🐍", "🏠", "🌾", "🍿", "✨"],
+      "noticias": ["📰", "🚨"]
+    },
+    "evitar": {
+      "😂": "lido como millennial; use 😭 ou 💀",
+      "🤣": "idem",
+      "😱": "clickbait de 2016",
+      "👍": "passivo-agressivo para a Gen Z",
+      "🙂": "passivo-agressivo",
+      "👏": "palmas entre palavras e coisa de 2019",
+      "💯": "spam",
+      "🔥🔥🔥": "emoji repetido = bot",
+      "🇧🇷": "em politica tem leitura partidaria; use so para Selecao"
+    },
+    "popups_por_palavra": {
+      "dinheiro|grana|milhões|milhao|reais|pix": "💸",
+      "mentira|mentiu|fake": "🤥",
+      "chorar|chorei|chorando": "😭",
+      "morri|morreu de rir|socorro": "💀",
+      "polícia|preso|cadeia": "🚨",
+      "fogo|pegou fogo": "🔥",
+      "amor|namorada|namorado|casamento": "💍",
+      "traição|traiu|cobra": "🐍",
+      "segredo|ninguém sabe": "🤫",
+      "olha|reparou|detalhe": "👀",
+      "gol|golaço": "⚽",
+      "bug|travou|lag": "👾",
+      "cérebro|inteligente|gênio": "🧠",
+      "palhaço|ridículo": "🤡"
+    }
+  },
+
+  "hashtags_por_nicho": {
+    "_regras": {
+      "qtd": [3, 5],
+      "composicao": "1 ampla + 1-2 nicho + 1 entidade (pessoa/programa/jogo dinamica, minuscula, sem acento) + 0-1 evento",
+      "nunca_usar": ["#fyp", "#foryou", "#foryoupage", "#viral", "#parati", "#explore", "#trending", "#fy", "#viralvideo", "#tiktok"],
+      "nunca_repetir_conjunto_consecutivo": true,
+      "youtube_titulo_max": 1,
+      "youtube_descricao": [3, 4]
+    },
+    "politica": {
+      "amplas": ["#politica", "#politicabrasileira", "#noticias"],
+      "nicho": ["#brasilia", "#congresso", "#camaradosdeputados", "#senado", "#stf", "#debate", "#cpi", "#entrevista"],
+      "evento": ["#posse2027", "#retrospectiva2026"],
+      "entidade": "#{politico_slug}"
+    },
+    "polemica": {
+      "amplas": ["#polemica", "#opiniao", "#debate"],
+      "nicho": ["#treta", "#podcast", "#cortespodcast", "#papo", "#discussao"],
+      "evento": [],
+      "entidade": "#{pessoa_slug}"
+    },
+    "humor": {
+      "amplas": ["#humor", "#comedia", "#memes"],
+      "nicho": ["#humorbrasileiro", "#standup", "#kkkkkk", "#resenha", "#cortesengracados"],
+      "evento": [],
+      "entidade": "#{pessoa_slug}"
+    },
+    "games": {
+      "amplas": ["#games", "#gamer", "#gaming"],
+      "nicho": ["#gta6", "#gtavi", "#minecraft", "#freefire", "#valorant", "#cs2", "#lol", "#fortnite", "#cortesdelive", "#twitch", "#kick"],
+      "evento": ["#gta6brasil"],
+      "entidade": "#{streamer_slug}"
+    },
+    "futebol": {
+      "amplas": ["#futebol", "#futebolbrasileiro"],
+      "nicho": ["#brasileirao", "#libertadores", "#selecaobrasileira", "#resenha", "#mercadodabola", "#bastidores"],
+      "evento": ["#brasileirao2026", "#libertadores2026"],
+      "entidade": "#{time_slug} ou #{jogador_slug}"
+    },
+    "podcast_storytime": {
+      "amplas": ["#podcast", "#podcastbrasil"],
+      "nicho": ["#cortespodcast", "#storytime", "#historia", "#entrevista", "#cortes"],
+      "evento": [],
+      "entidade": "#{programa_slug} ou #{convidado_slug}"
+    },
+    "celebridades": {
+      "amplas": ["#famosos", "#fofoca", "#entretenimento"],
+      "nicho": ["#reality", "#afazenda", "#afazenda18", "#realityshow", "#celebridades"],
+      "evento": ["#afazenda18", "#bbb27"],
+      "entidade": "#{celebridade_slug}"
+    },
+    "noticias": {
+      "amplas": ["#noticias", "#brasil"],
+      "nicho": ["#atualidades", "#jornalismo", "#economia", "#entenda", "#explicado"],
+      "evento": [],
+      "entidade": "#{tema_slug}"
+    }
+  },
+
+  "girias_ok": [
+    {"giria": "farmar aura", "sentido": "ganhar moral", "nichos": ["humor", "games", "futebol"], "obs": "mainstream desde meados de 2026; risco de virar old: no maximo 1 a cada 10 titulos"},
+    {"giria": "+1000 de aura / -1000 de aura", "sentido": "ganhou/perdeu moral", "nichos": ["humor", "games", "futebol"]},
+    {"giria": "tankar", "sentido": "aguentar", "nichos": ["games", "humor", "futebol"]},
+    {"giria": "jantou", "sentido": "venceu a discussao", "nichos": ["politica", "polemica", "celebridades"]},
+    {"giria": "hablou", "sentido": "falou verdades", "nichos": ["polemica", "celebridades"]},
+    {"giria": "gag / ficou gag", "sentido": "chocou", "nichos": ["celebridades"]},
+    {"giria": "serviu / entregou tudo", "sentido": "arrasou", "nichos": ["celebridades"]},
+    {"giria": "pocou", "sentido": "arrasou", "nichos": ["celebridades", "humor"]},
+    {"giria": "crashout / deu crashout", "sentido": "explodiu emocionalmente", "nichos": ["polemica", "celebridades", "games"]},
+    {"giria": "coringou", "sentido": "surtou", "nichos": ["games", "humor"]},
+    {"giria": "plot twist / plot", "sentido": "reviravolta", "nichos": ["podcast_storytime"]},
+    {"giria": "delulu", "sentido": "iludido", "nichos": ["humor", "podcast_storytime"]},
+    {"giria": "W / L", "sentido": "vitoria / derrota", "nichos": ["games", "futebol", "humor"]},
+    {"giria": "NPC", "sentido": "sem personalidade", "nichos": ["humor"]},
+    {"giria": "bapho", "sentido": "babado, escandalo", "nichos": ["celebridades"]},
+    {"giria": "peak", "sentido": "o auge", "nichos": ["games", "futebol"]},
+    {"giria": "mogou", "sentido": "superou", "nichos": ["futebol", "celebridades"]},
+    {"giria": "red flag", "sentido": "sinal de alerta", "nichos": ["podcast_storytime", "humor"]},
+    {"giria": "rage bait", "sentido": "provocacao pra engajar", "nichos": ["polemica"]},
+    {"giria": "a real / papo reto / PPRT", "sentido": "verdade direta", "nichos": ["polemica", "futebol", "podcast_storytime"]},
+    {"giria": "deixa ele cozinhar", "sentido": "deixa terminar o raciocinio", "nichos": ["polemica", "politica"]},
+    {"giria": "flopou / hitou", "sentido": "fracassou / bombou", "nichos": ["celebridades"]},
+    {"giria": "tiltou / nerfaram", "sentido": "perdeu o controle / enfraqueceram", "nichos": ["games"]},
+    {"giria": "GOAT", "sentido": "o melhor", "nichos": ["futebol", "games"]},
+    {"giria": "brainrot", "sentido": "conteudo que frita/vicia (ironico)", "nichos": ["games", "humor"]},
+    {"giria": "socorro / mano do céu / vish", "sentido": "espanto", "nichos": ["universal"]},
+    {"giria": "KKKKKK", "sentido": "risada (6-8 Ks)", "nichos": ["universal"]}
+  ],
+
+  "girias_evitar": [
+    {"giria": "sextou", "motivo": "millennial/marca"},
+    {"giria": "lacrou / lacração / lacre", "motivo": "datada e com carga politica (lacracao virou pejorativo)"},
+    {"giria": "mito / mitou", "motivo": "datada e com carga politica forte"},
+    {"giria": "gado / gado demais", "motivo": "xingamento partidario; nunca em politica"},
+    {"giria": "é sobre isso / e tá tudo bem", "motivo": "2021-22, millennial"},
+    {"giria": "tô passada / divou / arrasou / diva", "motivo": "millennial"},
+    {"giria": "top / mico / migles / contatinho / oi sumido / boy lixo", "motivo": "datadas"},
+    {"giria": "close errado / uó / tombou / berro / tô bege", "motivo": "2016-2019"},
+    {"giria": "o pai tá on", "motivo": "pico 2021-22"},
+    {"giria": "biscoitando / biscoiteiro", "motivo": "gasta em titulo"},
+    {"giria": "cringe", "motivo": "virou palavra de quem tenta parecer jovem; use vergonha alheia ou 🫠"},
+    {"giria": "skibidi / Ohio / rizz / sigma", "motivo": "Gen Alpha/2023; so com ironia explicita, max 1 a cada 30 posts"},
+    {"giria": "six seven / 67", "motivo": "meme Gen Alpha saturado em 2025"},
+    {"giria": "tung tung tung sahur / bombardiro crocodilo (brainrot italiano)", "motivo": "2025, datado"},
+    {"giria": "aura farming (em ingles)", "motivo": "use farmar aura"},
+    {"giria": "rsrs / hahaha / kkk curto", "motivo": "adulto ou robotico"},
+    {"giria": "galera / pessoal (em CTA)", "motivo": "YouTuber de 2015"},
+    {"giria": "INSANO / CHOCANTE / IMPERDÍVEL / URGENTE (falso) / você não vai acreditar", "motivo": "clickbait 2018, sinal de bot"}
+  ],
+
+  "cta_finais": {
+    "_regras": {
+      "prob_sem_cta": 0.30,
+      "nao_repetir_antes_de_posts": 10,
+      "onde": "ultima linha antes das hashtags na descricao; no video so CTA de serie (ultimos 2.0 s)"
+    },
+    "comentario_escolha": [
+      "Quem tá certo: {pessoa} ou {pessoa2}? 👇",
+      "Concorda com ele? Sim ou não?",
+      "W ou L?",
+      "Nota de 0 a 10 pra essa resposta",
+      "Time {pessoa} ou time {pessoa2}?"
+    ],
+    "comentario_opiniao": [
+      "Qual foi a pior parte?",
+      "Você tankaria isso?",
+      "O que você faria no lugar dele?",
+      "Exagero ou ele tem razão?"
+    ],
+    "compartilhar": [
+      "Manda pra quem precisa ouvir isso",
+      "Marca aquele amigo que faria isso 💀",
+      "Manda pro amigo que é igualzinho"
+    ],
+    "salvar": [
+      "Salva pra mostrar pro teu pai",
+      "Salva pra não esquecer"
+    ],
+    "serie_no_video": [
+      "parte 2 no perfil 👀",
+      "a resposta tá na parte 2",
+      "continua na parte 2 🔜",
+      "parte 2 já tá no perfil"
+    ],
+    "serie_pergunta": [
+      "Parte 2? 👀"
+    ],
+    "proibidas": [
+      "Curte e segue para mais",
+      "Deixa o like",
+      "Se inscreva e ative o sininho",
+      "Segue pra parte 2",
+      "Comenta EU que eu te mando",
+      "Comenta aí, galera!"
+    ]
+  },
+
+  "estilo_legenda": {
+    "preset_pesos": {"impacto": 0.40, "enfase": 0.35, "caixa": 0.15, "quiet": 0.10},
+    "preset_por_nicho": {
+      "politica": ["caixa", "enfase"],
+      "polemica": ["enfase", "impacto"],
+      "humor": ["impacto", "enfase"],
+      "games": ["impacto", "enfase"],
+      "futebol": ["impacto", "enfase"],
+      "podcast_storytime": ["enfase", "impacto", "quiet"],
+      "celebridades": ["enfase", "impacto"],
+      "noticias": ["caixa", "enfase"]
+    },
+    "preset_por_emocao_override": {"fofura": "quiet", "emocao": "quiet"},
+    "presets": {
+      "impacto": {
+        "fontes": ["Montserrat Black", "Anton", "TikTok Sans ExtraBold"],
+        "tamanho": {"full": 96, "split": 90, "blur": 84},
+        "maiusculas": true,
+        "palavras_por_tela": 2,
+        "max_palavras": 3,
+        "cor": "#FFFFFF",
+        "contorno": "#000000",
+        "contorno_px": 7,
+        "sombra_px": 3,
+        "sombra_alpha": 0.5,
+        "destaque": "palavra_ativa",
+        "destaque_cor": "por_nicho",
+        "destaque_escala": 1.12
+      },
+      "enfase": {
+        "fontes": ["Montserrat ExtraBold", "TikTok Sans Bold", "Archivo Black"],
+        "tamanho": {"full": 92, "split": 86, "blur": 80},
+        "maiusculas": true,
+        "palavras_por_tela": 2,
+        "max_palavras": 3,
+        "cor": "#FFFFFF",
+        "contorno": "#000000",
+        "contorno_px": 7,
+        "sombra_px": 3,
+        "sombra_alpha": 0.5,
+        "destaque": "palavras_chave",
+        "palavra_ativa_escala": 1.08,
+        "palavras_chave_tipos": ["numero", "nome_proprio", "negacao", "palavrao", "superlativo", "dinheiro"],
+        "destaque_cor": "por_nicho"
+      },
+      "caixa": {
+        "fontes": ["Montserrat Bold", "TikTok Sans SemiBold"],
+        "tamanho": {"full": 84, "split": 80, "blur": 76},
+        "maiusculas": true,
+        "palavras_por_tela": 3,
+        "max_palavras": 3,
+        "cor": "#FFFFFF",
+        "caixa_cor": "#000000",
+        "caixa_opacidade": 0.85,
+        "caixa_padding_px": 18,
+        "contorno_px": 0,
+        "destaque": "palavra_ativa",
+        "destaque_cor": "por_nicho",
+        "obs": "BorderStyle=3 (caixa opaca) do ASS serve; cantos arredondados exigem desenho vetorial ou PNG"
+      },
+      "quiet": {
+        "fontes": ["Poppins SemiBold", "TikTok Sans Medium"],
+        "tamanho": {"full": 68, "split": 64, "blur": 62},
+        "maiusculas": false,
+        "palavras_por_tela": 5,
+        "max_palavras": 6,
+        "linhas_max": 1,
+        "cor": "#FFFFFF",
+        "contorno_px": 0,
+        "sombra_px": 4,
+        "sombra_blur": 3,
+        "sombra_alpha": 0.6,
+        "destaque": "nenhum",
+        "destaque_cor_opcional": "#FFD98A"
+      }
+    },
+    "comum": {
+      "max_chars_linha": 16,
+      "linhas_max": 2,
+      "linhas_preferidas": 1,
+      "min_dur_bloco_s": 0.30,
+      "segura_apos_fala_s": 0.35,
+      "animacao_entrada": {"escala_inicial": 0.75, "escala_pico": 1.06, "escala_final": 1.00, "duracao_ms": 130},
+      "proibido": ["shake em toda palavra", "whoosh sonoro por palavra", "emoji dentro da linha", "3+ cores na mesma linha", "fonte script ou fina", "Impact (so fallback)"],
+      "posicao_y": {"full": 1150, "split_50_50": 960, "split_58_42": 1120, "blur": 1420},
+      "largura_max_px": {"full": 840, "split": 900, "blur": 840},
+      "safe_zone_px": {"topo": 260, "base": 420, "direita": 140, "esquerda": 60},
+      "numeros_em_digitos": true,
+      "palavrao": "manter audio; mascarar vogal do meio na legenda (C*RALHO); sem beep",
+      "silencio_sem_legenda": true,
+      "nomes": "passar nomes do titulo/canal ao Whisper como prompt inicial e corrigir grafia depois"
+    },
+    "titulo_no_video": {
+      "y_topo_px": 260,
+      "largura_max_px": 940,
+      "max_linhas": 2,
+      "max_chars": 45,
+      "duracao": "video inteiro",
+      "variantes": {
+        "A_nativo": {"peso": 0.45, "caixa": "#FFFFFF", "texto": "#000000", "raio": "0.38*px", "fonte": ["TikTok Sans Bold", "Montserrat ExtraBold"], "px": [64, 72], "caixa_alta": "sentence"},
+        "B_invertido": {"peso": 0.25, "caixa": "#111111", "caixa_opacidade": 0.92, "texto": "#FFFFFF", "palavra_chave_cor": "por_nicho", "px": [64, 72], "caixa_alta": "sentence"},
+        "C_sem_caixa": {"peso": 0.20, "texto": "#FFFFFF", "contorno_px": 8, "palavra_chave_cor": "por_nicho", "fonte": ["Anton", "Bebas Neue"], "px": [80, 90], "caixa_alta": "caps"},
+        "D_etiqueta": {"peso": 0.10, "base": "A ou B", "etiqueta_px": 34, "exemplos": ["🎙️ PODCAST", "🎮 GTA 6", "🏛️ CÂMARA", "⚽ RESENHA"]}
+      },
+      "pilula_parte": {"px": [40, 44], "formato": "PARTE {n}/{total}", "final": "PARTE {n}/{total} · FINAL", "posicao": "acima do card, centralizada", "texto": "#FFFFFF"},
+      "repeticao_max_seguida": 3
+    },
+    "barra_progresso": {
+      "ligar_se_duracao_maior_que_s": 35,
+      "posicao": "colada sob o titulo, mesma largura do card",
+      "altura_px": 8,
+      "trilho": "#FFFFFF@35%",
+      "preenchimento": "por_nicho"
+    },
+    "efeitos": {
+      "zoom_impacto_inicio": {"de": 1.10, "para": 1.00, "duracao_ms": 350},
+      "punchin": {"niveis": [1.00, 1.10, 1.18], "intervalo_s": [3, 5], "minimo_entre_s": 2, "transicao": "corte seco ou ease 80 ms"},
+      "zoom_enfase": {"escala": 1.15, "duracao_ms": 80, "max_por_s": "1 a cada 6 s"},
+      "shake_climax": {"amplitude_px": 6, "duracao_ms": 250, "max_por_corte": 1},
+      "emoji_popup": {"tamanho_px": [170, 200], "x_pct": [0.70, 0.80], "rotacao_graus": [-8, 8], "pop_ms": 160, "duracao_s": 0.9, "fade_ms": 120, "intervalo_min_s": 7, "repetir_no_corte": false},
+      "meme_insert": {"largura_max_pct": 0.35, "duracao_s": [0.6, 1.0], "max_por_corte": 1, "nichos": ["humor", "games"]},
+      "teaser_invertido": {"duracao_s": [1.2, 2.5], "transicao_ms": 150, "prob": 0.25},
+      "nada_parado_mais_que_s": 8
+    },
+    "layout": {
+      "pesos": {"full": 0.55, "split": 0.28, "empilhado_2_rostos": 0.10, "blur": 0.07},
+      "split_proporcao_topo": 0.58,
+      "split_proibido_em": ["noticia tragica", "politica seria", "choro", "luto"],
+      "fundo": {"saturacao": [0.85, 0.95], "brilho": -0.05, "velocidade": 1.0, "audio": "mudo", "sem_texto_hud": true, "repetir_arquivo_apos_posts": 20, "mesma_categoria_seguida": false},
+      "fundos_reduzir": {"subway_surfers": 0.10, "minecraft_parkour": 0.05},
+      "fundos_preferir": ["gta6_direcao_sem_spoiler", "minecraft_construcao", "corrida_de_bolinhas", "trackmania", "rocket_league", "free_fire", "satisfying_sabao", "areia_cinetica", "prensa_hidraulica", "slime", "cozinha_asmr_sem_rosto"]
+    },
+    "audio": {
+      "voz": {"lufs": -14, "true_peak_dbtp": -1.0, "lra": [7, 11]},
+      "musica": {"padrao": "sem", "db_abaixo_voz": [-24, -20], "ducking_db": [6, 8], "permitida_em": ["humor", "games"], "licenca": "precisa cobrir TikTok E YouTube"},
+      "sfx": {"pico_db_abaixo_voz": -6, "vine_boom_db": -4, "whoosh_db": -12, "vine_boom_max": 1, "whoosh_max": 3, "banco_tamanho": [15, 20], "vine_boom_prob_max_posts": 0.33},
+      "gameplay": "mudo",
+      "velocidade_fala_max": 1.07,
+      "silencio_max_s": 0.40,
+      "silencio_vira_s": 0.12,
+      "pausa_dramatica_max_s": 0.7,
+      "pre_roll_max_s": 0.15
+    },
+    "series": {
+      "max_partes": 3,
+      "titulo": "{titulo_base_variado} (parte {n})",
+      "titulo_final": "{titulo_base_variado} (parte {n}, final)",
+      "cliffhanger_corte_apos_pergunta_s": [0.3, 0.8],
+      "cta_overlay_ultimos_s": 2.0,
+      "cta_overlay_y": 1400,
+      "cta_overlay_px": 44,
+      "tela_final_separada": false,
+      "intervalo_entre_partes_h": [2, 6],
+      "youtube_video_relacionado": "parte N aponta para parte N-1; editar parte 1 para apontar parte 2 se possivel",
+      "sob_demanda_opcional": "publicar parte 2 so se parte 1 >= mediana de views da conta ou comentarios pedirem"
+    },
+    "capa": {
+      "frame_s": [0.5, 1.5],
+      "grade_tiktok_area_util_y": [260, 1660],
+      "texto_capa_palavras": [2, 4],
+      "texto_capa_max_chars": 20,
+      "texto_capa_px": [110, 140]
+    }
+  },
+
+  "cores_destaque_por_nicho": {
+    "politica": {"destaque": "#00E5FF", "card_caixa": "#FFFFFF", "card_texto": "#000000", "pill_parte": "#1F2937", "pill_texto": "#FFFFFF", "barra": "#00E5FF", "evitar": ["#FF0000", "verde+amarelo", "azul-escuro", "🇧🇷"]},
+    "polemica": {"destaque": "#FF3B30", "card_caixa": "#111111", "card_texto": "#FFFFFF", "pill_parte": "#FF3B30", "pill_texto": "#FFFFFF", "barra": "#FF3B30", "evitar": ["mais de uma cor de destaque"]},
+    "humor": {"destaque": "#FFE600", "card_caixa": "#FFFFFF", "card_texto": "#000000", "pill_parte": "#FF2D55", "pill_texto": "#FFFFFF", "barra": "#FFE600", "evitar": []},
+    "games": {"destaque": "#39FF88", "destaque_alt": "#C084FC", "card_caixa": "#0B0B0F", "card_texto": "#FFFFFF", "pill_parte": "#7C3AED", "pill_texto": "#FFFFFF", "barra": "#39FF88", "evitar": []},
+    "futebol": {"destaque": "#C6FF00", "card_caixa": "#FFFFFF", "card_texto": "#000000", "pill_parte": "#111111", "pill_texto": "#C6FF00", "barra": "#C6FF00", "evitar": ["cor de clube, exceto se o corte e sobre aquele clube"]},
+    "podcast_storytime": {"destaque": "#FFD166", "destaque_alt": "#FFE600", "card_caixa": "#FFFFFF", "card_texto": "#000000", "pill_parte": "#FF2D55", "pill_texto": "#FFFFFF", "barra": "#FFD166", "evitar": []},
+    "celebridades": {"destaque": "#FF4FD8", "card_caixa": "#FFFFFF", "card_texto": "#000000", "pill_parte": "#FF4FD8", "pill_texto": "#FFFFFF", "barra": "#FF4FD8", "evitar": []},
+    "noticias": {"destaque": "#FF453A", "card_caixa": "#FFFFFF", "card_texto": "#000000", "pill_parte": "#DC2626", "pill_texto": "#FFFFFF", "barra": "#FF453A", "evitar": ["🚨 em fato antigo"]},
+    "fofura": {"destaque": "#FF8FB1", "card_caixa": "#FFFFFF", "card_texto": "#000000", "pill_parte": "#FF8FB1", "pill_texto": "#FFFFFF", "barra": "#FF8FB1", "evitar": []}
+  },
+
+  "descricao_esqueletos": [
+    "{titulo_variante_com_palavra_chave}\n🎙️ {convidado} no {programa} ({data_curta})\n{pergunta_cta}\n{hashtags}\nFonte: {canal_original}",
+    "{pessoa} sobre {tema}, em {lugar}, {data}.\n{frase_resumo_neutra}\n{pergunta_cta}\n{hashtags}\nFonte: {canal_original}",
+    "{frase_curta_com_giria_ou_kkkk} {emoji}\n{hashtags}\nFonte: {canal_original}"
+  ],
+
+  "variacao_anti_bot": {
+    "titulo_template_nao_repetir_posts": 15,
+    "primeira_palavra_nao_repetir_posts": 5,
+    "combo_emoji_nao_repetir_posts": 10,
+    "giria_nao_repetir_posts": 8,
+    "preset_legenda_max_seguidos": 3,
+    "variante_card_max_seguidos": 3,
+    "split_max_seguidos": 2,
+    "fundo_arquivo_nao_repetir_posts": 20,
+    "cta_nao_repetir_posts": 10,
+    "horario_jitter_min": [7, 25],
+    "posts_dia_variacao": [-1, 1],
+    "max_cortes_mesma_fonte_dia_plataforma": 3,
+    "intervalo_min_mesma_fonte_h": 3,
+    "ritmo_conta_nova": {"tiktok": {"semana1": 1, "semana2": [2, 3], "depois": [4, 6]}, "youtube": {"inicio": [2, 3], "depois": [4, 6]}},
+    "proibido": ["espelhar video", "pitch shift", "bordas coloridas anti-copyright", "acelerar >1.07x", "marca d'agua de outra plataforma", "marca d'agua grande", "descricao so com hashtags", "hashtags fixas iguais em todo post", "postar em horario exato :00"],
+    "gates_qualidade": [
+      "palavras-chave do titulo presentes na transcricao",
+      "fala nos primeiros 1.5 s",
+      "rosto em >= 70% dos frames no layout full",
+      "nomes do titulo/canal grafados corretamente na legenda",
+      "politica/noticias: inclui a pergunta, nao inverte sentido, data se fala > 7 dias",
+      "similaridade Jaccard <= 0.6 com titulos dos ultimos 30 posts"
+    ]
+  }
+}

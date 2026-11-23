@@ -1,0 +1,250 @@
+# =====================================================================
+#   CORTEX - Central Operacional de Recortes, Tendencias e EXposicao
+#   Configuracao. Edite com o Bloco de Notas. Linhas com # sao comentarios.
+#   Se apagar alguma opcao, o valor padrao e usado.
+#   O piloto automatico rele este arquivo a cada rodada (nao precisa reiniciar).
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# PUBLICACAO das rodadas manuais/agendadas
+#   auto         -> publica sozinho (TikTok + YouTube Shorts) e manda relatorio
+#   revisar      -> prepara tudo e espera voce aprovar; depois envia tudo de uma vez
+#   nao_publicar -> so gera os videos
+# ---------------------------------------------------------------------
+modo_publicacao: auto
+
+# ---------------------------------------------------------------------
+# PILOTO AUTOMATICO 24/7  (menu > Piloto automatico, ou: cortex autopiloto)
+# ---------------------------------------------------------------------
+autopiloto:
+  publicacao: auto                # auto = publica tudo que ficar pronto | revisar = so o que voce aprovar
+  fila_minima: 4                  # produz mais cortes quando a fila cair abaixo disso
+  fila_maxima: 12                 # nao produz se a fila ja estiver cheia
+  intervalo_producao_min: 90      # tempo minimo entre duas rodadas de producao
+  producao_maxima_h: 6            # produz pelo menos a cada X horas (assuntos novos)
+  validade_horas: 36              # corte nao publicado depois disso fica "velho" e sai da fila
+  nota_minima_publicar: 62        # sozinho so publica nota >= isso; o resto espera voce aprovar (Revisar)
+  janela_publicacao: ["09:30", "00:30"]   # so publica dentro deste horario
+  variacao_min: [7, 25]           # variacao aleatoria nos horarios (nada de intervalos exatos)
+  manter_pc_acordado: true        # impede o PC de suspender enquanto o piloto roda
+  # Producao proporcional ao que da para publicar: produz ~2,5x o que posta e publica so os de nota maior
+  estoque_dias: 2.5               # multiplicador: fila = capacidade de posts do dia x isto
+  cortes_por_video_estimado: 2
+  # Nao atrapalhar voce: se estiver usando o PC, a producao espera ficar ocioso (ate o limite abaixo)
+  esperar_pc_ocioso: true
+  ocioso_min: 5                   # minutos sem mexer no mouse/teclado para considerar ocioso
+  espera_maxima_ocioso_min: 120   # depois disso produz mesmo assim (com prioridade baixa)
+  prioridade_baixa: true          # processamento pesado com prioridade baixa no Windows
+  pausa_entre_videos_s: 20        # respiro para a CPU esfriar entre um video e outro
+  # Horario nobre (BRT) por dia da semana - medido em 1.049 Shorts de canais de cortes BR (21h-24h rende 1,4x a 2,3x)
+  horarios_nobres_semana:
+    seg: ["12:00-14:00", "21:00-23:30"]
+    ter: ["12:00-14:00", "21:00-23:30"]
+    qua: ["12:00-14:30", "21:00-23:30"]
+    qui: ["10:00-12:00", "21:00-23:30"]
+    sex: ["15:00-17:30", "21:00-23:59"]
+    sab: ["12:00-14:00", "15:00-17:30"]
+    dom: ["10:00-12:00", "18:30-21:30"]
+
+traducao:
+  # Videos estrangeiros: legenda traduzida para portugues pela IA local (gratis)
+  motor: ollama                   # ollama | claude | auto
+  permitir_claude: false          # true = usa o Claude se o Ollama falhar (gasta cota)
+  lote_caracteres: 1100
+  temperatura: 0.2
+
+conteudo:
+  emojis: true                    # emojis no video e nos posts (o terminal nunca mostra emojis)
+  titulo_com_citacao: true        # a frase mais pesada que a pessoa falou vai entre aspas no titulo e no video
+  titulo_com_citacao_proporcao: 0.7   # teste A/B: 70% com aspas, 30% sem
+  palavroes: mascarar             # mascarar (p*rra) | mostrar (palavrao inteiro, pode reduzir alcance) | remover
+  marcar_legendado: true          # cortes de videos estrangeiros ganham "(LEGENDADO)" no titulo
+  # VOLUME DA POLEMICA (titulos, ganchos, legendas de post):
+  #   neutro | polemico | malicioso (duplo sentido) | super_polemico | modo_besta (tudo no maximo,
+  #   palavrao sem mascara, gancho e citacao em 100% dos cortes). Aceita tambem "sem limites" ou "extremo".
+  # Piso fixo em qualquer nivel: a insinuacao precisa estar no corte; nunca inventa crime, traicao ou caso
+  # de pessoa real; nada sexual com menores; nada de odio contra grupos.
+  tom_titulo: malicioso
+
+execucao:
+  videos_por_execucao: 5          # quantos videos-fonte processar por rodada (5, 10, 15, 20...)
+  cortes_por_video: auto          # numero fixo (ex.: 3) ou "auto" (a IA decide)
+  max_cortes_por_execucao: 10     # teto de cortes gerados por rodada
+  # Horarios do modo AGENDADO (alternativa ao piloto 24/7). Ative com: cortex agendar
+  horarios: ["09:30", "15:30", "18:30"]
+
+busca:
+  # trends        -> descobre sozinho o que esta em alta (padrao)
+  # palavra_chave -> busca so pelas palavras-chave abaixo
+  # misto         -> trends + palavras-chave
+  modo: trends
+  palavras_chave: []              # ex.: ["debate presidencial", "gta 6", "neymar"]
+  pais: BR
+  idioma: pt
+  # Temas que interessam. Dica da pesquisa: conta nova cresce mais rapido com 1-2 nichos fixos.
+  temas: [politica, polemica, games, humor, entretenimento, podcast, noticias, celebridades]
+  janela_horas: 48                # idade maxima do video-fonte
+  duracao_min_s: 90
+  duracao_max_s: 21600            # 6h (lives longas: so baixamos os trechos)
+  views_minimas: 5000
+  usar_canais_sugeridos: true     # acompanha uma lista de canais grandes do Brasil
+  # Videos estrangeiros (ingles e outros): so entram os muito virais que fazem sentido no Brasil,
+  # e saem com legenda traduzida para portugues
+  idiomas: [pt, en]
+  estrangeiro:
+    ativo: true
+    nota_minima: 75               # regua mais alta que a dos videos em portugues
+  # Mescla de nichos por rodada (a IA respeita e o aprendizado ajusta com o tempo)
+  mix_nichos: {politica: 0.3, games: 0.35, humor: 0.35}
+  # Via rapida: vigia que acha momento explodindo (clipe da Twitch/Kick, video novo bombando) e corta na hora
+  via_rapida:
+    ativa: true
+    intervalo_min: 10
+    twitch_views_min: 1500
+    kick_views_min: 1000
+    yt_vph_min: 5000
+    bonus_nota: 10
+  fontes:
+    google_trends: true
+    google_news: true
+    x_trends: true
+    reddit: false                 # o Reddit bloqueia este PC (erro 403)
+    youtube: true
+    twitch: true
+    kick: true                    # os grandes streamers BR migraram para a Kick
+    rumble: false
+  # Canais acompanhados de perto (lista inicial vinda da pesquisa em docs\ideias\estrategia_conteudo.md)
+  canais_monitorados:
+    youtube: ["@CamaradosDeputadosOficial", "@FlowPodcast", "@Podpah", "@inteligencialtda", "@TICARACATICAST",
+              "@venuspdc", "@PrimoCast", "@CharlaPodcast", "@Gameplayrj", "@BetoRibeiroCrime"]
+    twitch: ["cellbit", "felps", "casimiro"]
+    kick: ["coringa", "paulinholokobr", "gaules", "tck10", "jonvlogs"]
+    rumble: []
+  # Nunca cortar (proibem cortes ou dao strike): so servem como sinal de assunto
+  canais_bloqueados: ["alanzoka", "@tvsenado", "TV Senado", "@podpeopleanabeatriz", "PodPeople",
+                      "@CazeTV", "CazeTV", "@afazenda", "A Fazenda"]
+  palavras_bloqueadas: []
+  # Categorias arriscadas (direitos autorais / politica das plataformas) que sao puladas
+  pular_categorias: [esporte_transmissao, tv_aberta, filmes_series, musica, apostas, menores]
+
+cerebro:
+  # auto       -> Claude se estiver logado, senao Ollama, senao heuristico
+  # claude     -> Claude Code (menu > Login > Claude, uma vez so)
+  # ollama     -> IA local (precisa do Ollama e do modelo baixado)
+  # heuristico -> sem IA: "mais repetidos" do YouTube, picos de audio e palavras-chave
+  motor: auto
+  # ECONOMIA DE IA: "economica" usa a IA local (Ollama, gratis) para ranquear assuntos, traduzir e escrever,
+  # e o Claude (modelo leve) so para escolher os cortes, ate o teto diario. Acabou o teto: Ollama.
+  estrategia: economica           # economica | qualidade (Claude em tudo, gasta mais cota)
+  claude_modelo: haiku            # haiku = o modelo mais leve e barato do Claude (vazio = padrao da conta)
+  claude_max_chamadas_dia: 25     # teto de chamadas do Claude por dia (0 = nunca usar o Claude)
+  ollama_modelo: qwen3:4b-instruct   # para usar: ollama pull qwen3:4b-instruct (2,5 GB)
+  ollama_url: http://127.0.0.1:11434
+  timeout_s: 300
+  ollama_timeout_s: 600           # a IA local roda na CPU e precisa de mais tempo
+  ollama_max_janelas: 4           # videos longos: quantas janelas a IA local analisa (menos = mais rapido)
+  ollama_threads: 6               # nucleos usados pela IA local (este PC aguenta melhor sem usar todos)
+
+transcricao:
+  modelo_whisper: small           # escolha dos momentos em videos longos (rapido)
+  modelo_legenda: large-v3-turbo  # legenda queimada no video: erro caiu de 16% para 11% (docs/LEGENDAS.md)
+  usar_prompt: true               # passa titulo/canal/nomes para o Whisper acertar nomes proprios
+  legenda_max_s: 150
+  usar_legendas_da_plataforma: true
+  threads: 0                      # 0 = automatico
+  max_minutos_completo: 25        # videos maiores sem legenda: transcreve so os momentos quentes
+  janelas_video_longo: 8
+  tamanho_janela_s: 240
+
+corte:
+  # Pesquisa: Shorts de 21-40 s rendem 1,2x; 41-59 s rendem 0,8x. E acima de 60 s com reivindicacao e bloqueado.
+  duracao_min_s: 15
+  duracao_max_s: 45
+  permitir_series: true           # "Parte 1, Parte 2..." quando o assunto rende
+  duracao_parte_s: 50
+  max_partes: 3
+  pontuacao_minima: 55            # cortes com nota abaixo disso sao descartados (0-100)
+  max_cortes_mesma_fonte_dia: 3
+
+edicao:
+  # split -> video em cima + fundo (gameplay/ASMR) embaixo | blur -> fundo desfocado
+  # full  -> tela cheia (rosto/podcast) | auto -> escolhe pelo conteudo
+  layout: auto
+  cold_open: true                 # GANCHO: abre o video com a frase mais polemica do corte (1,5 a 3 s) e corta pro inicio
+  cold_open_max_s: 3.0
+  cold_open_proporcao: 0.7        # teste A/B: 70% dos cortes com gancho, 30% sem (o aprendizado mede qual rende mais)
+  fundo_categorias: [gameplay, satisfying, asmr, procedural]
+  legenda:
+    estilo: karaoke               # karaoke (palavra atual colorida) | palavra | bloco
+    fonte: auto
+    tamanho: 90
+    cor: "#FFFFFF"
+    cor_destaque: auto            # auto = cor por nicho (politica ciano, humor amarelo, games verde...)
+    contorno: "#000000"
+    palavras_por_tela: 2
+    maiusculas: true
+    posicao: centro
+  titulo_no_video: true
+  duracao_titulo_s: 0             # 0 = titulo o video inteiro
+  barra_progresso: true
+  marca_dagua: ""       # texto de reserva se a logo nao existir
+  logo_marca_dagua: assets/marca/logo_marca_dagua.png   # logo pequena num canto seguro do video
+  marca_dagua_arroba: true        # escreve o @ da rede (YouTube e TikTok tem @ diferentes: sai 1 versao por rede)
+  encoder: libx264                # libx264 (CPU, mais estavel neste PC) | h264_amf (placa AMD, mais rapido) | auto
+  qualidade: alta                 # rapida | media | alta
+  threads: 6                      # nucleos para o ffmpeg (deixa folga para o PC)
+  normalizar_audio: true
+  fps: 30
+
+publicacao:
+  plataformas: [youtube, tiktok]
+  # tiktok_modo: auto = publica sozinho | semi = preenche tudo e VOCE clica em Publicar
+  tiktok_modo: auto
+  # Versao longa so no TikTok (>= 1 min, monetizavel nas Recompensas para Criadores). YouTube segue curto:
+  # Short acima de 60 s com reivindicacao de direitos e bloqueado no mundo todo.
+  tiktok_longo:
+    ativo: true
+    proporcao: 0.4                # 40% dos cortes ganham versao longa (suba para 0.8+ perto de 10 mil seguidores)
+    min_s: 61
+    max_s: 90
+  navegador: chrome               # chrome | msedge
+  headless: false
+  janela_oculta: true             # o Chrome que publica abre FORA da tela (nao atrapalha voce); login continua visivel
+  intervalo_entre_posts_s: [90, 240]   # espera entre posts num envio em lote (modo revisar)
+  max_posts_por_dia:              # teto absoluto (o aquecimento pode limitar abaixo disso)
+    youtube: 2                    # canais de cortes que mais crescem no Shorts postam ~1 por dia
+    tiktok: 4
+  intervalo_minimo_min:           # minimo entre dois posts na mesma rede
+    youtube: 300
+    tiktok: 150
+  aquecimento:
+    ativo: true                   # conta nova posta pouco no comeco (recomendado!)
+    # [dia_inicial, dia_final, posts_por_dia] contados a partir do 1o login na Fabrica
+    # pesquisa oficial (docs/ideias/contas_e_monetizacao.md): dias 0-2 sem post (use a conta na mao),
+    # semana 1: 1/dia, semanas 2-4: 2/dia, mes 2 em diante: ate 4/dia (o teto max_posts_por_dia limita o YouTube a 2)
+    tabela: [[0, 2, 0], [3, 7, 1], [8, 28, 2], [29, 99999, 4]]
+  contas:                         # contas do canal (as senhas NAO ficam aqui: o login fica salvo no navegador do CORTEX)
+    youtube: {criada_em: ""}
+    tiktok: {criada_em: ""}
+  youtube_visibilidade: public    # public | unlisted | private
+  tiktok_visibilidade: everyone   # everyone | friends | only_me
+  hashtags_fixas: []              # a pesquisa indica: #viral/#fyp nao ajudam mais
+  max_hashtags: {youtube: 3, tiktok: 5}   # pesquisa: 3 no Shorts; o TikTok avisa a partir de 5
+  descricao_rodape: ""
+  creditar_fonte: true            # "Fonte: canal original" na descricao
+
+armazenamento:
+  limite_gb: 4                    # se a pasta work passar disso, apaga o mais antigo
+  espaco_minimo_livre_gb: 2       # nao baixa nada se o disco tiver menos que isso livre
+  apagar_brutos_apos_render: true
+  apagar_apos_publicar: onedrive  # depois de postar em todas as redes: onedrive (copia na nuvem, libera o PC) | apagar | manter
+  manter_renders_dias: 3
+  onedrive:
+    ativo: true                   # arquiva os cortes publicados no OneDrive e libera o disco
+    pasta: auto                   # auto = sua pasta do OneDrive
+    subpasta: CORTEX
+    arquivar: publicados          # publicados | todos
+    arquivar_apos_horas: 1
+
+notificacoes:
+  windows_toast: true

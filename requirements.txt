@@ -1,0 +1,12 @@
+yt-dlp[default]>=2026.10.26
+faster-whisper>=1.2.1
+playwright>=1.55
+rich>=13.7
+questionary>=2.0
+pyyaml>=6.0
+pillow>=10.4
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+feedparser>=6.0
+opencv-python-headless>=4.9

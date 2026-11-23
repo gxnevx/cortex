@@ -1,0 +1,274 @@
+{
+  "meta": {
+    "data_pesquisa": "2026-11-23",
+    "documento": "docs/ideias/contas_e_monetizacao.md",
+    "aviso": "Pesquisa, nao aconselhamento juridico, contabil ou tributario. Itens marcados nao_confirmado devem ser conferidos no app ou com contador.",
+    "fuso": "America/Sao_Paulo"
+  },
+  "limites_por_conta": {
+    "youtube": {
+      "limite_rigido": {
+        "uploads_por_dia_canal": null,
+        "descricao": "Limite diario por canal somando web, celular e API; numero nao publicado. Sem verificacao: limite menor; com recursos avancados: limite maior. Ao atingir, esperar 24 h.",
+        "shorts_cota_separada": false,
+        "short_max_s": 180,
+        "short_com_claim_acima_de_s_bloqueado": 60,
+        "api_videos_insert_por_dia_por_projeto": 100,
+        "lote_studio_arquivos": 15,
+        "evidencia": "oficial (lote do Studio: mercado)"
+      },
+      "teto_pratico_posts_dia": 2,
+      "teto_absoluto_recomendado_posts_dia": 3,
+      "recomendado_por_idade": [
+        {"dias_de": 0, "dias_ate": 2, "posts_dia": 0},
+        {"dias_de": 3, "dias_ate": 7, "posts_dia": 1},
+        {"dias_de": 8, "dias_ate": 14, "posts_dia": 1},
+        {"dias_de": 15, "dias_ate": 28, "posts_dia": 2},
+        {"dias_de": 29, "dias_ate": 60, "posts_dia": 2},
+        {"dias_de": 61, "dias_ate": null, "posts_dia": 2, "posts_dia_max_com_metricas": 3}
+      ],
+      "espacamento_min_min": {"ate_2_posts": 300, "com_3_posts": 240},
+      "defasagem_min_entre_canais_proprios_min": 30,
+      "defasagem_mesmo_corte_apos_tiktok_min": [20, 60],
+      "silencio": {"inicio": "01:00", "fim": "06:30"}
+    },
+    "tiktok": {
+      "limite_rigido": {
+        "posts_dia_app_web": null,
+        "descricao": "Sem numero publico no app e na web. API Direct Post: tipicamente cerca de 15 posts por dia por conta, compartilhado entre todos os apps.",
+        "api_direct_post_posts_dia_aprox": 15,
+        "erros_api": ["spam_risk_too_many_posts", "spam_risk_user_banned_from_posting"],
+        "agendador_nativo_dias_antecedencia": 10,
+        "evidencia": "oficial"
+      },
+      "teto_pratico_posts_dia": 4,
+      "teto_absoluto_recomendado_posts_dia": 6,
+      "recomendado_por_idade": [
+        {"dias_de": 0, "dias_ate": 2, "posts_dia": 0, "nota": "uso manual do dono, perfil completo"},
+        {"dias_de": 3, "dias_ate": 7, "posts_dia": 1},
+        {"dias_de": 8, "dias_ate": 14, "posts_dia": 2},
+        {"dias_de": 15, "dias_ate": 28, "posts_dia": 3},
+        {"dias_de": 29, "dias_ate": 60, "posts_dia": 4, "posts_dia_min": 3},
+        {"dias_de": 61, "dias_ate": null, "posts_dia": 4, "posts_dia_max_com_metricas": 6}
+      ],
+      "espacamento_min_min": {"semana_2": 240, "padrao": 150},
+      "defasagem_min_entre_contas_proprias_min": 30,
+      "silencio": {"inicio": "01:00", "fim": "06:30"}
+    },
+    "regras_gerais": {
+      "avanco_por_metrica_nao_por_calendario": true,
+      "maquina_de_estados": "ver algoritmo_e_riscos.md secao 1.5 (NORMAL, CAUTELA, PAUSA, PARAR), por conta",
+      "uma_sessao_de_upload_por_vez": true,
+      "post_extra_so_top_pct_nota_do_dia": 30,
+      "criterios_avanco": {
+        "semana1_para_semana2": {"posts_min": 5, "views_24h_min": 50, "posts_acima_de_views_min_dos_ultimos_5": 3, "avisos": 0},
+        "semana2_para_semana3": {"mediana_views_24h_min": {"tiktok": 200, "youtube": 150}},
+        "semana3_para_mes2": {"dias_estado_normal": 7, "claims_14d": 0},
+        "subir_acima_do_teto_pratico": {"dias_consecutivos": 14, "views_por_post_nao_caem": true, "shares_por_mil_na_media_ou_acima": true}
+      },
+      "gatilhos_de_penalidade": [
+        "repost sem adicionar nada proprio (YouTube conteudo reutilizado; TikTok fora do Para Voce)",
+        "momento ja enviado muitas vezes por outros criadores",
+        "compilacao com pouca ou nenhuma narrativa",
+        "react sem comentario em voz",
+        "conteudo em massa ou com cara de template (YouTube conteudo inautentico)",
+        "narrar o que aparece na tela, pequenas edicoes tecnicas ou mudancas em lote por template (nao contam como transformacao)",
+        "espelhar, acelerar ou mudar o tom para fugir da deteccao",
+        "mesmo video em mais de uma conta propria na mesma plataforma",
+        "ferramentas ou scripts feitos para burlar os sistemas (TikTok)",
+        "criar ou usar outra conta para contornar punicao",
+        "engajamento falso ou grupos de engajamento",
+        "postar repetidamente conteudo inelegivel para o Para Voce (conta inteira inelegivel)",
+        "rajadas, intervalos exatos, legendas e hashtags iguais, apagar e repostar",
+        "marca d'agua de outra plataforma"
+      ]
+    }
+  },
+  "contas": {
+    "permitido": {
+      "tiktok": {
+        "varias_contas_por_pessoa": true,
+        "condicao": "Voce pode ter varias contas, mas nao para enganar outras pessoas ou quebrar as regras (Diretrizes, 25/08/2026).",
+        "telefone_por_conta_pessoal": 1,
+        "contas_no_seletor_do_app_aprox": 3,
+        "contas_no_seletor_do_app_evidencia": "mercado, nao_confirmado",
+        "evasao_de_punicao": "proibida; o TikTok pode banir as contas adicionais"
+      },
+      "youtube": {
+        "varias_contas_por_pessoa": true,
+        "max_canais_por_conta_google": 100,
+        "canal_adicional_exige_recursos_avancados": true,
+        "canais_verificados_por_telefone_por_ano": 2,
+        "rede_coordenada_de_canais": "coberta pela politica de spam",
+        "punicao_de_monetizacao_pode_valer_para_todos_os_canais": true,
+        "encerramento_vale_para_todos_os_canais": true
+      }
+    },
+    "max_recomendado": {
+      "tiktok": {"inicio": 1, "dia_14": 2, "escala": 2, "maximo_solo_um_pc": 3},
+      "youtube": {"inicio": 1, "dia_14": 2, "escala": 2, "maximo_solo_um_pc": 3},
+      "quatro_por_plataforma": "permitido pelas regras, nao recomendado para operador solo"
+    },
+    "regras_operacionais": [
+      "um perfil de Chrome por conta do TikTok (separar cookies, nao disfarcar)",
+      "canais do YouTube como Contas de Marca da Conta Google do dono, com 2FA",
+      "sem VPN, proxy, rotacao de IP, navegador antidetecção ou impressao digital falsa",
+      "nunca postar o mesmo corte em duas contas da mesma plataforma",
+      "nunca interagir entre as proprias contas",
+      "uma sessao de upload por vez; defasagem minima de 30 min entre contas da mesma plataforma",
+      "identidade propria por par: nome, @, logo, bio, cores, templates, hashtags",
+      "o CORTEX nunca cria conta, nunca digita senha e para diante de captcha ou verificacao"
+    ],
+    "pares_sugeridos": [
+      {"par": "A", "nome_nicho": "Resenha", "temas": ["podcasts", "entrevistas", "celebridades", "storytime", "debates nao politicos"], "inicio_dia": 0, "foco_monetizacao": "TikTok Creator Rewards (storytime 61 a 90 s)"},
+      {"par": "B", "nome_nicho": "Gameplay", "temas": ["GTA 6", "streamers Kick e Twitch", "games", "reacoes"], "inicio_dia": 14, "condicao_inicio": "par A em NORMAL, sem captcha nem aviso", "atencao": "radio do GTA e musica com Content ID"},
+      {"par": "C", "nome_nicho": "escolher um: Gringos legendados ou Plenario (Camara CC BY 4.0)", "temas": ["cortes traduzidos do ingles com contexto", "ou sessoes da Camara dos Deputados"], "inicio": "mes 3 ou 4", "opcional": true, "condicao_inicio": "pares A e B saudaveis e um TikTok com 10 mil seguidores"}
+    ]
+  },
+  "distribuicao": {
+    "principio": "cada canal-fonte e cada tema pertence a um unico par; cada corte vai para um unico par",
+    "par": "TikTok X + YouTube X do mesmo nicho recebem o mesmo momento, em versoes diferentes",
+    "versoes": {
+      "tiktok": {"alcance_s": [8, 30], "monetizacao_s": [61, 90]},
+      "youtube": {"alvo_s": [22, 45], "max_s": 58}
+    },
+    "orcamento_diario": "soma dos posts permitidos pela fase de cada conta",
+    "fila": "por par, ordenada pela nota; publica o topo da fila nas janelas do par",
+    "validade_corte_quente_h": [24, 36],
+    "dedupe": {"chave": "fonte + inicio + fim do trecho", "escopo": "todas as contas", "bloquear_mesmo_render_em_duas_contas_mesma_plataforma": true},
+    "texto": {"similaridade_max_legenda": 0.6, "comparar_com_ultimas_n_legendas_todas_contas": 50},
+    "horarios": {"defasagem_par_b_min": [45, 90], "mesmo_corte_tiktok_depois_youtube_min": [20, 60]},
+    "campanhas": "corte de campanha vai para o par do nicho, conta no orcamento da conta e vale para uma unica campanha",
+    "producao": {"fator_sobre_posts_do_dia": 1.5, "cortes_dia_com_2_pares": [18, 20], "nota": "produzir 40 para publicar 12 desperdica CPU e disco (cerca de 6 GB livres)"},
+    "total_posts_dia_previsto": {"semana_1": [0, 2], "dia_14_a_28": [5, 7], "mes_2": [10, 12], "mes_3_mais_com_par_c": 18, "teto_3_pares": 27},
+    "fracao_material": {"memes": "so com comentario ou narrativa propria, dentro de B ou C", "traduzidos": "legenda traduzida mais contexto; preferir par C"}
+  },
+  "monetizacao": {
+    "youtube": {
+      "ypp_nivel_entrada": {
+        "inscritos": 500,
+        "uploads_publicos_90d": 3,
+        "views_shorts_90d": 3000000,
+        "alternativa_horas_12m": 3000,
+        "muda_em_2027": false,
+        "libera": ["clube de membros", "Super Thanks e similares", "Shopping afiliados (YPP + 500 inscritos; Mercado Livre e Shopee no Brasil)"],
+        "inclui_anuncios": false,
+        "brasil_elegivel": true
+      },
+      "ypp_anuncios_ate_2027_01_31": {"inscritos": 1000, "views_shorts_90d": 10000000, "alternativa_horas_12m": 4000},
+      "ypp_anuncios_a_partir_2027_02_01": {
+        "inscritos": 1000,
+        "inscritos_evidencia": "pagina de ajuda atual e imprensa; o blog de 10/08/2026 nao repete o numero",
+        "views_shorts_90d_entrada": 20000000,
+        "alternativa_horas_365d": 8000,
+        "manutencao_receita_shorts_views_90d": 10000000,
+        "manutencao_vale_para": "todos os parceiros, novos e antigos",
+        "abaixo_da_manutencao": "fica no YPP, sem receita de Shorts no mes; volta ao passar de 10 M",
+        "afirmacao_anterior_20M": "confirmada"
+      },
+      "outros_requisitos": ["2FA", "recursos avancados", "sem strike de diretrizes ativo", "AdSense para YouTube vinculado", "politicas de monetizacao", "aceitar novos termos ate 31/01/2027 (parceiros atuais)"],
+      "divisao_receita_shorts": {"criador_pct": 45, "base": "views engajadas, fundo por pais", "musica_1_faixa_fundo_pct": 50, "musica_2_faixas_fundo_pct": 33},
+      "views_inelegiveis": ["Shorts nao originais ou reutilizados", "reenvio de conteudo de outros criadores", "compilacoes sem conteudo original", "views invalidas", "conteudo fora das diretrizes para anunciantes"],
+      "rpm_shorts_brasil_usd_por_mil": [0.01, 0.08],
+      "rpm_evidencia": "mercado",
+      "content_id": {"acima_de_60s_com_claim": "bloqueado no mundo todo, sem monetizacao", "ate_60s_claim_nao_musica": "efeito na receita nao_confirmado; tratar como perda"},
+      "reutilizado": "revisao olha tema principal, mais vistos, mais novos, maior tempo assistido, metadados e Sobre; pode tirar monetizacao do canal todo e de todos os canais do dono",
+      "multi_canal": {
+        "adsense_por_titular": 1,
+        "varios_canais_mesmo_adsense": true,
+        "troca_de_adsense_vinculado_dias": 32,
+        "cada_canal_qualifica_sozinho": true,
+        "conta_duplicada": "reprovada e monetizacao desligada"
+      },
+      "pagamento": {
+        "moeda": "USD",
+        "meio": "transferencia internacional para conta bancaria do titular",
+        "limite_forma_pagamento_usd": 10,
+        "limite_pagamento_usd": 100,
+        "iof_entrada_pct": 0.38,
+        "iof_evidencia": "mercado"
+      },
+      "impostos": {
+        "eua": {"formulario": "W-8BEN (pessoa fisica fora dos EUA)", "prazo_anual": "10/12", "retencao": "0 a 30% so sobre ganhos de espectadores dos EUA; Brasil sem tratado, esperar 30%", "sem_formulario": "ate 24% sobre ganhos do mundo todo"},
+        "brasil": {"regime": "carne-leao mensal", "prazo": "ultimo dia util do mes seguinte ao recebimento", "declaracao_anual": true, "conversao": "dolar de compra do BCB do ultimo dia util da 1a quinzena do mes anterior ao recebimento", "compensacao_imposto_eua": "possivel por reciprocidade, nao_confirmado", "lei_15270_2025": "isencao efetiva ate R$ 5 mil mensais desde 01/01/2026, reducao ate R$ 7.350; aplicacao no carne-leao nao_confirmada"},
+        "aviso": "nao e aconselhamento tributario; confirmar com contador"
+      }
+    },
+    "tiktok": {
+      "creator_rewards": {
+        "disponivel_brasil": true,
+        "disponivel_brasil_evidencia": "central de ajuda pt-BR e varias fontes secundarias; lista oficial de paises nao lida",
+        "sucessor_2026": null,
+        "termos_atualizados_em": "2026-07-20",
+        "idade_min": 18,
+        "seguidores_min": 10000,
+        "views_30d_min": 100000,
+        "conta": "pessoal em situacao regular (Business e Organizacao nao)",
+        "video_min_s": 60,
+        "video_min_s_pratico": 61,
+        "views_qualificadas": "em geral do Para Voce",
+        "fatores": ["originalidade", "duracao assistida", "valor de busca", "engajamento", "valor publicitario"],
+        "rpm_usd_por_mil_qualificadas": [0.40, 1.00],
+        "rpm_brasil": "parte de baixo da faixa (cerca de 0,30 a 0,40), nao_confirmado",
+        "saque_min_usd_termos_eua": 50,
+        "dia_pagamento_termos_eua": 15,
+        "conta_pagamento": "no nome do proprio criador",
+        "metodos_brasil": "PayPal e Pix relatados, nao_confirmado",
+        "varias_contas_mesmo_cpf": "sem regra oficial encontrada; cada conta qualifica sozinha; conteudo duplicado desqualifica (mercado)"
+      },
+      "tiktok_shop_afiliados": {"lancamento_brasil": "2025-05-08", "idade_min": 18, "seguidores_min_lancamento": 5000, "seguidores_min_relatado_2026": 1000, "evidencia": "imprensa e mercado, nao_confirmado", "serve": "par B e talvez A, com video que mostre o produto"},
+      "live_presentes": {"idade_min": 18, "seguidores_min_aprox": 1000, "serve": false},
+      "assinaturas": {"serve": false, "nota": "ligadas a LIVE"},
+      "series": {"seguidores_min_2023": 10000, "idade_min": 18, "serve": false, "nota": "cobrar por trecho de terceiro e risco de direito autoral"}
+    },
+    "campanhas_clipping": {
+      "content_rewards_whop": {"pagamento": "por mil views apos aprovacao", "media_declarada_usd_por_mil": 1.0, "brazil_clips_usd_por_mil": [0.25, 0.30], "minimo_por_video": "definido pela campanha (ex.: US$ 6 a US$ 3/mil = 2.000 views)", "maximo_por_video": "definido pela campanha", "plataformas": ["TikTok", "YouTube Shorts", "Instagram Reels", "X"], "proibido": ["views falsas", "bots", "grupos de engajamento"], "um_post_por_campanha": true},
+      "cut_pro": {"pagamento": "por mil views ou por podio; creditos ou Pix", "brl_por_mil": [1, 4], "seguidores_min": 0, "aprovacao_para_entrar": false, "piso_views_por_video_exemplos": [3000, 5000], "teto_por_video_brl": [150, 270], "pix_validacao_dias_uteis": 2, "taxa_plataforma_pct": 20, "taxa_paga_por": "organizador", "regras": ["hashtags e @ obrigatorios", "video publico ate o fim da revisao", "contas proprias"], "proibido": ["bot", "compra de views"]},
+      "publicidade": "marcar promocao paga (YouTube) e conteudo comercial (TikTok)",
+      "proibido_sempre": "campanhas de apostas (MP 1.394/2026)"
+    },
+    "outras_plataformas": {
+      "kwai": {"status": "Programa de Receita de Anuncios por convite gradual (nivel > 6 ou 500+ fas, original, 12+ videos em 30 dias, media 1.000+ views ou 10 mil no total, maioridade)", "cortes_terceiros_monetizam": false, "uso": "so destino de campeonatos que aceitam Kwai"},
+      "instagram_reels": {"status": "sem programa aberto de pagamento por view no Brasil", "cortes_terceiros_monetizam": false},
+      "facebook_reels": {"status": "Creator Fast Track no Brasil desde 04/11/2026: 20 mil seguidores em outra rede, 30 mil views em 30 dias, 20 Reels originais por 30 dias por 3 meses, US$ 25 por mes (ate US$ 75) ate 100 mil seguidores; Content Monetization por convite; Meta pune repost de conteudo alheio desde 07/2025", "prioridade": "baixa"}
+    },
+    "roteiro": [
+      {"marco": "M0", "meta": "contas criadas, 2FA, telefone verificado, perfis completos", "prazo": "semana 0"},
+      {"marco": "M1", "meta": "inscricao em campeonatos de fontes autorizadas", "prazo": "semana 1", "libera": "receita por mil views"},
+      {"marco": "M2", "meta": "TikTok A com 1.000 seguidores", "prazo_dias": [30, 60], "libera": "LIVE; talvez afiliado TikTok Shop"},
+      {"marco": "M3", "meta": "TikTok A com 10 mil seguidores e 100 mil views em 30 dias", "prazo_dias": [60, 120], "libera": "Creator Rewards", "acao": "50 a 60% dos posts com 61 a 90 s"},
+      {"marco": "M4", "meta": "YouTube A com 500 inscritos e 3 M views de Shorts em 90 dias (cerca de 33 mil por dia)", "prazo_meses": [4, 8], "libera": "YPP nivel de entrada e Shopping afiliados"},
+      {"marco": "M5", "meta": "TikTok B no Creator Rewards", "prazo_meses": [4, 6]},
+      {"marco": "M6", "meta": "YouTube A com 1.000 inscritos e 20 M em 90 dias (cerca de 222 mil por dia)", "prazo_meses": [12, null], "libera": "anuncios; receita de Shorts so com 10 M em 90 dias", "nota": "bonus, nao plano"}
+    ],
+    "receita_por_milhao_views": {
+      "cut_pro_brl": [1000, 4000],
+      "content_rewards_brazil_usd": [250, 300],
+      "tiktok_creator_rewards_brasil_usd_por_milhao_qualificadas": [300, 400],
+      "youtube_shorts_anuncios_usd": [10, 80],
+      "evidencia": "mercado + inferencia"
+    }
+  },
+  "checklist_dono": [
+    {"n": 1, "grupo": "contas", "acao": "Escolher os nichos dos pares A e B (reservar a ideia do C)."},
+    {"n": 2, "grupo": "contas", "acao": "Ativar verificacao em duas etapas na Conta Google."},
+    {"n": 3, "grupo": "contas", "acao": "Criar o canal A como Conta de Marca (nome do nicho) e verificar o telefone (1 numero verifica no maximo 2 canais por ano)."},
+    {"n": 4, "grupo": "contas", "acao": "Pedir recursos avancados (historico, documento ou video); necessarios para o canal B e para o YPP."},
+    {"n": 5, "grupo": "contas", "acao": "Criar a conta TikTok A pessoal (nao Business) com e-mail proprio e data de nascimento real; usar a mao por 3 dias."},
+    {"n": 6, "grupo": "contas", "acao": "Criar um perfil de Chrome por conta do TikTok e logar a mao; sem VPN, proxy ou extensao de stealth."},
+    {"n": 7, "grupo": "contas", "acao": "No dia 14, se o par A estiver saudavel, repetir os itens 3, 5 e 6 para o par B."},
+    {"n": 8, "grupo": "contas", "acao": "Anotar no config a data de criacao de cada conta (a rampa depende dela)."},
+    {"n": 9, "grupo": "contas", "acao": "Padroes de upload no YouTube: pt-BR, nao e para criancas, sintetico nao, descricao com credito e e-mail para detentores."},
+    {"n": 10, "grupo": "rotina", "acao": "Responder a mao os comentarios da primeira hora nos primeiros 30 posts de cada conta."},
+    {"n": 11, "grupo": "rotina", "acao": "Clicar em Publicar ou Agendar no TikTok e conferir a pagina de status de cada conta 1 vez por dia."},
+    {"n": 12, "grupo": "rotina", "acao": "Nunca interagir entre as proprias contas e nunca postar o mesmo corte em duas contas da mesma plataforma."},
+    {"n": 13, "grupo": "receita", "acao": "Inscrever-se a mao na Cut.Pro e no Content Rewards, registrar campanhas no campanhas.yaml e enviar os links no prazo."},
+    {"n": 14, "grupo": "receita", "acao": "Com 10 mil seguidores e 100 mil views em 30 dias: TikTok Studio, Monetizacao, Creator Rewards; verificar identidade e cadastrar recebimento no proprio nome."},
+    {"n": 15, "grupo": "receita", "acao": "Com 500 inscritos e 3 M em 90 dias: inscrever o canal no YPP; criar uma unica conta AdSense para YouTube no nome e CPF do dono; vincular os outros canais a ela; cadastrar conta que receba transferencia internacional em dolar."},
+    {"n": 16, "grupo": "receita", "acao": "Enviar as informacoes fiscais dos EUA no AdSense (W-8BEN, pessoa fisica, Brasil) e revisar ate 10/12 de cada ano."},
+    {"n": 17, "grupo": "receita", "acao": "No YPP, pedir acesso ao Shopping afiliados se o nicho combinar."},
+    {"n": 18, "grupo": "impostos", "acao": "Guardar comprovantes de pagamento (Google, TikTok, Whop, Cut.Pro) e contratos de cambio."},
+    {"n": 19, "grupo": "impostos", "acao": "Recolher o carne-leao (Carne-Leao Web no e-CAC) ate o ultimo dia util do mes seguinte a cada recebimento do exterior; informar na declaracao anual."},
+    {"n": 20, "grupo": "impostos", "acao": "Quando a renda mensal passar de cerca de R$ 5 mil, conversar com contador sobre abrir empresa."}
+  ]
+}

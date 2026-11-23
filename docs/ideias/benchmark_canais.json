@@ -1,0 +1,429 @@
+{
+  "_meta": {
+    "versao": "2026-11-23",
+    "guia": "docs/ideias/benchmark_canais.md",
+    "data_coleta": "2026-11-23, 09h40 a 10h20 BRT",
+    "fonte": "dados publicos, sem login, sem cookies e sem chave de API; YouTube via yt-dlp do projeto; TikTok via widget oficial de incorporacao (tiktok.com/embed/@perfil) e pagina publica do video",
+    "normalizacao": "razao = views / mediana de views dos Shorts do mesmo canal com idade >= 48 h (TikTok: >= 24 h, sem fixados). top10 = 10% de maior razao.",
+    "fuso": "BRT (UTC-3)",
+    "confianca": "YouTube: n alto (1.034 Shorts maduros, 475 com hora exata). TikTok: n baixo (147 maduros, 65 com duracao): usar como direcao."
+  },
+
+  "amostra": {
+    "chamadas_pesadas_total": 612,
+    "youtube": {
+      "canais_consultados": 20,
+      "canais_com_shorts": 18,
+      "sem_aba_shorts": ["@CortesPodcast", "@cazetv-cortes"],
+      "shorts_listados": 1049,
+      "shorts_com_metadados": 485,
+      "shorts_maduros": 1034,
+      "horas_exatas_maduras": 475,
+      "top10_corte_razao": 5.56,
+      "top10_n": 105,
+      "canais": [
+        {"handle": "@cortesdoflow", "tipo": "podcast_oficial", "inscritos": 3270000, "shorts_dia": 1.16, "ultimo_short_dias": 0.8, "mediana_views_short": 33977, "views_por_inscrito": 0.010, "duracao_mediana_s": 53},
+        {"handle": "@CortesPodpahOFICIAL", "tipo": "podcast_oficial", "inscritos": 3040000, "shorts_dia": 0.95, "ultimo_short_dias": 1.9, "mediana_views_short": 2200, "views_por_inscrito": 0.001, "duracao_mediana_s": 54},
+        {"handle": "@cortesdointeligencia", "tipo": "podcast_oficial", "inscritos": 4120000, "shorts_dia": null, "ultimo_short_dias": 1463, "mediana_views_short": 16780, "views_por_inscrito": 0.004, "duracao_mediana_s": 48.5},
+        {"handle": "@CortesdoVenusOficial", "tipo": "podcast_oficial", "inscritos": 974000, "shorts_dia": null, "ultimo_short_dias": 601, "mediana_views_short": 9165, "views_por_inscrito": 0.009, "duracao_mediana_s": 49.5},
+        {"handle": "@CortesRedCast", "tipo": "podcast_oficial", "inscritos": 511000, "shorts_dia": null, "ultimo_short_dias": 206, "mediana_views_short": 8159, "views_por_inscrito": 0.016, "duracao_mediana_s": 56},
+        {"handle": "@CortesdoCasimitoOFICIAL", "tipo": "streamer_oficial", "inscritos": 4030000, "shorts_dia": 0.11, "ultimo_short_dias": 75, "mediana_views_short": 33613, "views_por_inscrito": 0.008, "duracao_mediana_s": 46.5, "mediana_views_video_longo": 786000},
+        {"handle": "@cortesloudcoringaoficial", "tipo": "streamer_oficial", "inscritos": 742000, "shorts_dia": 0.19, "ultimo_short_dias": 84, "mediana_views_short": 9800, "views_por_inscrito": 0.013, "duracao_mediana_s": 61.5},
+        {"handle": "@CortesdoGaulesOFICIAL", "tipo": "games_oficial", "inscritos": 112000, "shorts_dia": null, "ultimo_short_dias": 347, "mediana_views_short": 12140, "views_por_inscrito": 0.108, "duracao_mediana_s": 43.5},
+        {"handle": "@CortesdoDavyJones", "tipo": "games_oficial", "inscritos": 646000, "shorts_dia": 1.39, "ultimo_short_dias": 0.5, "mediana_views_short": 9850, "views_por_inscrito": 0.015, "duracao_mediana_s": 74.5},
+        {"handle": "@TicaracaticastCortes", "tipo": "humor_oficial", "inscritos": 1380000, "shorts_dia": 1.97, "ultimo_short_dias": 3.4, "mediana_views_short": 4800, "views_por_inscrito": 0.003, "duracao_mediana_s": 85.5},
+        {"handle": "@CortesdoLutzOFICIAL", "tipo": "humor_oficial", "inscritos": 704000, "shorts_dia": 1.15, "ultimo_short_dias": 0.5, "mediana_views_short": 1515, "views_por_inscrito": 0.002, "duracao_mediana_s": 72},
+        {"handle": "@cortespodcastpapagaiofalante", "tipo": "humor_oficial", "inscritos": 702000, "shorts_dia": 0.11, "ultimo_short_dias": 52, "mediana_views_short": 9750, "views_por_inscrito": 0.014, "duracao_mediana_s": 87.5},
+        {"handle": "@cortes247", "tipo": "politica", "inscritos": 757000, "shorts_dia": 0.02, "ultimo_short_dias": 360, "mediana_views_short": 317725, "views_por_inscrito": 0.420, "duracao_mediana_s": 59, "obs": "so 29 Shorts em 4,7 anos"},
+        {"handle": "@CortesdoMBL", "tipo": "politica", "inscritos": 522000, "shorts_dia": 0.30, "ultimo_short_dias": 2.9, "mediana_views_short": 14400, "views_por_inscrito": 0.028, "duracao_mediana_s": 71},
+        {"handle": "@CharlaPodcast", "tipo": "futebol_podcast_proprio", "inscritos": 1280000, "shorts_dia": 0.94, "ultimo_short_dias": 3.9, "mediana_views_short": 2700, "views_por_inscrito": 0.002, "duracao_mediana_s": 81.5},
+        {"handle": "@CyberCurioso.Cortes", "tipo": "shorts_nativo_nao_oficial", "inscritos": 169000, "shorts_dia": 1.04, "ultimo_short_dias": 1.0, "mediana_views_short": 598543, "views_por_inscrito": 3.54, "duracao_mediana_s": 32},
+        {"handle": "@SoUmClipeofc", "tipo": "shorts_nativo_nao_oficial", "inscritos": 61100, "shorts_dia": 1.02, "ultimo_short_dias": 0.6, "mediana_views_short": 135000, "views_por_inscrito": 2.21, "duracao_mediana_s": 34.5},
+        {"handle": "@CortesPodCutsOficial", "tipo": "shorts_nativo_nao_oficial", "inscritos": 13300, "shorts_dia": 1.02, "ultimo_short_dias": 0.9, "mediana_views_short": 54000, "views_por_inscrito": 4.06, "duracao_mediana_s": 28.5}
+      ],
+      "vies": "os 3 shorts_nativo_nao_oficial foram achados por busca de Shorts da semana com muitas views: representam o que da certo agora, nao a media dos canais pequenos"
+    },
+    "tiktok": {
+      "contas": 18,
+      "posts_widget": 196,
+      "posts_com_detalhe": 90,
+      "posts_maduros": 147,
+      "com_duracao": 65,
+      "top10_corte_razao": 10.03,
+      "top10_n": 15,
+      "bloqueios": "perfil nao lista videos sem login; yt-dlp barrado pelo WAF; nada foi contornado",
+      "lista": [
+        {"handle": "@podpah", "seguidores": 6800000, "posts_dia": 5.3, "mediana_views": 13300, "duracao_mediana_s": 14},
+        {"handle": "@cazetv", "seguidores": 15700000, "posts_dia": 7.5, "mediana_views": 22400, "duracao_mediana_s": 15.5},
+        {"handle": "@charlapodcast", "seguidores": 565700, "posts_dia": 7.9, "mediana_views": 1782, "duracao_mediana_s": 61.5},
+        {"handle": "@jovempannews", "seguidores": 6400000, "posts_dia": 20.1, "mediana_views": 3353, "duracao_mediana_s": 59},
+        {"handle": "@cnnbrasil", "seguidores": 4400000, "posts_dia": 5.3, "mediana_views": 33900, "duracao_mediana_s": null},
+        {"handle": "@mblivre", "seguidores": 432600, "posts_dia": 1.2, "mediana_views": 26850, "duracao_mediana_s": 97.5},
+        {"handle": "@ticaracaticast", "seguidores": 428200, "posts_dia": 1.8, "mediana_views": 395, "duracao_mediana_s": 81},
+        {"handle": "@podcast3irmaos", "seguidores": 401200, "posts_dia": 1.0, "mediana_views": 1395, "duracao_mediana_s": 158},
+        {"handle": "@loud_coringa", "seguidores": 11200000, "posts_dia": null, "mediana_views": 3100000, "duracao_mediana_s": 15, "obs": "pausa de 37 dias"},
+        {"handle": "@jonvlogs", "seguidores": 3600000, "posts_dia": null, "mediana_views": 943050, "duracao_mediana_s": null, "obs": "pausa de 23 dias"},
+        {"handle": "@denilsonshow", "seguidores": 1700000, "posts_dia": null, "mediana_views": 5345, "duracao_mediana_s": 89, "obs": "pausa de 13 dias"},
+        {"handle": "@cortesdocasimiro", "seguidores": 2000000, "posts_dia": null, "mediana_views": 104250, "duracao_mediana_s": 52.5, "obs": "parado ha 19 meses"},
+        {"handle": "@venuspodcast", "seguidores": 672900, "obs": "widget com posts de 15 meses atras"},
+        {"handle": "@gaules", "seguidores": 329000, "obs": "widget com posts de 4 meses atras"},
+        {"handle": "@inteligencialtda", "seguidores": 163400, "obs": "widget com posts de 8 meses atras"},
+        {"handle": "@cortesdoticaracaticast", "seguidores": 330500, "obs": "widget com posts de 12 meses atras"},
+        {"handle": "@cortesdopanico", "seguidores": 65200, "obs": "widget com posts de 3 anos atras"},
+        {"handle": "@choquei", "seguidores": 2400000, "obs": "widget com posts antigos"}
+      ],
+      "achado_lateral": "cortes oficiais do YouTube (Flow, Podpah, Inteligencia) nao tem perfil real no TikTok (perfis de terceiros com 0 a 67 seguidores); os podcasts postam cortes no perfil principal"
+    },
+    "cold_open": {"youtube_top10": 25, "youtube_controle": 10, "tiktok": 0, "audio_s": 60, "modelo": "faster-whisper tiny"}
+  },
+
+  "duracao_ideal": {
+    "youtube_shorts": {
+      "alvo_s": [22, 40],
+      "aceitavel_s": [15, 45],
+      "storytime_com_desfecho_max_s": 58,
+      "teto_rigido_s": 58,
+      "evitar_s": [[41, 59], [76, 90]],
+      "evidencia_canais_ativos": {"ate_20": [3, 2.05], "21_30": [32, 1.12], "31_40": [42, 1.21], "41_50": [20, 0.88], "51_59": [24, 0.77], "60_75": [45, 1.53], "76_90": [40, 0.71], "91_mais": [44, 0.92]},
+      "formato_evidencia": "[n, mediana da razao]",
+      "obs": "60 a 75 s rende bem so para os donos do conteudo; terceiro com reivindicacao acima de 60 s e bloqueado no mundo todo. Shorts nativos que mais crescem: mediana 28 a 35 s."
+    },
+    "tiktok_alcance": {"alvo_s": [8, 20], "aceitavel_s": [7, 30], "evidencia": "Coringa 13 a 19 s com 1,3 M a 5,8 M de views; Podpah e CazeTV com mediana de 14 a 15,5 s"},
+    "tiktok_monetizacao": {"alvo_s": [61, 90], "max_debate_politica_s": 150, "evidencia": "121 a 180 s = 2,53x (n = 7, debate/politica); batalha de rima do Podpah com 60 a 73 s fez 224 mil a 752 mil"},
+    "tiktok_evitar_s": [46, 59],
+    "tiktok_distribuicao_publicada_s": {"p10": 14, "p25": 21, "p50": 62, "p75": 88, "p90": 126}
+  },
+
+  "horarios_vencedores": {
+    "fuso": "BRT",
+    "youtube": {
+      "seg": ["12:00-14:00", "21:00-23:30"],
+      "ter": ["12:00-14:00", "21:00-23:30"],
+      "qua": ["12:00-14:30", "21:00-23:30"],
+      "qui": ["10:00-12:00", "21:00-23:30"],
+      "sex": ["15:00-17:30", "21:00-23:59"],
+      "sab": ["12:00-14:00", "15:00-17:30"],
+      "dom": ["10:00-12:00", "18:30-21:30"]
+    },
+    "tiktok_direcao": {
+      "seg": ["18:00-21:00"],
+      "ter": ["21:00-23:30"],
+      "qua": ["09:00-12:00"],
+      "qui": ["12:00-14:00", "21:00-23:00"],
+      "sex": ["18:00-21:00"],
+      "sab": ["19:00-23:00"],
+      "dom": ["15:00-18:00"]
+    },
+    "evitar": {
+      "youtube": ["18:00-20:30 em dias uteis (0,65x a 1,00x; faixa mais lotada, 27% dos posts)", "antes das 10:00 (0,66x a 0,69x)"],
+      "tiktok": ["quarta-feira (0,53x)", "18:00-20:00 (0,91x; faixa mais lotada)"]
+    },
+    "evidencia_youtube_2h": {"00-02": [12, 1.32], "08-10": [13, 0.69], "10-12": [40, 1.36], "12-14": [87, 1.11], "14-16": [67, 0.93], "16-18": [60, 0.94], "18-20": [72, 0.78], "20-22": [77, 1.28], "22-24": [39, 1.73]},
+    "evidencia_youtube_dia": {"seg": 1.22, "ter": 1.12, "qua": 0.91, "qui": 0.92, "sex": 0.95, "sab": 1.13, "dom": 1.48},
+    "evidencia_youtube_21_24h_por_dia": {"seg": [16, 1.36], "ter": [16, 1.72], "qua": [7, 1.75], "qui": [6, 1.64], "sex": [9, 2.34], "sab": [3, 0.56], "dom": [4, 1.67]},
+    "evidencia_tiktok_2h": {"10-12": [9, 1.34], "14-16": [18, 1.20], "18-20": [32, 0.91], "20-22": [20, 2.25]},
+    "evidencia_tiktok_dia": {"seg": 1.62, "ter": 1.30, "qua": 0.53, "qui": 0.93, "sex": 1.13, "sab": 1.02, "dom": 0.97},
+    "share_top10_por_janela_youtube": {"09-12": 0.13, "12-15": 0.09, "15-18": 0.10, "18-21": 0.09, "21-24": 0.16},
+    "frequencia": {"youtube_canais_ativos_por_dia": [0.9, 2.0], "youtube_shorts_nativos_por_dia": 1.0, "tiktok_noticia_esporte_por_dia": [5, 20], "tiktok_podcast_humor_por_dia": [1, 2]}
+  },
+
+  "titulos_modelos_por_categoria": {
+    "podcast": [
+      "{PESSOA} se ABRE sobre {TEMA}",
+      "CONTEI para o BRASIL INTEIRO que {REVELACAO}",
+      "QUANDO DESCOBRI {FATO_PESSOAL}",
+      "{ACAO} E ME ARREPENDI EM {N} DIAS",
+      "O QUE DESTRUIU {PESSOA}",
+      "{PESSOA} NUNCA mais {PROBLEMA} depois DISSO",
+      "O {GRUPO} DE {N} ANOS É SÓ UM {ROTULO}"
+    ],
+    "humor": [
+      "{PESSOA} HUMILHOU {PESSOA2} KKKK",
+      "{PESSOA} CHAMOU {PESSOA2} DE {APELIDO} KKKK",
+      "O TERROR DO {GRUPO}",
+      "{PESSOA} ZOA {PESSOA2} KKKK",
+      "{PROFISSAO} É TUDO {ROTULO} 😂",
+      "ELES {ACAO} ASSIM KKKKK"
+    ],
+    "games_streamer": [
+      "{STREAMER} SOLTA O VERBO",
+      "{STREAMER} NO {JOGO} KKKKKKKK",
+      "{STREAMER} GANHOU {PRESENTE} no MEIO da LIVE",
+      "{STREAMER} DANDO MUITO RAGE",
+      "{STREAMER} JÁ TÁ JOGANDO {JOGO}?",
+      "NO {CAMPEONATO} ESSA JOGADA ERA {COMPARACAO}"
+    ],
+    "futebol": [
+      "{PESSOA} REVELA OS BASTIDORES DE {EVENTO_FAMOSO}",
+      "{PESSOA} EXALTA {TIME} NOS ANOS {DECADA}",
+      "ZOEIRA HISTÓRICA ENTRE {PESSOA} E {PESSOA2}",
+      "{JOGADOR}: O MAIOR JOGO QUE FIZ NA VIDA",
+      "{PESSOA} FICOU MALUCO COM O GOL DO {JOGADOR}"
+    ],
+    "politica": [
+      "{POLITICO} E {POLITICO2} SÃO IGUALMENTE {ADJETIVO}",
+      "ISSO É SER DE {LADO} NO BRASIL?",
+      "{PESSOA} ATACA {PESSOA2}",
+      "{INSTITUICAO} CONFIRMA {DECISAO} CONTRA {POLITICO}",
+      "{POLITICO} EM RISCO no {EVENTO}?",
+      "Como {GRUPO} {ACAO} no Brasil"
+    ],
+    "celebridades": [
+      "{CELEBRIDADE} PASSOU DOS LIMITES",
+      "{CELEBRIDADE} se ABRE sobre TÉRMINO com {PESSOA}",
+      "{FAMOSO} ERA {ROTULO}?",
+      "{PESSOA} DIZ QUE {PESSOA2} ARMOU TUDO",
+      "{CELEBRIDADE} NÃO É COMO TODOS PENSAM"
+    ],
+    "curiosidades_acervo": [
+      "É POSSÍVEL {COISA_ABSURDA}?",
+      "{COISA_DO_DIA_A_DIA} é uma FARSA",
+      "Quem é o {PAPEL} mais {ADJETIVO} do Brasil?",
+      "A evolução do {COISA}",
+      "{PROGRAMA} antigamente",
+      "Ele {ACAO_CHOCANTE} no meio do programa",
+      "{PROFISSIONAL} explica {TEMA}",
+      "O real significado de {COISA}"
+    ],
+    "noticias": [
+      "{PESSOA} é o novo {CARGO} do {TIME}, rapaziada! 👀 E aí, o que acharam?",
+      "É {CONQUISTA}! {TIME} É CAMPEÃO {COMPETICAO}",
+      "{FATO_CURTO_EM_CAPS} {contexto em frase normal}"
+    ],
+    "tiktok_legenda": [
+      "{frase curta em minúsculas} {1 emoji}",
+      "{MANCHETE_EM_CAPS} {contexto de 1 frase} {pergunta}",
+      "{PESSOA} {ação} e {reação}! 👀 {pergunta curta}"
+    ],
+    "_regras": {
+      "nome_nas_3_primeiras_palavras": true,
+      "conflito_sempre_atribuido": "o verbo de acusacao descreve o que o convidado disse ou fez no trecho; nunca opiniao do canal",
+      "checagem_anti_clickbait": "palavras-chave do titulo precisam estar na transcricao (regra do criativo_genz.json)"
+    }
+  },
+
+  "padroes_titulo": {
+    "youtube": {
+      "top10": {"n": 105, "tamanho_mediano": 38, "palavras": 7, "todo_caps": 0.67, "caps_seletivo": 0.13, "sem_emoji": 0.90, "dois_ou_mais_emojis": 0.04, "pergunta": 0.19, "exclamacao": 0.12, "aspas": 0.02, "reticencias": 0.06, "com_hashtag_no_titulo": 0.32, "parte_x": 0.0, "numero": 0.17, "nome_pessoa": 0.66, "conflito_acusacao": 0.12, "taxa_comentario_mediana": 0.0003, "taxa_like_mediana": 0.040},
+      "resto": {"n": 929, "tamanho_mediano": 37, "palavras": 7, "todo_caps": 0.70, "caps_seletivo": 0.07, "sem_emoji": 0.87, "dois_ou_mais_emojis": 0.05, "pergunta": 0.20, "exclamacao": 0.19, "aspas": 0.07, "reticencias": 0.07, "com_hashtag_no_titulo": 0.34, "parte_x": 0.006, "numero": 0.14, "nome_pessoa": 0.53, "conflito_acusacao": 0.03, "taxa_comentario_mediana": 0.0006, "taxa_like_mediana": 0.038},
+      "recentes_180d": {"top10_sem_emoji": 0.88, "resto_sem_emoji": 0.78, "top10_exclamacao": 0.05, "resto_exclamacao": 0.15, "top10_aspas": 0.03, "resto_aspas": 0.10},
+      "razao_por_tamanho": {"ate_30": 0.99, "31_45": 1.00, "46_60": 0.89, "61_80": 1.44, "mais_80": 1.00},
+      "razao_por_n_emojis": {"0": 1.00, "1": 1.00, "2": 0.87, "3_ou_mais": 1.09},
+      "razao_por_n_hashtags_titulo": {"0": 1.01, "1": 0.91, "2": 1.01, "3": 0.80, "4": 1.02, "5_ou_mais": 1.12},
+      "razao_taxa_like": {"menor_2pct": 0.82, "2_a_4pct": 1.15, "4_a_8pct": 1.04, "8pct_ou_mais": 0.71},
+      "parte_x_uso": "6 de 1.049 Shorts (0,6%), razao 1,03",
+      "primeira_palavra_razao": {"nome_proprio": "1,28 a 4,9", "dublador": 2.02, "quando": 1.62, "quem": 1.45, "ele": 1.23, "o": 1.00, "a": 0.93, "como": 0.92, "nao": 0.72, "por": 0.56},
+      "primeiras_palavras_mais_usadas": ["o", "a", "como", "qual", "ele", "nao", "os", "e", "quando", "quem"]
+    },
+    "tiktok": {
+      "top10": {"n": 15, "tamanho_mediano": 79, "todo_caps": 0.0, "caps_seletivo": 0.40, "sem_emoji": 0.47, "hashtags_media": 1.7, "taxa_like_mediana": 0.154, "taxa_comentario_mediana": 0.0015},
+      "resto": {"n": 132, "tamanho_mediano": 44.5, "todo_caps": 0.06, "caps_seletivo": 0.18, "sem_emoji": 0.53, "hashtags_media": 2.0, "taxa_like_mediana": 0.079, "taxa_comentario_mediana": 0.0006},
+      "razao_por_tamanho": {"ate_30": 1.03, "31_45": 1.25, "46_60": 0.74, "61_80": 0.95, "mais_80": 1.15},
+      "razao_por_n_hashtags": {"0": 1.00, "2": 0.94, "3": 1.26, "4": 1.30, "5_ou_mais": 1.07},
+      "parte_x_uso": 0.06,
+      "legenda_generica_repetida": "Ticaracaticast repete a mesma legenda e tem mediana de 395 views com 428 mil seguidores"
+    },
+    "regras": {
+      "youtube_tamanho_alvo": [25, 45],
+      "youtube_tamanho_max_frase_contexto": 80,
+      "youtube_caps": "todo em CAPS e aceito (padrao do nicho, 69% dos titulos) ou CAPS seletivo em 2 a 4 palavras-chave",
+      "youtube_emojis": "0 por padrao; 1 em no maximo ~30% dos titulos",
+      "youtube_sem": ["aspas", "!", "reticencias", "#shorts", "3+ hashtags"],
+      "tiktok_caps": "frase normal ou minusculas; nunca tudo em CAPS",
+      "tiktok_formas": ["2 a 5 palavras em minusculas + 1 emoji", "manchete com contexto de 60 a 120 caracteres + pergunta"],
+      "comecar_com": ["nome da pessoa", "QUANDO", "QUEM", "ELE/ELA"],
+      "nao_comecar_com": ["NÃO", "POR QUE"]
+    }
+  },
+
+  "emojis_vencedores": {
+    "youtube": [
+      {"emoji": "🤣", "n": 12, "razao": 2.73},
+      {"emoji": "😂", "n": 18, "razao": 1.61},
+      {"emoji": "🔥", "n": 9, "razao": 1.44},
+      {"emoji": "🚨", "n": 10, "razao": 1.03}
+    ],
+    "youtube_abaixo_da_mediana": [
+      {"emoji": "👀", "n": 10, "razao": 0.85},
+      {"emoji": "😳", "n": 7, "razao": 0.74}
+    ],
+    "tiktok": [
+      {"emoji": "🎙️", "n": 5, "razao": 1.18},
+      {"emoji": "👉", "n": 9, "razao": 1.00},
+      {"emoji": "🤣", "n": 8, "razao": 0.78},
+      {"emoji": "🔥", "n": 6, "razao": 0.60}
+    ],
+    "regras": {
+      "youtube_padrao": 0,
+      "youtube_max": 1,
+      "youtube_prob_com_emoji": 0.30,
+      "youtube_por_emocao": {"humor": ["🤣", "😂", "💀"], "hype": ["🔥"], "noticia_menos_24h": ["🚨"]},
+      "tiktok_max": 1,
+      "tiktok_prob_com_emoji": 0.50
+    },
+    "contradicao_criativo_genz": "criativo_genz.json manda evitar 😂/🤣; no nicho de cortes BR do YouTube eles aparecem em vencedores de humor (n = 30). Recomendacao: permitir em humor no YouTube, sem virar regra; nao usar 👀/😳 como padrao."
+  },
+
+  "hashtags_vencedoras": {
+    "youtube": [
+      {"tag": "#sbt", "n": 6, "razao": 6.41},
+      {"tag": "#silviosantos", "n": 6, "razao": 6.13},
+      {"tag": "#danilogentilli", "n": 9, "razao": 5.85},
+      {"tag": "#historia", "n": 11, "razao": 2.41},
+      {"tag": "#thenoite", "n": 23, "razao": 2.11},
+      {"tag": "#igor3k", "n": 8, "razao": 1.86},
+      {"tag": "#guilhermebriggs", "n": 14, "razao": 1.65},
+      {"tag": "#brasil", "n": 10, "razao": 1.54},
+      {"tag": "#humor", "n": 5, "razao": 1.53},
+      {"tag": "#venuspodcast", "n": 25, "razao": 1.46},
+      {"tag": "#podcast", "n": 64, "razao": 1.13}
+    ],
+    "youtube_neutras_ou_ruins": [
+      {"tag": "#shorts", "n": 189, "razao": 0.91},
+      {"tag": "#viral", "n": 26, "razao": 1.31, "obs": "confundido: so em canais que ja iam bem; manter fora"},
+      {"tag": "#fyp", "n": 9, "razao": 1.12, "obs": "manter fora"},
+      {"tag": "#politica", "n": 8, "razao": 0.70},
+      {"tag": "#gta6", "n": 9, "razao": 0.63}
+    ],
+    "tiktok": [
+      {"tag": "#futebolbrasileiro", "n": 6, "razao": 1.58},
+      {"tag": "#mbl", "n": 8, "razao": 1.27},
+      {"tag": "#renansantos", "n": 8, "razao": 1.27},
+      {"tag": "#noticias", "n": 11, "razao": 1.26},
+      {"tag": "#denilsonshow", "n": 6, "razao": 1.10}
+    ],
+    "tiktok_abaixo": [
+      {"tag": "#humor", "n": 18, "razao": 0.93},
+      {"tag": "#engracado", "n": 6, "razao": 0.70}
+    ],
+    "regras": {
+      "youtube_no_titulo_max": 1,
+      "youtube_tipo": "entidade (pessoa, programa, personagem) ou acervo (#historia, #curiosidades)",
+      "youtube_sem_shorts": true,
+      "tiktok_qtd": [3, 4],
+      "tiktok_tipo": "tema + entidade; evitar genericas (#humor, #engracado)",
+      "nunca_usar": ["#fyp", "#foryou", "#viral", "#parati"]
+    }
+  },
+
+  "evitar": [
+    "YouTube: corte de 41 a 59 s sem desfecho forte (0,77x a 0,88x nos canais ativos) e de 76 a 90 s (0,71x)",
+    "YouTube: postar 18:00-20:30 em dia util (0,65x a 1,00x; 27% de todos os posts estao ai) e antes das 10:00 (0,66x a 0,69x)",
+    "TikTok: quarta-feira (0,53x) e duracao de 46 a 59 s (0,89x)",
+    "Titulo entre aspas (2% dos vencedores contra 7% do resto) e com '!' (12% contra 19%)",
+    "Reticencias no titulo (0,75x) e 2 emojis (0,87x)",
+    "3 hashtags no titulo do YouTube (0,80x) e #shorts (0,91x)",
+    "👀 e 😳 como emoji padrao no YouTube (0,85x e 0,74x)",
+    "Series 'Parte 1/2/3' em Shorts (0,6% de uso, sem ganho)",
+    "Legenda generica repetida no TikTok ('assista o EP completo no link da bio')",
+    "Posts de autopromocao, agenda e 'obrigado por 1 milhao' (estao entre os piores de cada canal)",
+    "Palavrao no titulo (1,01x: sem ganho, com risco de anuncio limitado); mascarar so palavra sensivel (M*RT0) quando ela e o assunto",
+    "Silencio, respiracao ou vinheta antes da primeira palavra (92% dos vencedores falam em ate 0,3 s)",
+    "Teaser invertido como padrao (0 de 24 vencedores usam)",
+    "Competir no momento obvio de live que os canais oficiais ja postaram; preferir acervo atemporal e angulos ignorados",
+    "Comecar o titulo com 'NAO' (0,72x) ou 'POR QUE' (0,56x)"
+  ],
+
+  "cold_open": {
+    "metodo": "25 Shorts do top 10% recente (11 canais, max 4 por canal) e 10 controles (razao ~1,0). Audio dos primeiros 60 s (mediana 0,8 MB), faster-whisper tiny na CPU, uma transcricao por vez, audio apagado em seguida. Teaser = 4+ palavras (ou 1+ s de fala) dos 3 s iniciais que reaparecem >= 5 s depois (igualdade exata ou Jaccard >= 0,6).",
+    "plataforma": "youtube (TikTok bloqueia download)",
+    "resultado": {
+      "top10": {"n_com_fala": 24, "teaser_real": 0, "coincidencias_descartadas": 3, "fala_ate_0_3s": 22, "fala_ate_1s": 24, "palavras_3s_mediana": 11.5, "abre_com_pergunta": 6, "abre_em_primeira_pessoa": 6, "abertura_repete_titulo": 3},
+      "controle": {"n_com_fala": 10, "teaser_real": 0, "coincidencias_descartadas": 1, "fala_ate_0_3s": 8, "fala_ate_1s": 9, "palavras_3s_mediana": 10, "abre_com_pergunta": 0, "abre_em_primeira_pessoa": 1, "abertura_repete_titulo": 2}
+    },
+    "teaser_duracao_media_s": null,
+    "tipo_momento_abertura": {"frase_de_impacto": 23, "revelacao": 1, "briga": 0, "palavrao": 0, "choro": 0, "risada": 0},
+    "conclusao": "Nenhum vencedor brasileiro da amostra usa cold open falado. Eles comecam dentro da frase-gancho, com fala no frame 0 e ~3,8 palavras por segundo; abrir com pergunta direta ou relato em primeira pessoa diferencia vencedores dos controles.",
+    "regras_cortex": {
+      "pre_silencio_max_s": 0.3,
+      "teaser_invertido_prob_max": 0.10,
+      "teaser_invertido_so_como_teste_ab": true,
+      "preferir_abertura": ["pergunta direta a alguem", "relato em primeira pessoa (eu cheguei, eu fui)"],
+      "climax_posicao": "meio ou fim do corte, nunca nos 3 s iniciais"
+    },
+    "limites": ["so os primeiros 60 s", "whisper tiny erra palavras", "teaser so visual (sem fala) nao e detectado"]
+  },
+
+  "titulos_polemicos": {
+    "metodo": "regras automaticas sobre os titulos: aspas; palavrao inteiro ou mascarado (P*RRA, PUT@, C4GU3I); verbos de acusacao/conflito (humilhou, mentiu, armou, destruiu, farsa, passou dos limites, ataca, traicao, expos); nome = dicionario de nomes proprios do proprio conjunto; pergunta = '?' ou inicio com quem/como/qual/existe/e possivel",
+    "youtube": {
+      "n_top10": 105,
+      "n_resto": 929,
+      "aspas": {"top10": 0.02, "resto": 0.07, "razao_com": 1.02, "razao_sem": 1.00},
+      "palavrao": {"top10": 0.03, "resto": 0.02, "razao_com": 1.01, "razao_sem": 1.00},
+      "acusacao_conflito": {"top10": 0.12, "resto": 0.03, "razao_com": 1.72, "razao_sem": 0.99},
+      "nome_pessoa": {"top10": 0.66, "resto": 0.53, "razao_com": 1.04, "razao_sem": 0.95},
+      "pergunta": {"top10": 0.22, "resto": 0.22, "razao_com": 0.98, "razao_sem": 1.00},
+      "kkkk": {"top10": 0.06, "resto": 0.06, "razao_com": 1.09, "razao_sem": 1.00},
+      "caps_seletivo": {"top10": 0.13, "resto": 0.07, "razao_com": 1.09, "razao_sem": 1.00}
+    },
+    "tiktok": {
+      "n_top10": 15,
+      "n_resto": 132,
+      "aspas": {"top10": 0.0, "resto": 0.04},
+      "palavrao": {"top10": 0.07, "resto": 0.02},
+      "acusacao_conflito": {"top10": 0.07, "resto": 0.05},
+      "nome_pessoa": {"top10": 0.73, "resto": 0.69},
+      "pergunta": {"top10": 0.20, "resto": 0.22},
+      "caps_seletivo": {"top10": 0.40, "resto": 0.18}
+    },
+    "conclusoes": [
+      "Acusacao/conflito atribuido e o unico recurso polemico com efeito claro (12% dos vencedores contra 3%; 1,72x)",
+      "Palavrao nao traz ganho; aparece mascarado so como algospeak para palavra sensivel",
+      "Aspas atrapalham no YouTube (CyberCurioso: titulos entre aspas ficaram em 0,05x a 0,07x)",
+      "Pergunta e neutra; depende do conteudo"
+    ],
+    "modelos_reais": [
+      {"n": 1, "modelo": "{PESSOA} HUMILHOU {PESSOA2} KKKK", "origem": "@cortesloudcoringaoficial", "razao": 400, "recurso": "acusacao + nome + risada"},
+      {"n": 2, "modelo": "CONTEI para o BRASIL INTEIRO que {REVELACAO}", "origem": "@CortesdoVenusOficial", "razao": 185, "recurso": "confissao, caps seletivo"},
+      {"n": 3, "modelo": "{PESSOA} É UM {ROTULO_FORTE}!", "origem": "@cortesdointeligencia", "razao": 152, "recurso": "rotulo sobre pessoa"},
+      {"n": 4, "modelo": "{PESSOA} SOLTA O VERBO", "origem": "@CortesdoDavyJones", "razao": 93, "recurso": "nome + conflito"},
+      {"n": 5, "modelo": "O TERROR DO {GRUPO}", "origem": "@CortesPodpahOFICIAL", "razao": 75, "recurso": "identidade de grupo"},
+      {"n": 6, "modelo": "{ACAO} E ME ARREPENDI EM {N} DIAS", "origem": "@cortespodcastpapagaiofalante", "razao": 69, "recurso": "confissao + numero"},
+      {"n": 7, "modelo": "Tente não se emocionar...", "origem": "@SoUmClipeofc", "razao": 47, "recurso": "desafio (usar raramente)"},
+      {"n": 8, "modelo": "A {COISA} mais {ADJETIVO} que você verá", "origem": "@cortesdoflow", "razao": 44, "recurso": "superlativo"},
+      {"n": 9, "modelo": "Os mais {ADJETIVO} do Brasil", "origem": "@cortesdoflow", "razao": 43, "recurso": "superlativo nacional"},
+      {"n": 10, "modelo": "Ele {ACAO_CHOCANTE} no meio do programa", "origem": "@SoUmClipeofc", "razao": 33, "recurso": "bastidor de TV"},
+      {"n": 11, "modelo": "{PESSOA} NO {JOGO} KKKKKKKK", "origem": "@CortesdoDavyJones", "razao": 28, "recurso": "games + risada"},
+      {"n": 12, "modelo": "{PROFISSAO} É TUDO {ROTULO} 😂", "origem": "@CortesPodCutsOficial", "razao": 26, "recurso": "generalizacao bem-humorada"},
+      {"n": 13, "modelo": "{FAMOSO} ERA {ROTULO}?", "origem": "@cortespodcastpapagaiofalante", "razao": 21, "recurso": "pergunta sobre idolo"},
+      {"n": 14, "modelo": "ISSO É SER DE {LADO} NO BRASIL...?", "origem": "@CortesdoMBL", "razao": 19, "recurso": "identidade politica"},
+      {"n": 15, "modelo": "É POSSÍVEL {COISA_ABSURDA}?!", "origem": "@CortesdoVenusOficial", "razao": 60, "recurso": "curiosidade absurda"},
+      {"n": 16, "modelo": "{PESSOA} se ABRE sobre {TEMA} com {PESSOA2}", "origem": "@CortesdoVenusOficial", "razao": 46, "recurso": "revelacao de celebridade"},
+      {"n": 17, "modelo": "{COISA_DO_DIA_A_DIA} é uma FARSA!", "origem": "@CortesdoVenusOficial", "razao": 42, "recurso": "desmascarar"},
+      {"n": 18, "modelo": "O {GRUPO} DE {N} ANOS É SÓ UM {ROTULO}", "origem": "@CortesRedCast", "razao": 37, "recurso": "opiniao forte"},
+      {"n": 19, "modelo": "{PESSOA} PASSOU DOS LIMITES", "origem": "@CortesRedCast", "razao": 12, "recurso": "acusacao"},
+      {"n": 20, "modelo": "{PESSOA} CHAMOU {PESSOA2} DE {APELIDO} KKKK", "origem": "@cortesloudcoringaoficial", "razao": 10, "recurso": "zoeira entre famosos"},
+      {"n": 21, "modelo": "QUANDO DESCOBRI {FATO_PESSOAL}", "origem": "@cortespodcastpapagaiofalante", "razao": 11, "recurso": "confissao"},
+      {"n": 22, "modelo": "O QUE DESTRUIU {PESSOA}", "origem": "@CortesRedCast", "razao": 8, "recurso": "curiosidade + queda"},
+      {"n": 23, "modelo": "{POLITICO} E {POLITICO2} SÃO IGUALMENTE {ADJETIVO}", "origem": "@CortesdoMBL", "razao": 7.5, "recurso": "opiniao atribuida"},
+      {"n": 24, "modelo": "{PESSOA} REVELA OS BASTIDORES DE {EVENTO_FAMOSO}", "origem": "@CharlaPodcast", "razao": 5.6, "recurso": "bastidor + nostalgia"},
+      {"n": 25, "modelo": "Quem é o {PAPEL} mais {ADJETIVO} do Brasil?", "origem": "@SoUmClipeofc", "razao": 5.9, "recurso": "pergunta-ranking"}
+    ],
+    "modelos_tiktok": [
+      {"modelo": "{frase curta em minúsculas} {1 emoji}", "origem": "@podpah", "razao": 57},
+      {"modelo": "{PESSOA} é o novo {CARGO} do {TIME}, rapaziada! 👀 E aí, o que acharam?", "origem": "@denilsonshow", "razao": 42}
+    ]
+  },
+
+  "config_recomendado": {
+    "autopiloto.horarios_nobres_semana": {
+      "seg": ["12:00-14:00", "21:00-23:30"],
+      "ter": ["12:00-14:00", "21:00-23:30"],
+      "qua": ["12:00-14:30", "21:00-23:30"],
+      "qui": ["10:00-12:00", "21:00-23:30"],
+      "sex": ["15:00-17:30", "21:00-23:59"],
+      "sab": ["12:00-14:00", "15:00-17:30"],
+      "dom": ["10:00-12:00", "18:30-21:30"]
+    },
+    "autopiloto.janela_publicacao": ["09:30", "00:30"],
+    "publicacao.max_posts_por_dia": {"youtube": 2, "tiktok": 4},
+    "publicacao.intervalo_minimo_min": {"youtube": 300, "tiktok": 150},
+    "publicacao.max_hashtags": 3,
+    "corte.duracao_min_s": 15,
+    "corte.duracao_max_s": 45,
+    "corte.permitir_series": false,
+    "corte.duracao_parte_s": 40,
+    "futuro_render_por_plataforma": {"youtube_s": [22, 40], "tiktok_alcance_s": [8, 20], "tiktok_monetizacao_s": [61, 90]}
+  }
+}

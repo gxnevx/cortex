@@ -1,0 +1,466 @@
+{
+  "_meta": {
+    "versao": "2026-11-23",
+    "revisar_ate": "2027-01-22",
+    "guia": "docs/HASHTAGS.md",
+    "notas": [
+      "Tags sem acento, minusculas, sem espaco. Formato de item: \"#tag\" (sempre relevante no nicho) ou {\"tag\": \"#tag\", \"se\": [\"termo\", ...]} (so entra se um dos termos aparecer no texto do corte).",
+      "Mistura padrao com 5 tags: 1 entidade (pessoa, programa, jogo), 1 ampla, 2 medias e 1 de nicho. Sem entidade, a vaga vai para nicho ou ampla.",
+      "Evidencia (benchmark de 23/11/2026): hashtag de entidade e de tema rende mais que generica; #shorts e #fyp/#viral nao mostram ganho."
+    ]
+  },
+  "regras": {
+    "youtube": {
+      "titulo_max": 100,
+      "descricao_max": 5000,
+      "hashtags_max_total": 15,
+      "hashtags_ignoradas_acima_de": 60,
+      "hashtags_acima_do_titulo": 3,
+      "shorts_tag": "#Shorts",
+      "emojis_titulo_max": 2
+    },
+    "tiktok": {
+      "legenda_max": 2200,
+      "legenda_max_app": 4000,
+      "hashtags_max_total": 5,
+      "primeira_linha_alvo": [45, 90],
+      "contexto_max": 150,
+      "emojis_titulo_max": 2
+    },
+    "tag_max_chars": 22,
+    "tag_min_chars": 2,
+    "memoria_posts": 40,
+    "sem_repetir_conjunto_ultimos": 6,
+    "rodizio_janela_posts": 12
+  },
+  "aliases_categoria": {
+    "politica": "politica",
+    "polemica": "polemica",
+    "games": "games",
+    "humor": "humor",
+    "podcast": "podcast",
+    "esportes": "futebol",
+    "futebol": "futebol",
+    "entretenimento": "celebridades",
+    "celebridades": "celebridades",
+    "noticias": "noticias",
+    "outros": "geral",
+    "geral": "geral"
+  },
+  "nichos": {
+    "geral": {
+      "amplas": ["#cortes", "#brasil"],
+      "medias": ["#entretenimento", "#resenha"],
+      "nicho": []
+    },
+    "politica": {
+      "amplas": ["#politica", "#noticias", "#brasil"],
+      "medias": [
+        "#politicabrasileira",
+        "#brasilia",
+        {"tag": "#congresso", "se": ["congresso", "deputado", "deputada", "deputados", "senador", "senadora", "camara", "plenario"]},
+        {"tag": "#camaradosdeputados", "se": ["camara dos deputados", "deputado", "deputada", "deputados"]},
+        {"tag": "#senado", "se": ["senado", "senador", "senadora", "senadores"]},
+        {"tag": "#stf", "se": ["stf", "supremo", "ministro do supremo", "moraes", "gilmar", "flavio dino", "barroso"]},
+        {"tag": "#debate", "se": ["debate", "debateu", "debater"]},
+        {"tag": "#entrevista", "se": ["entrevista", "entrevistado", "jornalista perguntou"]},
+        {"tag": "#economia", "se": ["economia", "inflacao", "juros", "imposto", "impostos", "dolar", "salario minimo", "gasolina"]}
+      ],
+      "nicho": [
+        {"tag": "#cpi", "se": ["cpi", "comissao parlamentar"]},
+        {"tag": "#reformatributaria", "se": ["reforma tributaria"]},
+        {"tag": "#impostoderenda", "se": ["imposto de renda"]},
+        {"tag": "#segurancapublica", "se": ["seguranca publica", "policia", "crime organizado", "faccao"]},
+        {"tag": "#posse2027", "se": ["posse"]},
+        {"tag": "#eleicoes", "se": ["eleicao", "eleicoes", "urna", "segundo turno", "primeiro turno"]}
+      ]
+    },
+    "polemica": {
+      "amplas": ["#polemica", "#debate", "#opiniao"],
+      "medias": [
+        "#treta",
+        "#discussao",
+        {"tag": "#cortespodcast", "se": ["podcast", "cast", "episodio"]},
+        {"tag": "#entrevista", "se": ["entrevista", "entrevistado"]},
+        {"tag": "#relacionamento", "se": ["namoro", "namorada", "namorado", "casamento", "traicao", "traiu", "relacionamento"]}
+      ],
+      "nicho": [
+        {"tag": "#redpill", "se": ["red pill", "redpill"]},
+        {"tag": "#machismo", "se": ["machismo", "machista"]},
+        {"tag": "#feminismo", "se": ["feminismo", "feminista"]},
+        {"tag": "#religiao", "se": ["religiao", "igreja", "pastor", "biblia"]}
+      ]
+    },
+    "games": {
+      "amplas": ["#games", "#gamer", "#jogos"],
+      "medias": [
+        "#gameplay",
+        "#cortesdelive",
+        {"tag": "#streamer", "se": ["live", "stream", "streamer", "ao vivo", "chat"]},
+        {"tag": "#twitch", "se": ["twitch"]},
+        {"tag": "#kick", "se": ["kick"]},
+        {"tag": "#esports", "se": ["campeonato", "torneio", "major", "mundial", "esports", "e sports"]}
+      ],
+      "nicho": [
+        {"tag": "#gtarp", "se": ["gta rp", "roleplay", "cidade alta", "complexo rp"]},
+        {"tag": "#jogosdeterror", "se": ["terror", "susto", "jumpscare"]},
+        {"tag": "#rage", "se": ["rage", "raiva", "quebrou o controle", "pistola", "pistolou"]},
+        {"tag": "#speedrun", "se": ["speedrun", "speed run"]},
+        {"tag": "#ps5", "se": ["ps5", "playstation 5", "playstation"]},
+        {"tag": "#xbox", "se": ["xbox"]}
+      ]
+    },
+    "humor": {
+      "amplas": ["#humor", "#comedia", "#memes"],
+      "medias": [
+        "#humorbrasileiro",
+        "#resenha",
+        "#cortesengracados",
+        {"tag": "#zoeira", "se": ["zoeira", "zueira", "zoando", "zoou", "zoa"]},
+        {"tag": "#kkkkkk", "se": ["kkkk", "risada", "rindo", "morri"]}
+      ],
+      "nicho": [
+        {"tag": "#standup", "se": ["stand up", "standup", "show de comedia", "comediante", "piada"]},
+        {"tag": "#pegadinha", "se": ["pegadinha", "trollagem", "trollei", "trollou"]},
+        {"tag": "#react", "se": ["react", "reagindo", "reagiu", "reacao"]},
+        {"tag": "#improviso", "se": ["improviso", "improvisou"]}
+      ]
+    },
+    "podcast": {
+      "amplas": ["#podcast", "#cortes", "#podcastbrasil"],
+      "medias": [
+        "#cortespodcast",
+        "#cortesdepodcast",
+        {"tag": "#entrevista", "se": ["entrevista", "entrevistado", "convidado", "convidada"]},
+        {"tag": "#historia", "se": ["historia", "aconteceu", "contou", "lembro", "certa vez"]}
+      ],
+      "nicho": [
+        {"tag": "#storytime", "se": ["aconteceu comigo", "vou contar", "contou", "historia"]},
+        {"tag": "#curiosidades", "se": ["curiosidade", "voce sabia", "sabia que"]},
+        {"tag": "#motivacao", "se": ["motivacao", "disciplina", "sucesso", "foco"]},
+        {"tag": "#empreendedorismo", "se": ["empresa", "negocio", "empreender", "empreendedor", "faturamento"]},
+        {"tag": "#relacionamento", "se": ["namoro", "namorada", "namorado", "casamento", "traicao", "relacionamento"]},
+        {"tag": "#financas", "se": ["investimento", "investir", "dinheiro", "dividas", "salario"]},
+        {"tag": "#misterio", "se": ["misterio", "paranormal", "fantasma", "assombracao", "ovni"]},
+        {"tag": "#truecrime", "se": ["crime", "assassinato", "serial killer", "investigacao", "caso real"]}
+      ]
+    },
+    "futebol": {
+      "amplas": ["#futebol", "#futebolbrasileiro"],
+      "medias": [
+        "#resenha",
+        "#futebolraiz",
+        {"tag": "#brasileirao", "se": ["brasileirao", "serie a", "rodada", "campeonato brasileiro"]},
+        {"tag": "#libertadores", "se": ["libertadores"]},
+        {"tag": "#selecaobrasileira", "se": ["selecao", "selecao brasileira", "ancelotti", "amarelinha"]},
+        {"tag": "#mercadodabola", "se": ["contratacao", "contratar", "transferencia", "mercado da bola", "reforco", "proposta"]},
+        {"tag": "#bastidores", "se": ["bastidores", "vestiario", "concentracao"]}
+      ],
+      "nicho": [
+        {"tag": "#copadobrasil", "se": ["copa do brasil"]},
+        {"tag": "#arbitragem", "se": ["arbitro", "arbitragem", "var", "penalti", "impedimento"]},
+        {"tag": "#torcida", "se": ["torcida", "torcedor", "torcedores", "estadio"]},
+        {"tag": "#golaco", "se": ["golaco", "gol de placa", "bicicleta"]}
+      ]
+    },
+    "celebridades": {
+      "amplas": ["#famosos", "#fofoca", "#entretenimento"],
+      "medias": [
+        "#celebridades",
+        {"tag": "#reality", "se": ["reality", "confinamento", "eliminado", "eliminada", "paredao", "roca", "prova de fogo", "peao", "peoa"]},
+        {"tag": "#realityshow", "se": ["reality show"]},
+        {"tag": "#novela", "se": ["novela", "folhetim"]},
+        {"tag": "#musica", "se": ["musica", "cantor", "cantora", "clipe", "album"]},
+        {"tag": "#tv", "se": ["programa de tv", "televisao", "apresentador", "apresentadora"]}
+      ],
+      "nicho": [
+        {"tag": "#treta", "se": ["treta", "briga", "brigou", "discussao", "barraco"]},
+        {"tag": "#namoro", "se": ["namoro", "namorando", "affair", "ficou com", "beijou"]},
+        {"tag": "#separacao", "se": ["separacao", "separou", "termino", "terminou", "divorcio"]}
+      ]
+    },
+    "noticias": {
+      "amplas": ["#noticias", "#brasil"],
+      "medias": [
+        "#atualidades",
+        "#jornalismo",
+        {"tag": "#entenda", "se": ["entenda", "explica", "explicando", "o que aconteceu"]},
+        {"tag": "#economia", "se": ["economia", "inflacao", "juros", "dolar", "preco", "precos", "imposto"]},
+        {"tag": "#urgente", "se": ["urgente", "ultima hora", "agora ha pouco"]}
+      ],
+      "nicho": [
+        {"tag": "#tecnologia", "se": ["tecnologia", "inteligencia artificial", "celular", "iphone", "aplicativo", "chatgpt"]},
+        {"tag": "#clima", "se": ["chuva", "temporal", "calor", "onda de calor", "enchente", "frio"]},
+        {"tag": "#saude", "se": ["saude", "doenca", "vacina", "hospital", "sus"]},
+        {"tag": "#seguranca", "se": ["assalto", "policia", "crime", "preso", "presa"]},
+        {"tag": "#mundo", "se": ["eua", "estados unidos", "trump", "china", "russia", "ucrania", "israel", "europa"]}
+      ]
+    }
+  },
+  "extras": {
+    "legendado": "#legendado"
+  },
+  "entidades": [
+    {"tag": "#gta6", "se": ["gta 6", "gta vi", "gta6", "gtavi", "grand theft auto 6", "grand theft auto vi"]},
+    {"tag": "#minecraft", "se": ["minecraft"]},
+    {"tag": "#freefire", "se": ["free fire", "freefire"]},
+    {"tag": "#valorant", "se": ["valorant"]},
+    {"tag": "#cs2", "se": ["cs2", "cs 2", "counter strike"]},
+    {"tag": "#leagueoflegends", "se": ["league of legends"]},
+    {"tag": "#fortnite", "se": ["fortnite"]},
+    {"tag": "#roblox", "se": ["roblox"]},
+    {"tag": "#eafc26", "se": ["ea fc", "fc 26", "fifa 26"]},
+    {"tag": "#callofduty", "se": ["call of duty", "warzone", "black ops"]},
+    {"tag": "#pokemon", "se": ["pokemon"]},
+    {"tag": "#casimiro", "se": ["casimiro", "caze", "cazetv"]},
+    {"tag": "#gaules", "se": ["gaules"]},
+    {"tag": "#alanzoka", "se": ["alanzoka"]},
+    {"tag": "#cellbit", "se": ["cellbit"]},
+    {"tag": "#felps", "se": ["felps"]},
+    {"tag": "#coringa", "se": ["coringa"]},
+    {"tag": "#paulinholoko", "se": ["paulinho loko", "paulinholoko", "paulinho o loko"]},
+    {"tag": "#jonvlogs", "se": ["jon vlogs", "jonvlogs", "bonde do jon"]},
+    {"tag": "#nobru", "se": ["nobru"]},
+    {"tag": "#loud", "se": ["loud"]},
+    {"tag": "#podpah", "se": ["podpah", "igao"]},
+    {"tag": "#flowpodcast", "se": ["flow podcast", "flowpodcast"]},
+    {"tag": "#igor3k", "se": ["igor 3k", "igor3k"]},
+    {"tag": "#inteligencialtda", "se": ["inteligencia ltda", "inteligencialtda", "rogerio vilela"]},
+    {"tag": "#ticaracaticast", "se": ["ticaracaticast", "ticaracatica"]},
+    {"tag": "#primocast", "se": ["primocast", "primo cast", "primo rico"]},
+    {"tag": "#venuspodcast", "se": ["venus podcast", "venuspodcast"]},
+    {"tag": "#danilogentili", "se": ["danilo gentili", "gentili"]},
+    {"tag": "#thenoite", "se": ["the noite"]},
+    {"tag": "#silviosantos", "se": ["silvio santos"]},
+    {"tag": "#sbt", "se": ["sbt"]},
+    {"tag": "#whindersson", "se": ["whindersson"]},
+    {"tag": "#afonsopadilha", "se": ["afonso padilha"]},
+    {"tag": "#thiagoventura", "se": ["thiago ventura"]},
+    {"tag": "#portadosfundos", "se": ["porta dos fundos"]},
+    {"tag": "#afazenda18", "se": ["a fazenda", "fazenda 18", "afazenda"]},
+    {"tag": "#bbb", "se": ["bbb", "big brother brasil"]},
+    {"tag": "#virginia", "se": ["virginia fonseca", "virginia"]},
+    {"tag": "#anitta", "se": ["anitta"]},
+    {"tag": "#carlinhosmaia", "se": ["carlinhos maia"]},
+    {"tag": "#neymar", "se": ["neymar"]},
+    {"tag": "#vinijr", "se": ["vini jr", "vinicius junior", "vinicius jr", "vinijr"]},
+    {"tag": "#cristianoronaldo", "se": ["cristiano ronaldo", "cr7"]},
+    {"tag": "#messi", "se": ["messi"]},
+    {"tag": "#flamengo", "se": ["flamengo", "mengao"]},
+    {"tag": "#corinthians", "se": ["corinthians"]},
+    {"tag": "#palmeiras", "se": ["palmeiras", "verdao"]},
+    {"tag": "#saopaulofc", "se": ["sao paulo fc", "tricolor paulista"]},
+    {"tag": "#vasco", "se": ["vasco"]},
+    {"tag": "#santosfc", "se": ["santos fc", "santos futebol clube"]},
+    {"tag": "#gremio", "se": ["gremio"]},
+    {"tag": "#internacional", "se": ["sport club internacional", "inter de porto alegre"]},
+    {"tag": "#cruzeiro", "se": ["cruzeiro"]},
+    {"tag": "#atleticomineiro", "se": ["atletico mineiro", "galo doido"]},
+    {"tag": "#botafogo", "se": ["botafogo"]},
+    {"tag": "#fluminense", "se": ["fluminense", "fluzao"]},
+    {"tag": "#lula", "se": ["lula"]},
+    {"tag": "#bolsonaro", "se": ["bolsonaro", "jair bolsonaro"]},
+    {"tag": "#flaviobolsonaro", "se": ["flavio bolsonaro"]},
+    {"tag": "#michellebolsonaro", "se": ["michelle bolsonaro"]},
+    {"tag": "#eduardobolsonaro", "se": ["eduardo bolsonaro"]},
+    {"tag": "#alexandredemoraes", "se": ["alexandre de moraes", "xandao"]},
+    {"tag": "#haddad", "se": ["haddad"]},
+    {"tag": "#tarcisio", "se": ["tarcisio"]},
+    {"tag": "#nikolasferreira", "se": ["nikolas ferreira", "nikolas"]},
+    {"tag": "#boulos", "se": ["boulos"]},
+    {"tag": "#pablomarcal", "se": ["pablo marcal"]},
+    {"tag": "#mbl", "se": ["mbl", "renan santos"]}
+  ],
+  "traducoes": {
+    "#funny": "#humor",
+    "#comedy": "#comedia",
+    "#meme": "#memes",
+    "#news": "#noticias",
+    "#politics": "#politica",
+    "#football": "#futebol",
+    "#soccer": "#futebol",
+    "#celebrity": "#famosos",
+    "#gossip": "#fofoca",
+    "#gaming": "#games",
+    "#game": "#games",
+    "#interview": "#entrevista",
+    "#podcasts": "#podcast",
+    "#engracado": "#humor",
+    "#engraado": "#humor",
+    "#gtavi": "#gta6",
+    "#cortesdepodcasts": "#cortesdepodcast"
+  },
+  "proibidas": [
+    "#fyp", "#fy", "#foryou", "#foryoupage", "#fypage", "#fypp", "#viral", "#viralvideo", "#virais", "#viraliza",
+    "#parati", "#paravoce", "#pravoce", "#xyzbca", "#explore", "#explorepage", "#trending", "#trend", "#tiktok", "#tiktokbrasil",
+    "#youtube", "#youtubeshorts", "#ytshorts", "#reels", "#instagram", "#kwai", "#capcut",
+    "#likeforlike", "#like4like", "#l4l", "#followforfollow", "#follow4follow", "#f4f", "#seguidores", "#sigam", "#segue",
+    "#curte", "#inscrevase", "#inscreva", "#subscribe", "#sub4sub",
+    "#nsfw", "#sexy", "#18", "#adulto", "#onlyfans", "#bet", "#bets", "#aposta", "#apostas", "#tigrinho", "#cassino"
+  ],
+  "proibidas_trechos": [
+    "porra", "caralh", "foda", "merda", "buceta", "arrombad", "pqp", "vsf", "vtnc", "fdp", "cuzao",
+    "ladrao", "genocida", "golpista", "petralha", "bolsominion", "nazis", "comunista", "esquerdopata", "fascista"
+  ],
+  "proibidas_prefixos": ["#fora", "#vaitomar"],
+  "cta": {
+    "_regras": {
+      "prob_sem_cta": 0.3,
+      "nao_repetir_ultimos": 10,
+      "pedir_seguir": "youtube",
+      "tom_padrao": "malicioso",
+      "tom_prob_por_intensidade": [0.0, 0.5, 0.6, 0.75, 0.9],
+      "nichos_tom_maximo": {"politica": "polemico", "noticias": "polemico"},
+      "proibido": "curte e segue, deixa o like, se inscreve e ativa o sininho, comenta EU, segue pra mais",
+      "limites_tom": "piso de fabrica/tom.py em todos os niveis; insinuacao so dirigida ao espectador; nada afirmado sobre a pessoa do corte; nunca insinuar crime, traicao, caso, ato sexual ou droga de pessoa real; nada sexual com menor; nada de odio"
+    },
+    "tons": {
+      "malicioso": [
+        "Comenta o que você entendeu 😏",
+        "Se você entendeu, não fala nada 🤐",
+        "Assiste até o final e me diz se eu tô errado",
+        "Quem entendeu, entendeu 😏",
+        "Só quem viu até o fim entendeu 👀",
+        "Repara no final 👀",
+        "Assiste de novo e repara nos detalhes 👀",
+        "Não vou falar nada... só assiste 🫢",
+        "Me diz que eu não fui o único que reparou 👀",
+        "Comenta só um emoji pro que você sentiu 👀"
+      ],
+      "polemico": [
+        "De que lado você tá? 👇",
+        "Quem tá certo nessa?",
+        "Exagero ou tem razão?",
+        "Isso foi longe demais?",
+        "Falou o que muita gente pensa?"
+      ],
+      "super_polemico": [
+        "Quem defende isso aqui? Comenta 👇",
+        "Fala na cara: quem tá errado? 👇",
+        "Isso passou do limite ou não? 👇",
+        "Duvido alguém defender isso 👀",
+        "Vai ter gente defendendo isso nos comentários 🍿",
+        "Comenta se você ia aguentar ficar calado 😤"
+      ],
+      "modo_besta": [
+        "Se discordar comenta que eu respondo 😤",
+        "Duvido você assistir até o final sem ficar puto 😤",
+        "Fala que eu tô errado. Duvido 😤",
+        "Pode discordar nos comentários, eu aguento 🍿",
+        "Só quem tem coragem comenta o que pensou disso 👀",
+        "Comenta tá certo ou tá errado e bora ver quem ganha 👇",
+        "Aposto que você vai assistir de novo 👀"
+      ],
+      "neutro": []
+    },
+    "tons_serie": {
+      "malicioso": [
+        "o resto fica pra parte {prox} 🤐",
+        "segura que a parte {prox} vem 👀",
+        "quem entendeu já sabe o que vem na parte {prox} 😏"
+      ],
+      "super_polemico": [
+        "a parte {prox} vem aí, segura 😤",
+        "se aguentar essa, a parte {prox} vem aí 😤"
+      ],
+      "modo_besta": [
+        "se aguentar essa, a parte {prox} vem aí 😤",
+        "duvido você não ver a parte {prox} 👀"
+      ],
+      "polemico": [],
+      "neutro": []
+    },
+    "universal": [
+      "Concorda? Sim ou não? 👇",
+      "Tem razão ou exagerou?",
+      "Nota de 0 a 10 pra isso 👇",
+      "W ou L?",
+      "Qual foi a melhor parte?",
+      "Você faria o mesmo?",
+      "Manda pra quem precisa ver isso",
+      "O que você faria no lugar?"
+    ],
+    "por_nicho": {
+      "politica": [
+        "Concorda ou discorda? 👇",
+        "Faz sentido essa fala?",
+        "O que você achou da resposta?",
+        "Acertou ou errou nesse ponto?",
+        "Isso muda alguma coisa pra você?"
+      ],
+      "polemica": [
+        "De que lado você tá? 👇",
+        "Quem tá certo nessa?",
+        "Exagero ou tem razão?",
+        "Concorda? Sim ou não?",
+        "Você aguentaria ouvir isso calado?"
+      ],
+      "games": [
+        "Você faria essa jogada? 🎮",
+        "W ou L dessa jogada?",
+        "Nota de 0 a 10 pra essa jogada",
+        "Já passou por isso no jogo?",
+        "Qual jogo você tá jogando agora? 🎮"
+      ],
+      "humor": [
+        "Marca o amigo que faria isso 💀",
+        "Manda pro amigo que é igualzinho",
+        "Quem nunca? 😭",
+        "Você tankaria isso?",
+        "Nota de 0 a 10 pra essa resposta 💀"
+      ],
+      "podcast": [
+        "Concorda com essa visão?",
+        "Já passou por isso?",
+        "Qual parte mais te pegou?",
+        "Salva pra lembrar disso depois",
+        "Faz sentido pra você?"
+      ],
+      "futebol": [
+        "Tá certo ou viajou? ⚽",
+        "Qual é o teu time? 👇",
+        "Concorda com essa resenha?",
+        "Nota de 0 a 10 pra essa análise",
+        "Quem ganha essa? 👇"
+      ],
+      "celebridades": [
+        "Exagerou ou não? 🍿",
+        "Quem tá certo nessa treta? 👀",
+        "Vai dar o que falar? 🍿",
+        "Você faria o mesmo no lugar?",
+        "Time de quem? 👇"
+      ],
+      "noticias": [
+        "O que você acha disso?",
+        "Já sabia disso?",
+        "Isso afeta você de alguma forma?",
+        "Manda pra quem precisa saber",
+        "Concorda com a decisão?"
+      ],
+      "geral": []
+    },
+    "legendado": [
+      "Já conhecia esse momento? 👀",
+      "Quer mais desses traduzidos? Comenta 👇",
+      "A tradução ficou boa?"
+    ],
+    "serie": {
+      "neutras": [
+        "continua na parte {prox} 🔜",
+        "a parte {prox} vem no perfil 👀",
+        "a resposta vem na parte {prox} 👀",
+        "não perde a parte {prox}"
+      ],
+      "seguir": [
+        "segue pra ver a próxima 👀",
+        "segue o canal pra ver a parte {prox}",
+        "se inscreve pra não perder a parte {prox}"
+      ],
+      "final": [
+        "a última. Viu as anteriores? Tão no perfil 👀",
+        "o final. Valeu a espera?",
+        "a última. Qual parte foi a melhor?"
+      ]
+    }
+  }
+}
