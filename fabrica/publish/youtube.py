@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..log import get as get_log
-from ..models import NeedsUserAction, PostResult, RenderedClip
+from ..models import CaptchaAppeared, NeedsUserAction, PostResult, RenderedClip
 from . import guard, human
 from .browser import exists, find, page_text, screenshot
 from .captions import build_post_text, source_info, strip_emojis
@@ -103,7 +103,7 @@ VIDEO_ID_RE = re.compile(r"(?:youtu\.be/|/shorts/|[?&]v=|/video/)([\w-]{11})")
 CHANNEL_RE = re.compile(r"/channel/(UC[\w-]{20,})")
 
 LOGIN_MSG = ("ACAO_NECESSARIA: faça login no YouTube no navegador da Fábrica "
-             "(menu > Login nas redes, ou: cortex login youtube).")
+             "(menu > Contas, ou: cortex login youtube).")
 
 # "assinatura" do passo atual do assistente de upload (para saber se o Seguinte avancou)
 _STEP_SIG_JS = """() => {
@@ -134,7 +134,7 @@ def is_login_wall(page: Any) -> bool:
     return False
 
 
-def _check_blockers(page: Any, stage: str = "") -> None:
+def _check_blockers(page: Any, stage: str = "", own: str = "") -> None:
     """Levanta NeedsUserAction se aparecer login, verificacao, captcha, falta de canal ou limite diario."""
     url = page.url or ""
     if "accounts.google.com" in url:
@@ -145,7 +145,7 @@ def _check_blockers(page: Any, stage: str = "") -> None:
     # desafio do reCAPTCHA (o selo invisivel "size=invisible" nao conta)
     if "google.com/sorry" in url or exists(page, ['iframe[src*="recaptcha"][src*="bframe"]',
                                                   'iframe[src*="recaptcha"][src*="anchor"]:not([src*="size=invisible"])']):
-        raise NeedsUserAction("ACAO_NECESSARIA: o YouTube mostrou um captcha. A Fábrica não resolve captcha: abra o "
+        raise CaptchaAppeared("ACAO_NECESSARIA: o YouTube mostrou um captcha. A Fábrica não resolve captcha: abra o "
                               "login do YouTube na Fábrica, resolva você mesmo e rode de novo mais tarde.")
     if exists(page, SEL["create_channel"]):
         raise NeedsUserAction("ACAO_NECESSARIA: sua conta Google ainda não tem canal no YouTube. Abra studio.youtube.com "
@@ -154,7 +154,7 @@ def _check_blockers(page: Any, stage: str = "") -> None:
     dialog_text = " ".join(page_text(page, s, 4000) for s in ("ytcp-uploads-dialog", "ytcp-confirmation-dialog")
                            if page.locator(s).count())
     confirm_text = page_text(page, "ytcp-confirmation-dialog", 2000) if page.locator("ytcp-confirmation-dialog").count() else ""
-    if DAILY_LIMIT_RE.search(dialog_text):
+    if DAILY_LIMIT_RE.search(dialog_text) and not DAILY_LIMIT_RE.search(own):
         raise NeedsUserAction("LIMITE_DIARIO: o YouTube avisou que o limite diário de envios foi atingido. "
                               "Tente de novo em 24 h (e diminua publicacao.max_posts_por_dia.youtube).")
     if VERIFY_RE.search(confirm_text):
@@ -234,7 +234,8 @@ def attach_file(h: human.Actor, select_cands: list, input_cands: list, path: Pat
 def _wait_details(h: human.Actor, timeout: float = 120) -> Any:
     end = time.time() + timeout
     while time.time() < end:
-        h.blockers()
+        if h.blockers():  # o dono resolveu um CAPTCHA: recomeca a contagem
+            end = time.time() + timeout
         box = find(h.page, SEL["title"], timeout=2)
         if box is not None:
             return box
@@ -370,7 +371,8 @@ def _wait_upload(h: human.Actor, timeout: float, emit: Callable[[str], None]) ->
     last_report = 0.0
     label = ""
     while time.time() < end:
-        h.blockers()
+        if h.blockers():  # o dono resolveu um CAPTCHA: recomeca a contagem
+            end = time.time() + timeout
         err = " ".join(page_text(page, s, 1000) for s in SEL["error_area"] if exists(page, [s]))
         if UPLOAD_FAIL_RE.search(err):
             raise RuntimeError(f"o YouTube recusou o arquivo: {err.strip()[:200]}")
@@ -418,7 +420,8 @@ def _wait_published(h: human.Actor, timeout: float = 150) -> None:
     gone = 0
     anyway_clicked = False
     while time.time() < end:
-        h.blockers()
+        if h.blockers():  # o dono resolveu um CAPTCHA: recomeca a contagem
+            end = time.time() + timeout
         pre = find(page, SEL["prechecks"], timeout=0)
         if pre is not None and not anyway_clicked:
             btn = find(pre, [("role", "button", r"(publish anyway|publicar mesmo assim|publicar assim mesmo|"
@@ -562,7 +565,8 @@ def upload(page: Any, clip: RenderedClip, cfg: Any, dry_run: bool = False, *,
         emit_raw(strip_emojis(m))
     clip_id = clip.plan.id
     res = PostResult(clip_id=clip_id, platform=PLATFORM, ok=False, ts=time.time(), dry_run=dry_run)
-    h = human.Actor(page, cfg, PLATFORM, clip_id, emit, blockers=lambda: _check_blockers(page))
+    own = " ".join(text or ())
+    h = human.Actor(page, cfg, PLATFORM, clip_id, emit, blockers=lambda: _check_blockers(page, own=own))
     try:
         res.url = _upload(h, clip, cfg, dry_run, text, emit)
         res.ok = True
@@ -685,8 +689,9 @@ def _upload(h: human.Actor, clip: RenderedClip, cfg: Any, dry_run: bool, text: t
     try:
         h.step("clicar em Publicar", lambda: h.click(done, what="botão Publicar", on_press=press), retry=False)
         h.step("esperar a confirmação do YouTube", lambda: _wait_published(h), retry=False)
-    except NeedsUserAction:
+    except NeedsUserAction as e:
         if clicked["v"]:
+            guard.pause_platform(PLATFORM, str(e), cfg)
             raise UncertainPost("cliquei em Publicar e depois o YouTube pediu ação; NÃO vou reenviar. Confira no "
                                 "Studio se o vídeo saiu.", url)
         raise

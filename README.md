@@ -16,27 +16,35 @@ Sistema local (roda no seu PC, pelo CMD) que faz sozinho todo o ciclo de um cana
 
 ## Primeiros passos
 
-Dê dois cliques em **`cortex.bat`**. No menu:
+Dê dois cliques em **`cortex.bat`**. O menu tem só o essencial:
 
-1. **Login > YouTube** e depois **Login > TikTok**. Abre o navegador do CORTEX (separado do seu Chrome). Entre na conta, crie o canal se pedir e feche a janela. Logo depois ele oferece um teste da página de upload, que não publica nada.
-2. **Login > Claude** (recomendado). Abre o Claude Code: digite `/login` e siga. É a IA que escolhe os cortes e escreve os títulos. Sem isso o CORTEX funciona no modo heurístico (sem IA), com títulos mais genéricos.
-3. **Revisar e publicar > Publicação de TESTE** em uma rodada qualquer, para ver tudo sendo preenchido sem publicar.
-4. **Piloto automático > LIGAR**.
-5. **Piloto automático > Ligar sozinho quando o Windows iniciar**. Assim, se o PC reiniciar, o piloto volta sozinho depois que você entrar no Windows.
+| Opção | O que faz |
+|---|---|
+| **LIGAR O AUTOMÁTICO** | Mostra o aviso de risco de banimento, você dá OK, ele confere os logins, diz quantos vídeos vai postar por dia em cada rede e começa. Passa a ligar junto com o Windows. |
+| **Fazer cortes agora** | Cole um link, escreva um assunto ou deixe vazio para ele escolher o que está em alta. |
+| **Ver cortes prontos** | Assistir, editar, publicar ou descartar. |
+| **Resultados** | Views dos posts, saúde das contas e últimas rodadas. |
+| **Contas** | Entrar no YouTube, TikTok, API oficial do YouTube e Claude. |
+| **Ajustes** | Vídeos por dia, nível da polêmica, assuntos, iniciar com o Windows, diagnóstico. |
 
-## Piloto automático 24/7
+## Automático 24/7
 
-`cortex autopiloto` mostra um painel ao vivo com o que está acontecendo agora, a fila de cortes prontos, os posts do dia, os próximos horários e o log rolando.
+Roda em segundo plano: fechar o terminal não para nada, e um vigia do Windows religa se cair. Abrir o CORTEX mostra a situação (o que está rodando, próximo post, logins). Painel ao vivo com o que está acontecendo agora, a fila de cortes, os posts do dia, o próximo horário e o log rolando.
 
 | Parte | Como funciona |
 |---|---|
-| Produtor | Quando a fila de cortes prontos fica baixa, roda uma rodada completa e enche a fila. |
-| Publicador | Posta um corte por vez, espaçado, preferindo o horário nobre de cada dia da semana. Só publica sozinho nota 62 ou mais; o resto espera sua aprovação em Revisar. |
-| Proteção da conta | Conta nova não posta nos dias 0 a 3; depois 1 post por dia até o dia 10, 2 até o dia 21, 3 até o dia 42 e 4 a partir daí (por rede). Mínimo de 2 h entre posts no YouTube e 2 h 30 no TikTok. |
-| Erros | Nada derruba o piloto: ele registra, espera e tenta de novo. Captcha ou verificação pausam aquela rede e avisam você. |
-| Energia | Mantém o PC acordado enquanto roda. |
+| Produção | Quando a fila de cortes prontos fica baixa, roda uma rodada completa e enche a fila. Espera enquanto você usa o PC. |
+| Editor-chefe | Lê a fala de cada corte, dá nota, barra o que não pode ir ao ar e decide sozinho o que posta e o que descarta (com o motivo). |
+| Publicação | Posta um corte por vez, espaçado, preferindo o horário nobre de cada dia da semana. |
+| Conta nova | Começa devagar: a quantidade por dia cresce com a idade da conta até o seu limite (Ajustes). |
+| CAPTCHA | O CORTEX não resolve CAPTCHA. Ele abre a janela na sua tela, avisa com som e notificação, você resolve e ele continua o mesmo post. Sem resposta em 30 minutos, ou se a rede pedir mais de 2 vezes no mesmo dia, aquela rede fica parada até você entrar em Contas. |
+| Erros | Nada derruba o automático: ele registra, espera e tenta de novo. Um corte nunca é enviado duas vezes para a mesma rede. |
 
 Variações: `cortex autopiloto --teste` (simula a publicação) e `cortex autopiloto --so-produzir`.
+
+## YouTube pela API oficial (recomendado)
+
+Com a API conectada, o YouTube recebe os vídeos pelo caminho autorizado do Google, sem abrir navegador. O navegador vira plano B. Em **Contas > YouTube pela API oficial** (ou `cortex login youtube-api`) ele mostra o passo a passo: criar um projeto em console.cloud.google.com, ativar a YouTube Data API v3, publicar a tela de consentimento, criar um ID de cliente OAuth do tipo App para computador e baixar o JSON. O token fica criptografado pelo Windows em `data/` e nunca vai para o repositório.
 
 ## Comandos (CMD, dentro da pasta do CORTEX)
 
@@ -51,7 +59,7 @@ Variações: `cortex autopiloto --teste` (simula a publicação) e `cortex autop
 | `cortex tendencias` | o que está em alta agora |
 | `cortex buscar neymar` | lista vídeos de um tema sem processar |
 | `cortex revisar` | revisa, aprova e publica de uma vez |
-| `cortex login youtube`, `tiktok` ou `claude` | logins |
+| `cortex login youtube`, `tiktok`, `youtube-api` ou `claude` | logins |
 | `cortex testar-publicacao` | confere a página de upload sem publicar |
 | `cortex agendar` / `desagendar` / `agenda` | modo agendado (2 a 4 vezes por dia) em vez do 24/7 |
 | `cortex status` | diagnóstico completo |
@@ -61,7 +69,7 @@ Variações: `cortex autopiloto --teste` (simula a publicação) e `cortex autop
 
 ## Configuração
 
-Tudo fica em **`config.yaml`** (menu Configurações ou Bloco de Notas). O piloto relê o arquivo a cada rodada.
+Tudo fica em **`config.yaml`** (menu Ajustes > Avançado). O piloto relê o arquivo a cada rodada.
 
 | Opção | Para que serve |
 |---|---|

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from . import db, log, paths
 from .config import Config
@@ -136,6 +136,20 @@ def prime_windows(cfg: Config, when: datetime | None = None) -> list[str]:
     when = when or datetime.now()
     table = cfg.get("autopiloto.horarios_nobres_semana") or DEFAULT_PRIME
     return list(table.get(_DAYS[when.weekday()], []))
+
+
+def plan_steps(platform: str, cfg: Config) -> list[tuple[date, int]]:
+    """Quantos posts por dia, e a partir de quando: [(hoje, 0), (26/11, 1), ...]."""
+    base = int((cfg.get("publicacao.max_posts_por_dia", {}) or {}).get(platform, 4))
+    age = account_age_days(platform, cfg)
+    if not cfg.get("publicacao.aquecimento.ativo", True) or age is None:
+        return [(date.today(), base)]
+    steps = [(date.today(), daily_limit(platform, cfg))]
+    for a, _b, n in cfg.get("publicacao.aquecimento.tabela", DEFAULT_WARMUP):
+        n = min(base, int(n))
+        if a > age and n != steps[-1][1]:
+            steps.append((date.today() + timedelta(days=int(a) - age), n))
+    return steps
 
 
 def describe(cfg: Config) -> list[str]:

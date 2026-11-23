@@ -184,6 +184,7 @@ def main() -> int:
                 hit = [f for fs in backgrounds.library().values() for f in fs if a.fundo in f.name]
                 forced = (hit[0], 20.0) if hit else None
             rc = editor.render_clip(src, 0.0, dur, plan, tr, cfg, out, layout=lay, background=forced)
+            out = Path(rc.path)   # versao do YouTube (uma por rede)
             st = dict(editor.LAST_STATS)
             st["parede_s"] = round(time.time() - t0, 1)
             st["fundo"] = Path(rc.background).name if rc.background else None

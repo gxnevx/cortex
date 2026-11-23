@@ -334,6 +334,9 @@ def to_portuguese(transcript: Transcript, cfg=None, context: str = "") -> Transc
     items = [(i, t) for i, t in items if t]
     done: dict[int, str] = {}
     t0 = time.time()
+    from .brain.base import BrainUnavailable
+
+    bad = 0
     try:
         prev = ""
         for batch in _batches(items, eng.batch_chars):
@@ -344,15 +347,25 @@ def to_portuguese(transcript: Transcript, cfg=None, context: str = "") -> Transc
                     break
                 try:
                     got.update(_translate_batch(eng, todo, lang, context, prev))
+                except BrainUnavailable:
+                    raise
                 except Exception as e:
+                    bad += 1
                     logger.debug("lote de traducao falhou (tentativa %d): %s", attempt + 1, e)
+                    if bad >= 3 or time.time() - t0 > 900:
+                        raise RuntimeError("a IA de traducao nao esta respondendo") from e
             # o que sobrou: um por um (modelos pequenos as vezes pulam ids em lote)
             for i, t in batch:
                 if i not in got:
                     try:
                         got.update(_translate_batch(eng, [(i, t)], lang, context, prev))
+                    except BrainUnavailable:
+                        raise
                     except Exception as e:
+                        bad += 1
                         logger.debug("trecho %d nao traduziu: %s", i, e)
+                        if bad >= 3 or time.time() - t0 > 900:
+                            raise RuntimeError("a IA de traducao nao esta respondendo") from e
             done.update(got)
             prev = " ".join(t for _, t in batch)
     except Exception as e:

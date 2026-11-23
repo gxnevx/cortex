@@ -122,38 +122,83 @@ def check_plan(st: dict, lay: str) -> list[str]:
     return errs
 
 
-def independent_faces(clean_mp4: Path, st: dict, total: float, step: float = 0.5) -> dict:
-    """YuNet nos quadros da saida LIMPA (sem nada desenhado): rosto detectado x elementos ativos."""
+def independent_faces(clean_mp4: Path, st: dict, total: float, step: float = 0.25, dump: Path | None = None,
+                      region: tuple | None = None) -> dict:
+    """YuNet nos quadros da saida LIMPA (sem nada desenhado): rosto detectado x elementos ativos.
+
+    region: (x0, y0, x1, y1) onde procurar (no blur, so a area nitida: o fundo e uma copia ampliada e
+    desfocada em que o detector enxerga um rosto-fantasma). Uma deteccao so conta se aparecer em duas
+    amostras seguidas; as isoladas (falso positivo de um quadro) saem listadas a parte, nunca escondidas."""
     import cv2
     import numpy as np
 
     from fabrica.editor import faces, safezone
 
-    w, h = 360, 640
+    rx0, ry0, rx1, ry1 = (int(v) for v in (region or (0, 0, 1080, 1920)))
+    w = 360
+    h = max(2, int(round(w * (ry1 - ry0) / (rx1 - rx0) / 2)) * 2)
     det = cv2.FaceDetectorYN.create(str(faces.YUNET), "", (w, h), 0.7, 0.3, 20)
     items = [safezone.Item(n, r, t0, 1e9 if t1 is None else t1) for n, r, t0, t1 in st["sobreposicoes"]]
-    sx = 1080 / w
+    sx = (rx1 - rx0) / w
+    prev: list = []
+    isolated: list = []
+    pend: list = []
     worst, n_faces, frames = 0.0, 0, 0
+    dumped = []
     hits = []
     t = 0.25
     while t < total - 0.1:
-        im = np.array(grab(clean_mp4, t).resize((w, h)))[:, :, ::-1].copy()
+        full_im = grab(clean_mp4, t)
+        im = np.array(full_im.crop((rx0, ry0, rx1, ry1)).resize((w, h)))[:, :, ::-1].copy()
+        cur: list = []
         frames += 1
         _ok, fs = det.detect(im)
         for f in (fs if fs is not None else []):
             x, y, fw, fh = (float(v) * sx for v in f[:4])
+            x, y = x + rx0, y + ry0
             if fh < 0.05 * 1920:
                 continue
             n_faces += 1
+            cur.append((x, y, x + fw, y + fh))
+            seen = any(safezone._inter((x, y, x + fw, y + fh), q) > 0.3 * fw * fh for q in prev)
             r = faces.expand_box(x, y, fw, fh)
+            raw = (x, y, x + fw, y + fh)
+            this = []
             for it in items:
                 if it.t0 <= t <= it.t1:
                     a = safezone._inter(r, it.rect)
                     if a > 0:
-                        hits.append((round(t, 2), it.name, round(a)))
-                        worst = max(worst, a)
+                        rec = (round(t, 2), it.name, round(a))
+                        if seen:
+                            hits.append(rec)
+                            this.append(it)
+                            worst = max(worst, a)
+                        else:   # 1a aparicao: confirma (ou descarta) na amostra seguinte
+                            pend.append((t, it, a, raw, rec))
+            if this and dump is not None and len(dumped) < 6:
+                from PIL import ImageDraw
+
+                d = full_im.copy()
+                dr = ImageDraw.Draw(d)
+                dr.rectangle(raw, outline=(0, 255, 0), width=4)
+                dr.rectangle(r, outline=(255, 0, 0), width=4)
+                for it in this:
+                    dr.rectangle(it.rect, outline=(255, 230, 0), width=5)
+                dr.text((20, 20), f"{t:.2f}s score={float(f[14]):.2f}", fill=(255, 255, 0))
+                fp = dump / f"colisao_{clean_mp4.stem}_{t:05.2f}.jpg"
+                d.resize((540, 960)).save(fp, quality=85)
+                dumped.append(fp.name)
+        for (pt, pit, pa, praw, prec) in [q for q in pend if q[0] < t]:
+            if any(safezone._inter(praw, q) > 0.3 * (praw[2] - praw[0]) * (praw[3] - praw[1]) for q in cur):
+                hits.append(prec)          # persistiu: conta
+                worst = max(worst, pa)
+            else:
+                isolated.append(prec)      # um quadro so: listado a parte
+            pend.remove((pt, pit, pa, praw, prec))
+        prev = cur
         t += step
-    return {"quadros": frames, "rostos": n_faces, "pior_px": round(worst), "colisoes": hits[:12]}
+    isolated += [q[4] for q in pend]
+    return {"isoladas": isolated[:12], "quadros": frames, "rostos": n_faces, "pior_px": round(worst), "colisoes": hits[:12], "quadros_salvos": dumped}
 
 
 def styles_compare(clean_mp4: Path, st: dict, dest: Path) -> None:
@@ -250,7 +295,7 @@ def main() -> int:
         if not a.sem_limpo:
             c2 = base_cfg("rapida")
             c2.set("edicao.depurar_sem_sobreposicoes", True)
-            c2.set("edicao.marca_dagua_arroba", False)
+            # MESMA config do final (inclusive o @): outro plano seria conferir um plano nos quadros de outro
             clean = paths.TMP / f"v3_limpo_{lay}.mp4"
             rc2 = editor.render_clip(src, 0.0, dur, plan, tr, c2, clean, layout=lay,
                                      background=forced if lay == "split" else None, video=VIDEO)
@@ -258,9 +303,14 @@ def main() -> int:
             if "final" in res:
                 same = [x[:2] for x in st2["sobreposicoes"]] == [tuple(x[:2]) if isinstance(x, list) else x[:2]
                                                                    for x in res["final"]["sobreposicoes"]]
-                # o plano nao depende do @ (mesma largura reservada) nem da qualidade
                 res["mesmo_plano"] = same
-            ind = independent_faces(Path(rc2.path), st2, rc2.duration)
+                fin = [(n_, r_, a_) for n_, r_, a_, _b in res["final"]["sobreposicoes"]]
+                cl = [(n_, r_, a_) for n_, r_, a_, _b in st2["sobreposicoes"]]
+                if fin != cl:
+                    failures.append(f"{lay}: o render limpo usou OUTRO plano (conferencia invalida)")
+            g_ = editor.LAST_STATS["_framing"].geo
+            ind = independent_faces(Path(rc2.path), st2, rc2.duration, dump=paths.TMP,
+                                    region=(g_.ox, g_.oy, g_.ox + g_.ow, g_.oy + g_.oh))
             res["yunet_saida"] = ind
             print(f"[{lay}] YuNet na saida limpa: {ind}")
             if ind["pior_px"] > 0:
@@ -269,7 +319,8 @@ def main() -> int:
                 failures.append(f"{lay}: poucos rostos detectados na saida ({ind})")
             if a.estilos and lay == "full":
                 styles_compare(Path(rc2.path), st2, OUT / "etiqueta_estilos.jpg")
-            Path(rc2.path).unlink(missing_ok=True)
+            for f_ in rc2.all_files():
+                Path(f_).unlink(missing_ok=True)
             if rc2.thumbnail:
                 Path(rc2.thumbnail).unlink(missing_ok=True)
         # 3. grade de depuracao

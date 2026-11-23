@@ -55,24 +55,23 @@ Register-ScheduledTask -TaskPath '{TASK_FOLDER}' -TaskName '{name}' -Action $a -
 
 
 def install_autostart() -> None:
-    """Liga o piloto automatico 24/7 sempre que voce entrar no Windows (2 min depois do login).
-
-    Se a janela fechar por erro, o Windows reabre ate 3 vezes.
-    """
-    bat = paths.ROOT / "cortex.bat"
+    """Vigia minimo: ao entrar no Windows e a cada 10 min confere (em menos de 1 s, sem janela) se o automatico
+    que voce deixou ligado esta rodando; se caiu, liga de novo. Desligado por voce = ele nao faz nada."""
+    exe = paths.ROOT / ".venv" / "Scripts" / "pythonw.exe"
     script = f"""
 $ErrorActionPreference = 'Stop'
-$a = New-ScheduledTaskAction -Execute '{bat}' -Argument 'autopiloto' -WorkingDirectory '{paths.ROOT}'
-$t = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\\$env:USERNAME"
-$t.Delay = 'PT2M'
-$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5)
+$a = New-ScheduledTaskAction -Execute '{exe}' -Argument '-m fabrica vigia' -WorkingDirectory '{paths.ROOT}'
+$t1 = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\\$env:USERNAME"
+$t1.Delay = 'PT2M'
+$t2 = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) -RepetitionInterval (New-TimeSpan -Minutes 10)
+$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
 $p = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskPath '{TASK_FOLDER}' -TaskName '{AUTOSTART_NAME}' -Action $a -Trigger $t -Settings $s -Principal $p -Description 'CORTEX - piloto automatico 24/7 ao entrar no Windows' -Force | Out-Null
+Register-ScheduledTask -TaskPath '{TASK_FOLDER}' -TaskName '{AUTOSTART_NAME}' -Action $a -Trigger @($t1,$t2) -Settings $s -Principal $p -Description 'CORTEX - religa o automatico se ele cair' -Force | Out-Null
 """
     r = _ps(script)
     if r.returncode != 0:
         raise RuntimeError(f"Falha ao ligar o inicio automatico: {r.stderr.strip()[-400:]}")
-    _log.info("Inicio automatico do piloto ligado")
+    _log.info("Vigia do automatico ligado")
 
 
 def remove_autostart() -> bool:

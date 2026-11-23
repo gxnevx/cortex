@@ -154,8 +154,10 @@ class LLMBrain(Brain):
             summary = sigmod.summarize_for_prompt(sig)
         except Exception as e:  # sinais sao opcionais
             logger.debug("sinais falharam: %s", e)
+        from . import games
+
         try:
-            raw = self._pick_raw(video, transcript, cfg, limit, sig, summary)
+            raw = games.chapter_windows(video, transcript, cfg, limit) or self._pick_raw(video, transcript, cfg, limit, sig, summary)
             plans = finalize_plans(raw, video, transcript, cfg, max_clips=max_clips,
                                    teaser_bonus=sigmod.teaser_bonus(sig))
             if plans:
@@ -388,6 +390,24 @@ def clean_title(title: str, max_len: int = 90) -> str:
         cut = t[:max_len]
         sp = cut.rfind(" ")
         t = (cut[:sp] if sp > max_len * 0.6 else cut).rstrip(" ,.;:-") + "…"
+    return t
+
+
+_CAT_EMOJI = {"humor": "💀", "games": "🎮", "politica": "🔥", "polemica": "😳",
+              "esportes": "⚽", "futebol": "⚽", "tecnologia": "🤯"}
+
+
+def polish_title(title: str, category: str | None, n_emo: int, video_title: str = "") -> str:
+    """IA local: titulo todo em CAIXA ALTA vira frase normal (nomes do video mantem a maiuscula) e, sem emoji, ganha um."""
+    t = title or ""
+    letters = [c for c in t if c.isalpha()]
+    if len(letters) > 12 and sum(c.isupper() for c in letters) / len(letters) > 0.7:
+        names = {w.lower(): w for w in re.findall(r"[^\W\d_]{3,}", video_title or "") if w[:1].isupper() and not w.isupper()}
+        low = re.sub(r"[^\W\d_]+", lambda m: names.get(m.group(0).lower(), m.group(0).lower()), t)
+        low = re.sub(r"(^\W*|[.!?]\s+\W*)([^\W\d_])", lambda m: m.group(1) + m.group(2).upper(), low)
+        t = low
+    if n_emo > 0 and t and not _ONE_EMOJI.search(t):
+        t = f"{t} {_CAT_EMOJI.get(category or '', chr(0x1F440))}"
     return t
 
 
@@ -740,6 +760,7 @@ def coerce_raw(d: dict) -> dict | None:
         "score": max(0.0, min(100.0, score)),
         "reason": str(_first(d, "motivo", "reason", "porque", "justificativa", default="") or ""),
         "category": _first(d, "categoria", "category"),
+        "tipo": str(_first(d, "tipo", default="") or "").strip().lower(),
         "series": str(series).strip() if series and str(series).strip().lower() not in ("null", "none", "nao", "não", "false") else None,
         "part": part,
         "layout": _first(d, "layout"),
@@ -1124,6 +1145,10 @@ def finalize_plans(raw_plans: list[dict | ClipPlan], video: Candidate, transcrip
         total = len(g.parts)
         is_series = total > 1
         title0 = clean_title(fix_title(str(m.get("title") or "")) or fix(video.title or "") or "Corte")
+        from . import prompts as _pr
+
+        if _pr.is_generic(title0) and _tipo(m, video) in ("tutorial", "curiosidade", "noticia"):
+            title0 = clean_title(fix_title(video.title or "") or title0)
         hook0 = short_hook(fix_hook(str(m.get("hook") or ""))) or short_hook(_EMOJI_TAIL.sub("", title0))
         series_name = (str(g.series).strip()[:60] if is_series and g.series else None)
         if is_series and series_name:
@@ -1139,8 +1164,9 @@ def finalize_plans(raw_plans: list[dict | ClipPlan], video: Candidate, transcrip
                 hook = hook0 if k == 1 else short_hook(f"PARTE {k}: {hook0}", 60)
             else:
                 title, hook = title0, hook0
+            title = polish_title(title, normalize_category(m.get("category")), n_emo if emo else 0, video.title or "")
             out.append(ClipPlan(
-                id=f"{base_id}-c{n}",
+                id=f"{base_id}-{int(s)}s{int(round(e - s))}",
                 source_id=video.id,
                 start=round(s, 3),
                 end=round(e, 3),
@@ -1155,6 +1181,7 @@ def finalize_plans(raw_plans: list[dict | ClipPlan], video: Candidate, transcrip
                 part=k if is_series else None,
                 parts_total=total if is_series else None,
                 layout=normalize_layout(m.get("layout")),
+                tipo=_tipo(m, video),
             ))
             p = out[-1]
             try:
@@ -1174,6 +1201,13 @@ def finalize_plans(raw_plans: list[dict | ClipPlan], video: Candidate, transcrip
         p.hook = hk if re.search(r"\w", hk or "") else short_hook(_EMOJI_TAIL.sub("", p.title))
         p.description = mask_profanity(p.description, pmode)
     return out
+
+
+def _tipo(m: dict, video) -> str:
+    from . import prompts
+
+    t = str(m.get("tipo") or "")
+    return t if t in prompts.TIPOS else prompts.infer_tipo(video, normalize_category(m.get("category")))
 
 
 def finalize_trends(raw: list[dict], trends: list[Trend], limit: int = 15) -> list[Trend]:

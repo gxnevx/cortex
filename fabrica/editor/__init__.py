@@ -159,7 +159,7 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
 
     g = (lambda k, d: cfg.get(k, d)) if cfg is not None else (lambda k, d: d)
     fps = int(g("edicao.fps", 30) or 30)
-    threads = max(1, min(6, int(g("edicao.threads", 6) or 6)))   # evita saturar a CPU
+    threads = max(1, min(6, int(g("edicao.threads", 6) or 6)))   # teto de 6 para nao saturar a CPU
     timings: dict[str, float] = {}
 
     # ---------- layout e fundo
@@ -214,7 +214,7 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
     total = round(T + out_dur, 3)
 
     # ---------- rosto (full / metade de cima do split; no blur so ancora o zoom)
-    zoom_on = bool(g("edicao.zooms", True))
+    zoom_on = bool(g("edicao.zooms", False))
     follow = bool(g("edicao.seguir_rosto", True))
     track = None
     # o rosto tambem protege os elementos sobrepostos (nada pode cobri-lo), entao a analise roda
@@ -243,7 +243,7 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
             _log.warning("zoom dinamico falhou, seguindo sem: %s", e)
             zplan = None
     if teaser is not None:
-        zplan = motion.with_teaser(zplan, T)
+        zplan = motion.with_teaser(zplan, T) if zoom_on else None
         caps = coldopen.merge_captions(coldopen.teaser_captions(captions, teaser), caps, T)
 
     work = paths.TMP / f"ed_{short_hash(f'{out_path}{time.time()}')}"
@@ -331,6 +331,13 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
                                    cta=cta, cta_s=cta_s, brand=brands, info=info, seam=layouts.split_seam(cfg))
         scene = planner.plan()
         timings["plano_s"] = round(time.time() - t_plan, 2)
+        lost = ((make_title is not None and scene.title is None) or (bool(brands) and scene.brand is None)
+                or scene.overlap > 0)
+        if lost and lay != "blur" and layout is None and str(g("edicao.layout", "auto") or "auto") == "auto":
+            # o rosto ocupa a tela toda: no fundo desfocado sobra lugar para titulo e marca
+            _log.info("layout %s sem espaco para titulo/marca (rosto grande): refazendo em blur", lay)
+            return render_clip(source, start, end, plan, captions, cfg, out_path, layout="blur", on_progress=on_progress,
+                               video=video, platforms=platforms)
         mot.framing = scene.framing
         card = scene.title
         brand = scene.brand.extra.get("obj") if scene.brand is not None else None
@@ -338,7 +345,19 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
         if scene.overlap > 0:
             _log.warning("nao deu para livrar o rosto 100%% (%.0f px2): %s", scene.overlap, scene.notes)
 
+        # sem titulo a barra vai para a borda da tela: so desenha se nao encostar em nenhum rosto
+        bar_flag = None
+        if bar_rect is None and bool(g("edicao.barra_progresso", True)):
+            bh_ = int(g("edicao.barra_altura", 8) or 8)
+            by_ = H - bh_ if str(g("edicao.barra_posicao", "topo")).lower() == "base" else 0
+            edge = safezone.Item("barra", (0, by_, W, by_ + bh_))
+            if card is None and not safezone.face_hits(scene.framing, segs, [edge], total) \
+                    and total > float(g("edicao.barra_min_s", 35) or 0):
+                scene.items.append(edge)
+            else:
+                bar_flag = False
         ass_path = captions_mod.build_ass(caps, total, cfg, lay, work / "leg.ass", watermark="",
+                                          progress_bar=bar_flag,
                                           caption_y=scene.cap_y, category=category, bar_rect=bar_rect,
                                           teaser_until=T,
                                           teaser_color=coldopen.teaser_color(cfg, category) if T > 0 else None,
@@ -423,7 +442,7 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
             conds = []
             if 0 < tdur_title < total:
                 conds.append(f"lt(t,{tdur_title:.2f})")
-            for a, b in scene.hide_title:
+            for a, b, _who in scene.hide_title:
                 conds.append(f"not(between(t,{a:.2f},{b:.2f}))")
             enable = f":enable='{'*'.join(conds)}'" if conds else ""
             graph.append(f"[{cur}][{title_idx}:v]overlay=x={card.x}:y={card.y}:format=auto{enable}[vt]")

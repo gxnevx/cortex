@@ -151,12 +151,47 @@ def _defaults() -> dict:
     return base
 
 
+_GOOD = paths.STATE / "config_ultima_boa.yaml"
+_warned = ""
+
+
+def _keep_good(path: Path) -> None:
+    """Guarda a ultima versao valida (so quando muda)."""
+    try:
+        txt = path.read_text(encoding="utf-8")
+        if not _GOOD.exists() or _GOOD.read_text(encoding="utf-8") != txt:
+            _GOOD.parent.mkdir(parents=True, exist_ok=True)
+            _GOOD.write_text(txt, encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _last_good(path: Path, e: Exception) -> dict:
+    global _warned
+    if _warned != str(e):
+        _warned = str(e)
+        import logging
+
+        logging.getLogger("fabrica.config").error("config.yaml com erro (%s): usando a ultima versao valida", str(e)[:200])
+    try:
+        return yaml.safe_load(_GOOD.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+
+
 def load_config(path: Path | None = None) -> Config:
     path = path or paths.CONFIG_PATH
     user: dict = {}
     if path.exists():
-        with open(path, encoding="utf-8") as f:
-            user = yaml.safe_load(f) or {}
+        try:
+            with open(path, encoding="utf-8") as f:
+                user = yaml.safe_load(f) or {}
+            if not isinstance(user, dict):
+                raise ValueError("o arquivo nao e uma lista de opcoes")
+            if path == paths.CONFIG_PATH:
+                _keep_good(path)
+        except Exception as e:
+            user = _last_good(path, e)
     elif paths.CONFIG_EXAMPLE_PATH.exists():
         import shutil
 
@@ -164,8 +199,36 @@ def load_config(path: Path | None = None) -> Config:
     return Config(_deep_merge(_defaults(), user), path)
 
 
+def _find_key(lines: list[str], parts: list[str]) -> int | None:
+    """Linha da chave aninhada (pela indentacao), ou None."""
+    lo, hi, at = 0, len(lines), None
+    for part in parts:
+        child, at = None, None
+        for j in range(lo, hi):
+            ln = lines[j]
+            if not ln.strip() or ln.lstrip().startswith("#"):
+                continue
+            ind = len(ln) - len(ln.lstrip())
+            child = ind if child is None else child
+            if ind < child:
+                break
+            if ind == child and ln.strip().split(":")[0].strip("\"'") == part and ":" in ln:
+                at = j
+                break
+        if at is None:
+            return None
+        lo = at + 1
+        ind_at = len(lines[at]) - len(lines[at].lstrip())
+        nxt = next((j for j in range(lo, hi) if lines[j].strip() and not lines[j].lstrip().startswith("#")
+                    and len(lines[j]) - len(lines[j].lstrip()) <= ind_at), hi)
+        hi = nxt
+    return at
+
+
 def save_value(dotted: str, value: Any, path: Path | None = None) -> None:
-    """Grava um valor no config.yaml (perde comentarios da linha alterada, preserva o resto do texto)."""
+    """Grava um valor no config.yaml mudando so a linha dele (os comentarios ficam)."""
+    import re
+
     path = path or paths.CONFIG_PATH
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     data = yaml.safe_load(text) or {}
@@ -174,18 +237,24 @@ def save_value(dotted: str, value: Any, path: Path | None = None) -> None:
     for part in parts[:-1]:
         cur = cur.setdefault(part, {})
     cur[parts[-1]] = value
-    # Tenta substituir so a linha da chave folha para manter os comentarios
-    import re
-
-    leaf = parts[-1]
-    dumped = yaml.safe_dump(value, allow_unicode=True, default_flow_style=True).strip()
-    if dumped.endswith("\n..."):
-        dumped = dumped[:-4].strip()
-    pattern = re.compile(rf"^(\s*{re.escape(leaf)}:\s*)([^#\n]*?)(\s*(#.*)?)$", re.M)
-    matches = list(pattern.finditer(text))
-    if len(matches) == 1:
-        m = matches[0]
-        text = text[: m.start()] + f"{m.group(1)}{dumped}{m.group(3) or ''}" + text[m.end():]
-        path.write_text(text, encoding="utf-8")
+    dumped = yaml.safe_dump(value, allow_unicode=True, default_flow_style=True, width=10**6).strip()
+    if dumped.endswith("..."):
+        dumped = dumped[:-3].strip()
+    lines = text.split("\n")
+    at = _find_key(lines, parts)
+    if at is not None:
+        m = re.match(r"^(\s*[^:]+:)\s*.*?(\s+#.*)?$", lines[at])
+        lines[at] = f"{m.group(1)} {dumped}{m.group(2) or ''}"
     else:
-        path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        up = _find_key(lines, parts[:-1]) if len(parts) > 1 else None
+        if up is not None:
+            ind = len(lines[up]) - len(lines[up].lstrip())
+            lines.insert(up + 1, " " * (ind + 2) + f"{parts[-1]}: {dumped}")
+        elif len(parts) == 1:
+            lines.append(f"{parts[0]}: {dumped}")
+    new = "\n".join(lines)
+    try:
+        same = yaml.safe_load(new) == data
+    except Exception:
+        same = False
+    path.write_text(new if same else yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")

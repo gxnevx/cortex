@@ -153,6 +153,8 @@ class ClipPlan:
     teaser_end: float | None = None
     teaser_text: str = ""
     idioma_origem: str | None = None  # "en", "es"... quando o corte foi traduzido (LEGENDADO)
+    fala: str = ""                    # o que e dito no corte (o editor-chefe le antes de postar)
+    tipo: str = ""                    # fala | reacao | curiosidade | tutorial | noticia (decide o estilo do titulo)
     context: str = ""                 # linha de contexto (ate ~60 caracteres) para o cartao de abertura
     # Versao estendida para o TikTok (>= 61 s, monetizavel nas Recompensas). Linha do tempo ORIGINAL,
     # contem [start, end]. None = o TikTok recebe a mesma versao curta do YouTube.
@@ -219,3 +221,7 @@ class PostResult:
 
 class NeedsUserAction(Exception):
     """Algo exige acao humana (login, captcha, verificacao). A mensagem explica o que fazer."""
+
+
+class CaptchaAppeared(NeedsUserAction):
+    """A rede mostrou um CAPTCHA: so o dono resolve (publish/ajuda.py mostra a janela e espera)."""

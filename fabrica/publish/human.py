@@ -20,7 +20,7 @@ from typing import Any, Callable
 
 from .. import paths
 from ..log import get as get_log
-from ..models import NeedsUserAction
+from ..models import CaptchaAppeared, NeedsUserAction
 
 log = get_log(__name__)
 
@@ -272,11 +272,24 @@ class Actor:
         self.platform = platform
         self.clip_id = clip_id
         self.emit = emit or (lambda m: log.info(m))
-        self.blockers = blockers or (lambda: None)
+        self._check = blockers or (lambda: None)
         self.t = Tempos()
         self.net = NetWatch(page)
         self.mouse: tuple[float, float] | None = None
         self.rng = rng or _rng()
+
+    def blockers(self) -> bool:
+        """Confere login/captcha/limite. CAPTCHA: mostra a janela e espera o DONO resolver (ajuda.py).
+        True = havia um CAPTCHA e o dono resolveu."""
+        try:
+            self._check()
+            return False
+        except CaptchaAppeared:
+            from . import ajuda
+
+            if ajuda.wait_owner(self.page, self.platform, self._check, self.emit, self.cfg):
+                return True
+            raise
 
     # ---------------------------------------------------------------- esperas
     def sleep(self, a: float, b: float | None = None) -> float:

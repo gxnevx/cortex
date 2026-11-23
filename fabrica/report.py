@@ -50,11 +50,48 @@ def _score_cls(s: float) -> str:
     return "s-hi" if s >= 75 else ("s-mid" if s >= 55 else "s-lo")
 
 
-def write(summary: dict) -> Path:
+def _all_clips_html() -> str:
+    """Todos os cortes recentes com a situacao de agora (a mesma lista do terminal)."""
+    from . import db
+
+    rows = db.clip_overview(60)
+    if not rows:
+        return ""
+    h = [f"<h2>Todos os cortes (situação em {datetime.now():%d/%m %H:%M})</h2><table><tr><th>Quando</th><th>Corte</th>"
+         "<th>Nota</th><th>Situação</th><th>Links</th></tr>"]
+    for r in rows:
+        when = datetime.fromtimestamp(r["created"]).strftime("%d/%m %H:%M") if r["created"] else ""
+        title = f"<a href='{_uri(r['path'])}'>{_e(r['title'])}</a>" if r["existe"] else _e(r["title"])
+        cls = {"publicado": "ok", "rejeitado": "dim", "expirado": "dim", "falhou": "bad"}.get(r["status"], "")
+        links = " ".join(f"<a href='{_e(p['url'])}'>{_e(p['platform'])}</a>" for p in r["posts"] if p["url"])
+        h.append(f"<tr><td class='dim'>{when}</td><td>{title}</td><td>{int(r['score'])}</td>"
+                 f"<td class='{cls}'>{_e(r['situacao'])}</td><td>{links}</td></tr>")
+    return "".join(h) + "</table>"
+
+
+def refresh() -> Path | None:
+    """Refaz o ultimo relatorio com a situacao de agora (chamado antes de abrir)."""
+    files = sorted(paths.REPORTS.glob("rodada_*.json"))
+    if not files:
+        return latest()
+    try:
+        return write(json.loads(files[-1].read_text(encoding="utf-8")), save_json=False)
+    except Exception:
+        return latest()
+
+
+def write(summary: dict, save_json: bool = True) -> Path:
     paths.REPORTS.mkdir(parents=True, exist_ok=True)
     rid = summary.get("run_id", datetime.now().strftime("%Y%m%d-%H%M%S"))
     json_path = paths.REPORTS / f"rodada_{rid}.json"
-    json_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    if save_json:
+        json_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    from . import db
+
+    try:
+        agora = {r["id"]: r for r in db.clip_overview(200)}
+    except Exception:
+        agora = {}
 
     clips = summary.get("clips", [])
     posts = summary.get("posts", [])
@@ -98,12 +135,12 @@ def write(summary: dict) -> Path:
             h.append(f"<div class='err' style='background:#2a2612;border-color:#5a4f1f'>! {_e(w)}</div>")
 
     if clips:
-        h.append("<h2>Cortes</h2><div class='grid'>")
+        h.append("<h2>Cortes desta rodada</h2><div class='grid'>")
         for c in sorted(clips, key=lambda c: -(c.get("score") or 0)):
             s = c.get("score") or 0
             part = f" | Parte {c['part']}/{c.get('parts_total') or '?'}" if c.get("part") else ""
             h.append("<div class='card'>")
-            if c.get("thumbnail"):
+            if c.get("thumbnail") and Path(str(c["thumbnail"])).exists():
                 h.append(f"<a href='{_uri(c.get('path'))}'><img src='{_uri(c['thumbnail'])}' alt=''></a>")
             h.append(f"<div class='b'><div class='t'>{_e(c.get('title'))}</div>"
                      f"<span class='score {_score_cls(s)}'>{int(s)}/100</span> "
@@ -117,8 +154,13 @@ def write(summary: dict) -> Path:
                     h.append(f"<div class='tag ok'>+ {_e(p['platform'])}{dry}: {link}</div>")
                 else:
                     h.append(f"<div class='tag bad'>x {_e(p['platform'])}: {_e(p.get('error'))}</div>")
-            h.append(f"<div class='tag'>{_e(c.get('status'))}</div></div></div>")
+            sit = agora[c["id"]]["situacao"] if c["id"] in agora else c.get("status")
+            h.append(f"<div class='tag'>{_e(sit)}</div></div></div>")
         h.append("</div>")
+    try:
+        h.append(_all_clips_html())
+    except Exception:
+        pass
 
     cands = summary.get("candidates", [])
     if cands:

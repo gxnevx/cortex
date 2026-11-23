@@ -8,6 +8,8 @@ Regras do dono refletidas aqui:
 """
 from __future__ import annotations
 
+import re
+
 from .. import tom as tom_cfg
 from . import modelos_tom as mt
 from ..models import Candidate, Trend
@@ -67,7 +69,7 @@ TRENDS_SCHEMA = {
             "indice": {"type": "integer"},
             "categoria": {"type": "string"},
             "pontuacao": {"type": "integer"},
-            "motivo": {"type": "string"},
+            "tipo": {"type": "string"}, "motivo": {"type": "string"},
             "buscas": {"type": "array", "items": {"type": "string"}},
         },
         "required": ["indice", "categoria", "pontuacao", "buscas"],
@@ -202,11 +204,11 @@ def clips_prompt(video: Candidate, transcript_text: str, signals_text: str, cfg,
     else:
         qty = f"Devolva até {limit} cortes (os melhores), se houver material bom."
     series = (
-        f"- SÉRIE: se um assunto MUITO bom precisa de mais de {dmax} s para ser entendido, divida em partes "
-        f"contínuas (a parte 2 começa exatamente onde a 1 termina), cada uma com uns {dpart} s, no máximo "
-        f"{max_parts} partes, todas com o mesmo \"serie\" (nome curto do assunto) e \"parte\" 1, 2, 3. "
-        "Termine cada parte num gancho (pergunta ou suspense). Cada parte conta como um corte. "
-        "Só faça série se o assunto realmente render."
+        f"- SÉRIE: procure pelo menos UMA história ou discussão contínua de 70 a 160 s que prenda do começo ao fim "
+        f"(história pessoal, treta com réplica, caso contado com desfecho, explicação completa). Se existir, devolva como "
+        f"partes contínuas (a parte 2 começa exatamente onde a 1 termina), cada uma com {max(35, dpart - 10)} a {dpart} s, no "
+        f"máximo {max_parts} partes, todas com o mesmo \"serie\" (nome curto do assunto) e \"parte\" 1, 2, 3. Termine cada parte "
+        "num gancho (pergunta, revelação prestes a sair). Cada parte conta como um corte. Se não houver nenhuma, não force."
         if series_ok else "- Não faça séries: cada corte é independente (\"serie\": null)."
     )
     return f"""TAREFA: escolha os melhores cortes verticais (9:16) do vídeo abaixo para postar no YouTube Shorts e no TikTok.
@@ -223,6 +225,9 @@ O QUE É UM BOM CORTE
 
 QUANTIDADE: {qty}
 PONTUAÇÃO ("pontuacao", de 0 a 100) = chance real de viralizar. Seja exigente: 85 ou mais só para momentos excepcionais; abaixo de {min_score} o corte será descartado.
+
+TIPO DO CORTE (campo "tipo")
+{TIPO_RULES}
 
 TEXTOS (português do Brasil){foreign_block(video)}
 {_title_rules(cfg)}
@@ -274,6 +279,116 @@ CANDIDATOS
 
 RESPONDA SÓ COM ESTE JSON:
 {{"cortes":[{{"indice":1,"titulo":"...","gancho":"...","descricao":"...","hashtags":["#..."],"pontuacao":80,"motivo":"...","categoria":"..."}}]}}"""
+
+
+GENERIC_TITLES = ("Ninguém comentou", "Leu nas entrelinhas", "Entendedores entenderão", "Você não vai acreditar",
+                  "Ele não negou", "Ela não negou", "o que ele quis dizer", "o que ela quis dizer", "disse tudo",
+                  "Não sei se eu entendi certo", "todo mundo percebeu")
+
+
+def is_generic(title: str) -> bool:
+    """Titulo que serviria para qualquer video (modelo pequeno adora copiar os exemplos do prompt)."""
+    import unicodedata
+
+    def plain(s: str) -> str:
+        return "".join(c for c in unicodedata.normalize("NFD", s.lower()) if not unicodedata.combining(c))
+
+    t = plain(title or "")
+    return not t.strip() or any(plain(g) in t for g in GENERIC_TITLES)
+
+
+def short_tone(cfg) -> str:
+    """Tom sem exemplos: a IA local copia qualquer exemplo que aparecer."""
+    return re.sub(r"\s*\([^)]*'[^)]*\)", "", tom_cfg.prompt_block(cfg))
+
+
+TIPOS = ("fala", "reacao", "curiosidade", "tutorial", "noticia")
+TIPO_RULES = """Primeiro decida o "tipo" do trecho, porque o título muda com ele:
+  fala = opinião, treta, história ou piada: frase forte ENTRE ASPAS, igual à transcrição, e quem disse.
+  reacao = rage quit, surto, susto ou briga (muito comum em jogo): QUEM e o que aconteceu, com emoção.
+  curiosidade = easter egg, segredo, teoria: o NOME REAL da coisa e de onde é (jogo, filme), sem mistério falso.
+  tutorial = como fazer algo: título direto e honesto ("Como ..."), dizendo o resultado. Nada de frase polêmica.
+  noticia = fato: o fato em si, direto, com o nome da pessoa ou do lugar.
+Use frase polêmica só quando ela combina com o trecho; título real vale mais que título exagerado."""
+
+
+def infer_tipo(video: Candidate, category: str | None = None) -> str:
+    t = (video.title or "").lower()
+    if re.search(r"\bcomo (fazer|ter|criar|ganhar|usar|conseguir|montar|instalar|jogar)|passo a passo|tutorial|aprenda|\bdicas?\b|how to", t):
+        return "tutorial"
+    from . import games
+
+    if games.is_curiosity(video):
+        return "curiosidade"
+    if category == "games" or games.is_game(video):
+        return "reacao"
+    return "noticia" if category == "noticias" else "fala"
+
+
+def retitle_prompt(video: Candidate, text: str, cfg) -> str:
+    return f"""Escreva 1 título em português do Brasil para este trecho de vídeo (TikTok/Shorts), de 35 a 75 caracteres. Diga QUEM ou O QUÊ e o que acontece de surpreendente, usando palavras do próprio trecho, conforme o tipo. Nada genérico, nada inventado.
+{TIPO_RULES}
+{foreign_block(video)}
+VÍDEO: {video.title} (canal {video.channel})
+TRECHO: {text[:900]}
+RESPONDA SÓ COM ESTE JSON: {{"titulo":"...","gancho":"até 7 palavras"}}"""
+
+
+RETITLE_SCHEMA = {"type": "object", "required": ["titulo", "gancho"],
+                  "properties": {"titulo": {"type": "string"}, "gancho": {"type": "string"}}}
+
+
+def quick_clips_prompt(video: Candidate, blocks: list[str], limit: int, cfg) -> str:
+    """Modo rapido da IA local: os trechos ja vem separados (sinais do publico); ela escolhe, ajusta e intitula."""
+    dmin = int(cfg.get("corte.duracao_min_s", 15))
+    dmax = int(cfg.get("corte.duracao_max_s", 45))
+    emo = "1 ou 2 emojis no fim" if _emojis(cfg) else "sem emojis"
+    lista = "\n\n".join(blocks)
+    return f"""Abaixo estão trechos do mesmo vídeo que podem virar corte no TikTok e no Shorts. Escolha os {limit} melhores (menos, se os outros forem fracos).
+
+Prefira: treta, opinião forte, frase chocante, piada, revelação, lance absurdo. Evite: propaganda, enrolação, trecho sem sentido sozinho.
+- "inicio" e "fim": carimbos mm:ss do próprio trecho. Quem nunca viu o vídeo tem que entender: comece onde o assunto começa (a pergunta ou a frase que abre) e termine depois do desfecho, com a frase completa. Corte normal: {dmin} a {dmax} segundos.
+- "historia": true só quando o trecho é UMA história ou discussão contínua que precisa de mais de {dmax} segundos. Aí "fim" pode ir até 3 minutos depois do "inicio" e o sistema divide em Parte 1, 2 e 3. Senão false.
+- {TIPO_RULES}
+- "titulo": português do Brasil, 35 a 75 caracteres, {emo}, seguindo o tipo. Nunca invente frase nem fato. Proibido título que serviria para qualquer vídeo.
+- "gancho": até 7 palavras em CAIXA ALTA, sobre este trecho.
+- "teaser_texto": as 3 a 8 palavras exatas do momento mais forte do trecho.
+- "pontuacao": 0 a 100, chance real de viralizar.
+- "hashtags": 3, específicas do assunto.
+- "categoria": uma de {CATEGORIAS_TXT}.{foreign_block(video)}
+- {short_tone(cfg)}
+
+VÍDEO
+{_video_block(video)[:500]}
+
+TRECHOS
+{lista}
+
+RESPONDA SÓ COM ESTE JSON, do melhor para o pior:
+{{"cortes":[{{"indice":1,"tipo":"fala","inicio":"mm:ss","fim":"mm:ss","historia":false,"titulo":"...","gancho":"...","teaser_texto":"...","descricao":"1 frase de contexto","hashtags":["#..."],"pontuacao":80,"categoria":"..."}}]}}"""
+
+
+QUICK_CLIPS_SCHEMA = {"type": "object", "required": ["cortes"], "properties": {"cortes": {"type": "array", "items": {
+    "type": "object", "required": ["indice", "tipo", "inicio", "fim", "titulo", "gancho", "teaser_texto", "pontuacao", "categoria"],
+    "properties": {
+        "indice": {"type": "integer"}, "tipo": {"type": "string", "enum": list(TIPOS)}, "inicio": {"type": "string"}, "fim": {"type": "string"}, "titulo": {"type": "string"},
+        "gancho": {"type": "string"}, "teaser_texto": {"type": "string"}, "descricao": {"type": "string"},
+        "hashtags": {"type": "array", "items": {"type": "string"}}, "pontuacao": {"type": "integer"},
+        "historia": {"type": "boolean"}, "categoria": {"type": "string"}}}}}}
+
+
+def quick_trends_prompt(trends: list[Trend], cfg, limit: int) -> str:
+    """Versao curta para a IA local (a longa leva minutos na CPU)."""
+    temas = ", ".join(cfg.get("busca.temas", []) or []) or "qualquer"
+    lista = "\n".join(f"{i}. {t.topic[:70]}" for i, t in enumerate(trends, 1))
+    return f"""Assuntos em alta no Brasil agora. Escolha até {limit} que rendem cortes de vídeo falado (podcast, live, debate, react, gameplay, futebol, humor, celebridade, política). Descarte serviço (loteria, clima, cotação) e tragédia.
+Temas preferidos: {temas}.
+"categoria": uma de {CATEGORIAS_TXT}. "pontuacao": 0 a 100. "buscas": 2 buscas curtas em português para achar vídeos longos.
+
+{lista}
+
+RESPONDA SÓ COM ESTE JSON, do melhor para o pior:
+{{"temas":[{{"indice":1,"categoria":"polemica","pontuacao":80,"buscas":["...","..."]}}]}}"""
 
 
 def trends_prompt(trends: list[Trend], cfg, limit: int) -> str:

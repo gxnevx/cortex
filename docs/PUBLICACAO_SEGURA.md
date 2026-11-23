@@ -9,15 +9,14 @@ o CORTEX faz por causa delas. Complementa `docs/PUBLICACAO.md` (seletores e flux
 Regra principal do CORTEX, por escolha: **nada de camuflagem**. Sem plugins "stealth", sem navegador "anti-detect",
 sem trocar user-agent, impressão digital ou `navigator.webdriver`, sem proxy ou VPN rotativa, sem resolver captcha. Além
 de violar as regras das redes, é exatamente o comportamento que elas descrevem como motivo de bloqueio. O que o CORTEX
-faz é publicar pouco, devagar, parar em qualquer verificação e nunca repetir um envio que pode ter dado certo. O ritmo
-(mouse, digitação, pausas) imita o de uma pessoa, a pedido do dono: deixa as páginas reagirem, mas **não torna a
-automação permitida** nem garante que a conta não seja marcada (seção 4).
+faz é publicar pouco, devagar, parar em qualquer verificação e nunca repetir um envio que pode ter dado certo. Isso
+**não torna a automação permitida** nem garante que a conta não seja marcada (seção 4).
 
 Resumo em 5 linhas:
 
 1. **YouTube: trocar para a API oficial** (YouTube Data API v3) assim que possível. Desde 2 nov 2026, projetos não
    auditados podem publicar vídeos **públicos** pela API e o limite padrão é de cerca de 100 envios por dia. Isso elimina
-   o risco de "automação do navegador" no YouTube. Enquanto não trocar, o navegador continua com ritmo humano.
+   o risco de "automação do navegador" no YouTube. Já está no CORTEX: `cortex login youtube-api` (o navegador fica como plano B).
 2. **TikTok: a API oficial não atende uso pessoal** (as diretrizes excluem ferramentas para publicar na sua própria conta).
    Sem API, o caminho mais seguro é `publicacao.tiktok_modo: semi` (o CORTEX preenche tudo e **você** clica em Publicar),
    pelo menos durante o aquecimento da conta.
@@ -25,8 +24,9 @@ Resumo em 5 linhas:
    volume baixo. As duas redes punem produção em massa com modelo repetido e reaproveitamento sem acréscimo.
 4. Legendas, zoom, cortes, trilha e títulos escritos por IA **não** exigem rótulo de IA. Voz clonada de outra pessoa ou
    dublagem com IA da voz do convidado **exigem**.
-5. Captcha, "confirme que é você" ou limite da rede: o CORTEX para, tira print, pausa a rede por 24 h e avisa. Só volta
-   quando você refaz o login (`cortex login <rede>`) ou a pausa acaba.
+5. Captcha: o CORTEX não resolve. Ele mostra a janela, avisa e espera o dono resolver (até 30 min, 2 vezes por dia);
+   depois disso, e em "confirme que é você" ou limite da rede, para, tira print, pausa a rede por 24 h e avisa. Volta
+   quando você refaz o login em Contas ou a pausa acaba.
 
 ---
 

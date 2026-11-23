@@ -150,7 +150,7 @@ def make_planner(tmp: Path, lay: str, total: float, track, info: dict, teaser: f
 
 
 def check_scene(p, sc, label: str):
-    ov = safezone.face_overlap(sc.framing, p.raw_segs, sc.items, p.total)
+    ov = safezone.face_overlap(sc.framing, p.raw_segs, sc.items, p.total, step=1 / 30)
     touch = safezone.items_overlap(sc.items, gap=15)
     assert not touch, (label, touch)
     assert sc.title is None or sc.title.box is not None
@@ -173,9 +173,9 @@ def test_planner(tmp: Path):
             p = make_planner(tmp, lay, 38.0, tr, info)
             sc = p.plan()
             ov = check_scene(p, sc, f"{lay}/{name}")
-            # rosto pequeno: sempre da para livrar 100%; close enorme: aceita quase zero
-            if name == "rosto_pequeno_centro":
-                assert ov["max_px"] <= 0, (lay, name, ov, sc.notes)
+            # vale para TODOS os casos, conferido em cada quadro: nada cobre o rosto
+            assert ov["max_px"] <= 0, (lay, name, ov, sc.notes)
+            assert sc.title is not None, (lay, name, "titulo removido", sc.notes)
             print(f"  {lay:5s} {name:20s} sobreposicao={ov['max_px']:.0f} titulo={sc.title.size}/{sc.title_slot} "
                   f"marca={sc.brand.slot if sc.brand else None} etiqueta={sc.tag.slot if sc.tag else None}")
     # clipe longo (93 s) e sem rosto
@@ -183,8 +183,13 @@ def test_planner(tmp: Path):
                     shots=[(0, 30), (30, 61), (61, 93)])
     p = make_planner(tmp, "full", 93.0, tr, info)
     sc = p.plan()
-    check_scene(p, sc, "longo")
+    ov = check_scene(p, sc, "longo")
+    assert ov["max_px"] <= 0, ("longo", ov, sc.notes)
     print("ok planejador longo:", sc.notes[-1])
+    # mesma entrada -> mesmo plano (o resultado nao pode depender do relogio/carga da CPU)
+    a_, b_ = (make_planner(tmp, "full", 38.0, fake_track(38.0, 1920, 1080, cases["rosto_anda"]), info).plan()
+              for _ in range(2))
+    assert [(i.name, i.rect, i.t0) for i in a_.items] == [(i.name, i.rect, i.t0) for i in b_.items], "plano instavel"
     p = make_planner(tmp, "blur", 30.0, None, info)
     sc = p.plan()
     check_scene(p, sc, "sem rosto")

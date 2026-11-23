@@ -181,7 +181,7 @@ def video_encoder_args(encoder: str, cfg=None, fps: int = 30, threads: int | Non
                 "-rc", "vbr_peak", "-b:v", f"{target}M", "-maxrate", f"{cap}M", "-bufsize", f"{cap * 2}M",
                 "-profile:v", "high", "-g", gop, "-bf", "2", "-pix_fmt", "nv12"]
     preset, crf, cap = X264_PRESETS.get(q, X264_PRESETS["alta"])
-    # teto de threads (edicao.threads, padrao 6): evita saturar a CPU
+    # teto de threads (edicao.threads, padrao 6): nao satura a CPU
     cap_t = max(1, min(6, int(cfg.get("edicao.threads", 6) or 6))) if cfg is not None else 6
     threads = max(1, min(cap_t, int(threads))) if threads else cap_t
     return ["-c:v", "libx264", "-preset", preset, "-crf", str(crf), "-profile:v", "high",

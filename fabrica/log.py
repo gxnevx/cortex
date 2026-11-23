@@ -11,6 +11,30 @@ _CONFIGURED = False
 logging.getLogger("fabrica").addHandler(logging.NullHandler())
 
 
+class DailyFile(logging.Handler):
+    """logs/fabrica_AAAAMMDD.log: troca de arquivo a meia-noite e apaga os com mais de 14 dias."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._day, self._fh = "", None
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            day = f"{datetime.now():%Y%m%d}"
+            if day != self._day:
+                if self._fh:
+                    self._fh.close()
+                paths.LOGS.mkdir(parents=True, exist_ok=True)
+                self._fh = (paths.LOGS / f"fabrica_{day}.log").open("a", encoding="utf-8")
+                self._day = day
+                for old in sorted(paths.LOGS.glob("fabrica_*.log"))[:-14]:
+                    old.unlink(missing_ok=True)
+            self._fh.write(self.format(record) + "\n")
+            self._fh.flush()
+        except Exception:
+            pass
+
+
 def setup(verbose: bool = False, console: bool = True) -> None:
     global _CONFIGURED
     if _CONFIGURED:
@@ -18,7 +42,7 @@ def setup(verbose: bool = False, console: bool = True) -> None:
     paths.LOGS.mkdir(parents=True, exist_ok=True)
     root = logging.getLogger("fabrica")
     root.setLevel(logging.DEBUG)
-    fh = logging.FileHandler(paths.LOGS / f"fabrica_{datetime.now():%Y%m%d}.log", encoding="utf-8")
+    fh = DailyFile()
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s", "%H:%M:%S"))
     root.addHandler(fh)

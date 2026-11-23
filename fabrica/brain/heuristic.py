@@ -619,6 +619,9 @@ class HeuristicBrain(Brain):
         whisper = str(transcript.source or "").startswith("whisper")
         all_words = transcript.words()
         bonus = sg.teaser_bonus(sig)
+        from . import games
+
+        only_reaction = games.is_game(video) and bool(_cfg_get(cfg, "conteudo.games_so_reacao", True))
         raw: list[dict] = []
         for i, ((sc, parts), a, b, peak, m) in enumerate(kept):
             hits = [h for h in sig.keywords if a <= h.t <= b]
@@ -641,6 +644,8 @@ class HeuristicBrain(Brain):
                 spans = base_polemic_spans(ws_in, cfg, top=1, bonus=bonus)
                 if spans:
                     pol = spans[0]
+            if only_reaction and not games.strong_reaction(pol):
+                continue        # gameplay sem reacao nenhuma: corte aleatorio, nao presta
             strong_quote = bool(pol and quote_on and pol["score"] >= (1.4 if whisper else 2.2)
                                 and any(t in pol["tipos"] for t in ("palavrao", "insulto", "acusacao", "polemica",
                                                                      "emocao", "risada", "surpresa")))

@@ -10,6 +10,7 @@ Erros nunca derrubam o piloto: ele registra, espera um pouco e tenta de novo.
 from __future__ import annotations
 
 import collections
+import contextlib
 import ctypes
 import json
 import logging
@@ -28,12 +29,13 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from . import db, log, notify, paths, ui
+from . import andamento, db, log, notify, paths, ui
 from .config import Config, load_config
 from .util import fmt_duration
 
 _log = log.get("autopiloto")
 HEARTBEAT = paths.STATE / "autopiloto.json"
+STOP_FILE = paths.STATE / "parar_piloto"
 SPIN = "|/-\\"
 
 
@@ -191,9 +193,10 @@ def free_memory() -> None:
             fn()
     except Exception:
         pass
-    import gc
+    from . import memoria
 
-    gc.collect()
+    memoria.unload_ollama()
+    memoria.unload_whisper()
 
 
 def _parse_hm(s: str) -> tuple[int, int]:
@@ -245,13 +248,7 @@ def queue(cfg: Config) -> list:
 
     from .pipeline import publish_order
 
-    mode = cfg.get("autopiloto.publicacao", "auto")
-    min_auto = float(cfg.get("autopiloto.nota_minima_publicar", 62))
     clips = [c for c in db.clips_by_status("aprovado") if Path(c.path).exists()]
-    if mode == "auto":
-        # sozinho, so publica o que tem nota alta; o resto espera sua aprovacao (menu Revisar)
-        clips += [c for c in db.clips_by_status("renderizado")
-                  if Path(c.path).exists() and (c.plan.score or 0) >= min_auto]
     return publish_order(clips)
 
 
@@ -260,8 +257,17 @@ def expire_old(cfg: Config) -> int:
     hours = float(cfg.get("autopiloto.validade_horas", 36))
     limit = time.time() - hours * 3600
     n = 0
-    for r in db.conn().execute("SELECT id, created FROM clips WHERE status IN ('renderizado','aprovado')").fetchall():
+    for r in db.conn().execute("SELECT id, created FROM clips WHERE status='renderizado'").fetchall():
         if (r["created"] or time.time()) < limit:
+            if db.conn().execute("SELECT 1 FROM posts WHERE clip_id=? AND ok=1 AND dry_run=0", (r["id"],)).fetchone() \
+                    and (r["created"] or 0) > limit - 7 * 86400:
+                continue    # saiu em uma rede ou ficou sem confirmacao: o dono confere antes
+            db.set_clip_status(r["id"], "expirado")
+            n += 1
+    for r in db.conn().execute("SELECT id, created, curador FROM clips WHERE status='aprovado'").fetchall():
+        # aprovado pelo editor-chefe (nao pelo dono) ha mais de 5 dias e ainda nao saiu em lugar nenhum
+        if r["curador"] and (r["created"] or time.time()) < time.time() - 5 * 86400 and not db.conn().execute(
+                "SELECT 1 FROM posts WHERE clip_id=? AND ok=1 AND dry_run=0", (r["id"],)).fetchone():
             db.set_clip_status(r["id"], "expirado")
             n += 1
     return n
@@ -406,8 +412,19 @@ class Autopilot:
         while not self.stop.is_set():
             try:
                 cfg = self.cfg = load_config()
-                if self.fast_lane and storage.free_gb() >= float(cfg.get("armazenamento.espaco_minimo_livre_gb", 2)):
+                outra = andamento.read()
+                if outra and outra.get("pid") != os.getpid():
+                    self.state.prod_activity = "esperando terminar o seu pedido"
+                    self.stop.wait(20)
+                    continue
+                if capacity(cfg) <= 0:      # conta nova ou limite zerado: nada de via rapida
+                    with self.fast_lock:
+                        self.fast_lane.clear()
+                if (self.fast_lane and storage.free_gb() >= float(cfg.get("armazenamento.espaco_minimo_livre_gb", 2))
+                        and len(queue(cfg)) < int(cfg.get("autopiloto.fila_maxima", 12))
+                        and not self._wait_user(cfg, 1)):
                     if self._run_fast_lane(cfg):
+                        free_memory()
                         continue
                 qlist = queue(cfg)
                 q = len(qlist)
@@ -443,6 +460,13 @@ class Autopilot:
                                       n_videos=n_videos, max_clips=missing + 1)
                     summary = run(cfg, opts, AutopilotReporter(self.state))
                     last_run = time.time()
+                    try:
+                        from . import curadoria
+
+                        if cfg.get("autopiloto.publicacao", "auto") == "auto":
+                            curadoria.curate(cfg)
+                    except Exception as e:
+                        _log.warning("curadoria: %s", e)
                     free_memory()
                     self.state.brain = summary.get("brain", "?")
                     n = len(summary.get("clips", []))
@@ -450,7 +474,7 @@ class Autopilot:
                     self.state.last_cycle = f"{datetime.now():%H:%M} | {n} cortes | {st}"
                     for a in summary.get("actions", []):
                         self.state.alert(a)
-                    if st == "erro" or n == 0:
+                    if st == "erro" or n == 0 or len(queue(cfg)) <= q:
                         self.state.errors += 1 if st == "erro" else 0
                         backoff = min(backoff + 1, 4)
                         wait = 600 * (2 ** (backoff - 1))  # 10, 20, 40, 80 min
@@ -532,7 +556,7 @@ class Autopilot:
         return target
 
     def publisher(self) -> None:
-        from .pipeline import publish_clips
+        from .pipeline import MAX_TENTATIVAS, publish_clips
 
         while not self.stop.is_set():
             try:
@@ -542,9 +566,25 @@ class Autopilot:
                     self.state.pub_activity = "desligado (modo so produzir)"
                     self.stop.wait(30)
                     continue
+                if cfg.get("autopiloto.publicacao", "auto") == "auto":
+                    from . import curadoria
+
+                    if curadoria.pending(cfg) and not andamento.read():   # julga depois que a rodada termina
+                        self.state.set_pub("escolhendo o que vale postar")
+                        r = curadoria.curate(cfg)
+                        if r["aprovados"] or r["descartados"]:
+                            self.state.set_pub(f"{len(r['aprovados'])} aprovado(s), {len(r['descartados'])} descartado(s)")
+                            if r["aprovados"]:
+                                self.state.next_post = min(self.state.next_post, time.time() + 60)
                 expired = expire_old(cfg)
                 if expired:
                     _log.info("%s corte(s) velhos sairam da fila", expired)
+                from . import policy as _pol
+
+                sig = tuple((p, _pol.daily_limit(p, cfg)) for p in cfg.get("publicacao.plataformas", ["youtube", "tiktok"]))
+                if getattr(self, "_limit_sig", sig) != sig:
+                    self.state.next_post = min(self.state.next_post, time.time() + 30)
+                self._limit_sig = sig
                 if time.time() < self.state.next_post:
                     self.stop.wait(5)
                     continue
@@ -555,9 +595,10 @@ class Autopilot:
                     self.state.set_pub(f"fora da janela de publicacao; volta as {nxt:%H:%M}")
                     continue
                 from . import policy
+                from .publish import guard
 
                 logged = [p for p in self._logged_platforms(cfg)
-                          if self.state.paused_platforms.get(p, 0) < time.time()]
+                          if self.state.paused_platforms.get(p, 0) < time.time() and not guard.paused_until(p)]
                 platforms, reasons = [], []
                 for p in logged:
                     ok, why = policy.can_post(p, cfg)
@@ -565,7 +606,7 @@ class Autopilot:
                 if not platforms:
                     not_logged = [p for p, ok in self.state.logins.items() if not ok]
                     if not logged and not_logged:
-                        self.state.alert(f"Faça login: {', '.join(not_logged)} (menu > Login)")
+                        self.state.alert(f"Faça login: {', '.join(not_logged)} (menu > Contas)")
                         self.state.set_pub("sem rede logada para publicar")
                         self.state.next_post = time.time() + 300
                     else:
@@ -574,7 +615,9 @@ class Autopilot:
                     continue
                 # so cortes que ainda faltam em alguma rede liberada agora (evita travar num corte ja postado nela)
                 q = [c for c in queue(cfg) if c.plan.id not in self.state.tested_ids
-                     and any(not db.already_posted(c.plan.id, p) for p in platforms)]
+                     and any(not db.already_posted(c.plan.id, p) and db.failed_attempts(c.plan.id, p) < MAX_TENTATIVAS
+                             for p in platforms)]
+                q.sort(key=lambda c: sum(db.failed_attempts(c.plan.id, p) for p in platforms))   # estavel
                 if not q:
                     self.state.set_pub("fila vazia - esperando o produtor")
                     self.state.next_post = time.time() + 120
@@ -631,16 +674,14 @@ class Autopilot:
         now_t.add_column(style=ui.C_CYAN, no_wrap=True)
         now_t.add_column()
         busy = not st.prod_activity.startswith(("esperando", "aguardando", "fila cheia", "rodada ok"))
-        now_t.add_row("8< Produtor", Text((tick + " " if busy else "") + st.prod_activity[:70], style="white"))
-        now_t.add_row("", Text(f"há {fmt_duration(time.time() - st.prod_since)}", style=ui.C_DIM))
-        now_t.add_row("Publicador", Text(st.pub_activity[:70], style="white"))
-        now_t.add_row("Próx. rodada", Text(self._countdown(st.next_production), style=ui.C_YEL))
-        now_t.add_row("Próx. post", Text(self._countdown(st.next_post), style=ui.C_YEL))
+        now_t.add_row("Cortando", Text((tick + " " if busy else "") + st.prod_activity[:70], style="white"))
+        now_t.add_row("Postando", Text(st.pub_activity[:70], style="white"))
+        now_t.add_row("Próximo post", Text(self._countdown(st.next_post), style=ui.C_YEL))
+        now_t.add_row("Próxima busca", Text(self._countdown(st.next_production), style=ui.C_YEL))
         now_t.add_row("Última rodada", Text(st.last_cycle, style=ui.C_DIM))
         fl = len(self.fast_lane)
-        now_t.add_row("Vigia", Text(ui.term(st.watch_activity)[:60] + (f" | {fl} na via rapida" if fl else ""),
+        now_t.add_row("Vigia", Text(ui.term(st.watch_activity)[:60] + (f" | {fl} na frente da fila" if fl else ""),
                                     style=ui.C_YEL if fl else ui.C_DIM))
-        now_t.add_row("Métricas", Text(ui.term(st.metrics_activity)[:60], style=ui.C_DIM))
 
         # hoje
         from . import policy
@@ -669,15 +710,22 @@ class Autopilot:
         day_t.add_row("Falhas", Text(str(fails + st.errors), style=ui.C_RED if (fails + st.errors) else ui.C_OK))
         free = storage.free_gb()
         day_t.add_row("Disco livre", Text(f"{free:.1f} GB", style=ui.C_OK if free > 3 else ui.C_YEL))
-        day_t.add_row("Rodadas", Text(f"{st.cycles_ok}/{st.cycles} ok", style="white"))
         try:
             from . import uso_ia
 
             day_t.add_row("IA hoje", Text(uso_ia.resumo(cfg), style="white"))
         except Exception:
             pass
-        day_t.add_row("Fila ideal", Text(f"{target_queue(cfg)} cortes", style=ui.C_DIM))
-        day_t.add_row("PC", Text("em uso por voce" if st.user_busy else "livre",
+        try:
+            from . import memoria
+
+            mem = memoria.status()
+            low = mem["reserva_livre"] < 3
+            day_t.add_row("Memória", Text(f"{mem['ram_livre']:.1f} GB livres" + (" (feche programas)" if low else ""),
+                                          style=ui.C_YEL if low else ui.C_OK))
+        except Exception:
+            pass
+        day_t.add_row("PC", Text("em uso por você (eu espero)" if st.user_busy else "livre",
                                  style=ui.C_YEL if st.user_busy else ui.C_OK))
 
         # fila
@@ -702,6 +750,10 @@ class Autopilot:
             lg.append(msg[:150] + "\n", style=color)
 
         alerts = Text()
+        from .publish import guard
+
+        for msg in guard.waiting().values():
+            alerts.append(">> " + msg + "\n", style=f"bold white on {ui.C_RED}")
         for a in st.alerts[-3:]:
             alerts.append("! " + a + "\n", style=f"bold {ui.C_YEL}")
 
@@ -710,8 +762,8 @@ class Autopilot:
             Layout(Group(head, status), name="head", size=8),
             Layout(name="mid", size=13),
             Layout(Panel(q_t, title=f"Fila de publicação ({len(q)})", border_style=ui.C_DIM), name="queue", size=7),
-            Layout(Panel(Group(alerts, lg) if st.alerts else lg, title="Log ao vivo", border_style=ui.C_DIM), name="log"),
-            Layout(Text(" Ctrl+C para parar  |  config.yaml e lido a cada rodada  |  relatorios\\ultimo.html", style=ui.C_DIM),
+            Layout(Panel(Group(alerts, lg) if alerts.plain else lg, title="Log ao vivo", border_style=ui.C_DIM), name="log"),
+            Layout(Text(" Ctrl+C para parar  |  posta sozinho todo dia: risco de banimento  |  relatório: relatorios\\ultimo.html", style=ui.C_DIM),
                    name="foot", size=1),
         )
         layout["mid"].split_row(
@@ -722,28 +774,29 @@ class Autopilot:
 
     # ------------------------------------------------------------ ciclo
     def _single_instance(self) -> None:
-        from .pipeline import _pid_alive
-
         if self._lock_file.exists():
             try:
-                pid = int(json.loads(self._lock_file.read_text())["pid"])
-                if _pid_alive(pid) and pid != os.getpid():
-                    raise RuntimeError("O piloto automatico ja esta rodando em outra janela.")
+                d = json.loads(self._lock_file.read_text())
+                pid = int(d["pid"])
+                if pid != os.getpid() and andamento.alive(d):
+                    raise RuntimeError("O automático já está rodando.")
             except (ValueError, KeyError):
                 pass
-        self._lock_file.write_text(json.dumps({"pid": os.getpid(), "ts": time.time()}))
+        self._lock_file.write_text(json.dumps({**andamento.me(), "ts": time.time()}))
 
     def _heartbeat(self) -> None:
         st = self.state
-        HEARTBEAT.write_text(json.dumps({
-            "pid": os.getpid(), "ts": time.time(), "desde": st.started, "produtor": st.prod_activity,
-            "publicador": st.pub_activity, "rodadas": st.cycles, "erros": st.errors, "alertas": st.alerts,
-            "teste": self.dry_run,
-        }, ensure_ascii=False), encoding="utf-8")
+        andamento.write_json(HEARTBEAT, {
+            **andamento.me(), "ts": time.time(), "desde": st.started, "produtor": st.prod_activity,
+            "publicador": st.pub_activity, "rodadas": st.cycles, "rodadas_ok": st.cycles_ok, "erros": st.errors,
+            "alertas": st.alerts, "teste": self.dry_run, "proximo_post": st.next_post, "proxima_busca": st.next_production,
+            "ultima_rodada": st.last_cycle, "pc_em_uso": st.user_busy, "vigia": st.watch_activity,
+        })
 
-    def run(self) -> int:
+    def run(self, headless: bool = False) -> int:
         paths.ensure_dirs()
         self._single_instance()
+        STOP_FILE.unlink(missing_ok=True)
         logging.getLogger("fabrica").addHandler(self.loghandler)
         if self.cfg.get("autopiloto.prioridade_baixa", True):
             set_low_priority()
@@ -759,28 +812,71 @@ class Autopilot:
         for w in workers:
             w.start()
         try:
-            with Live(self.render(), console=ui.console, refresh_per_second=2, screen=True,
-                      redirect_stdout=False, redirect_stderr=False) as live:
-                while not self.stop.is_set():
-                    live.update(self.render())
-                    self._heartbeat()
-                    time.sleep(0.5)
+            if headless:
+                self._loop(lambda: None, 1.0)
+            else:
+                with Live(self.render(), console=ui.console, refresh_per_second=2, screen=True,
+                          redirect_stdout=False, redirect_stderr=False) as live:
+                    self._loop(lambda: live.update(self.render()), 0.5)
         except KeyboardInterrupt:
             pass
         finally:
             self.stop.set()
+            # post no meio: espera terminar (nunca larga um envio pela metade)
+            pub = next(w for w in workers if w.name == "publicador")
+            end = time.time() + 2400
+            while pub.is_alive() and self.state.pub_activity.startswith("publicando") and time.time() < end:
+                pub.join(timeout=2)
+                with contextlib.suppress(Exception):
+                    self._heartbeat()
             keep_awake(False)
             logging.getLogger("fabrica").removeHandler(self.loghandler)
-            try:
-                self._lock_file.unlink()
-                HEARTBEAT.unlink()
-            except OSError:
-                pass
-        ui.console.print()
-        ui.ok("Piloto automatico parado. (Se uma rodada estava no meio, ela termina sozinha em segundo plano.)")
+            for f in (self._lock_file, HEARTBEAT):
+                with contextlib.suppress(OSError):
+                    f.unlink()
+        _log.info("Automatico parado")
         for w in workers:
-            w.join(timeout=5)
+            w.join(timeout=3)
+        if getattr(self, "_stuck", False):
+            andamento.end()
+            os._exit(3)   # o vigia do Windows liga de novo em ate 10 min
+        if not headless:
+            ui.console.print()
+            ui.ok("Automático parado.")
         return 0
+
+    def _loop(self, draw, pause: float) -> None:
+        """Batimento e painel. Um erro de desenho ou de disco nunca derruba o automatico."""
+        fails = 0
+        while not self.stop.is_set():
+            if STOP_FILE.exists():
+                STOP_FILE.unlink(missing_ok=True)
+                return
+            run = andamento.read()
+            if run and run.get("pid") == os.getpid() and time.time() - float(run.get("msg_desde") or time.time()) > 2.5 * 3600:
+                _log.error("a rodada travou no passo '%s' ha mais de 2 h: reiniciando o automatico", run.get("msg"))
+                self._stuck = True
+                return
+            try:
+                draw()
+                self._heartbeat()
+                fails = 0
+            except Exception as e:
+                fails += 1
+                if fails in (1, 50):
+                    _log.warning("painel: %s", e)
+            time.sleep(pause)
+
+
+def running() -> bool:
+    """O automatico esta ligado (em qualquer processo)?"""
+    d = andamento.read_json(HEARTBEAT) or {}
+    return andamento.alive(d) and time.time() - float(d.get("ts", 0)) < 180
+
+
+def request_stop() -> None:
+    """Pede para o automatico (em outra janela) parar."""
+    STOP_FILE.write_text(str(time.time()), encoding="utf-8")
 
 
 def status_text() -> str:

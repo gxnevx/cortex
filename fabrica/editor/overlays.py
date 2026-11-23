@@ -429,18 +429,32 @@ def _plate(w: int, h: int, fill, radius: float, corners=(True, True, True, True)
     return im
 
 
-def _text_img(text: str, font, fill, tracking: float = 0.0, shadow: bool = False) -> tuple[Image.Image, int]:
-    """Texto num PNG justo: largura = avanço; altura = cap height (centro optico). Devolve (img, cap)."""
+def _head(font) -> int:
+    """Folga acima da altura das maiusculas para os acentos (E agudo, A til...)."""
+    return round(font.size * 0.34)
+
+
+def _text_img(text: str, font, fill, tracking: float = 0.0) -> tuple[Image.Image, int]:
+    """Texto num PNG justo. Devolve (img, cap): as maiusculas ocupam de y=_head(font) a _head(font)+cap
+    (centro optico); acima fica a folga dos acentos e abaixo a das hastes."""
     cap = _cap_h(font)
+    head = _head(font)
     tw = round(_tracked_len(text, font, tracking)) + 2
     desc = round(font.size * 0.3)
-    im = Image.new("RGBA", (tw, cap + desc), (0, 0, 0, 0))
+    im = Image.new("RGBA", (tw, head + cap + desc), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     if tracking:
-        _tracked(d, (0, cap), text, font, fill, tracking)
+        _tracked(d, (0, head + cap), text, font, fill, tracking)
     else:
-        d.text((0, cap), text, font=font, fill=fill, anchor="ls")
+        d.text((0, head + cap), text, font=font, fill=fill, anchor="ls")
     return im, cap
+
+
+def _paste(dst: Image.Image, src: Image.Image, x: int, y: int) -> None:
+    """alpha_composite que aceita y negativo (a folga dos acentos pode sair da placa)."""
+    if y < 0:
+        src, y = src.crop((0, -y, src.width, src.height)), 0
+    dst.alpha_composite(src, (x, y))
 
 
 def render_name_tag(name: str, sub: str, out_dir: Path, cfg=None, style: str = "tarja", fps: int = 30,
@@ -466,6 +480,7 @@ def render_name_tag(name: str, sub: str, out_dir: Path, cfg=None, style: str = "
     n_img, n_cap = _text_img(name, f_name, white if style != "classica" else ink, track_n)
     s_img, s_cap = (_text_img(sub, f_sub, ink if style in ("tarja", "classica") else white)
                     if sub else (None, 0))
+    n_head, s_head = _head(f_name), _head(f_sub)
     R = _style.RADIUS_BOX
     bar_w = 10
     # caixas: texto centrado pela altura das maiusculas (padding vertical igual em cima e embaixo)
@@ -484,24 +499,24 @@ def render_name_tag(name: str, sub: str, out_dir: Path, cfg=None, style: str = "
         x0 = bar_w
         layers.append((_plate(bar_w + R, total_h, red, R, (True, False, False, True)), 0, 0, 0.0, 0.14, "grow"))
         plate_n = _plate(n_w, n_h, n_fill, R, (False, True, s_img is None, False))
-        plate_n.alpha_composite(n_img, (pad_x, n_pad_y))
+        _paste(plate_n, n_img, pad_x, n_pad_y - n_head)
         layers.append((plate_n, x0, 0, 0.05, 0.27, "wipe"))
         if s_img is not None:
             plate_s = _plate(s_w, s_h, s_fill, R, (False, False, True, False))
-            plate_s.alpha_composite(s_img, (pad_x, s_pad_y))   # mesma borda esquerda do nome
+            _paste(plate_s, s_img, pad_x, s_pad_y - s_head)   # mesma borda esquerda do nome
             layers.append((plate_s, x0, n_h, 0.11, 0.30, "wipe"))
         vis_w = max(x0 + n_w, x0 + s_w)
         vis_h = total_h
     else:   # pilula: capsula grafite com o nome + capsula vermelha com o complemento
         cap_pad = round(n_h / 2)
         name_cap = _plate(n_img.width + 2 * cap_pad, n_h, ink, n_h / 2)
-        name_cap.alpha_composite(n_img, (cap_pad, n_pad_y))
+        _paste(name_cap, n_img, cap_pad, n_pad_y - n_head)
         layers.append((name_cap, 0, 0, 0.0, 0.26, "wipe"))
         vis_w, vis_h = name_cap.width, n_h
         if s_img is not None:
             gap = 8
             pill = _plate(s_img.width + 2 * cap_pad, s_h, red, s_h / 2)
-            pill.alpha_composite(s_img, (cap_pad, s_pad_y))   # texto alinhado ao do nome
+            _paste(pill, s_img, cap_pad, s_pad_y - s_head)   # texto alinhado ao do nome
             layers.append((pill, 0, n_h + gap, 0.08, 0.30, "wipe"))
             vis_w = max(vis_w, pill.width)
             vis_h = n_h + gap + s_h
@@ -576,7 +591,18 @@ class Brand:
         return max(lw, hw), lh + self.gap + hh
 
 
-MINI_LOGO_H = 46      # marca pequena na linha da pilula PARTE (so quando o rosto nao deixa canto livre)
+MINI_LOGO_H = 56      # marca pequena na linha da pilula PARTE (so quando o rosto nao deixa canto livre)
+
+
+def _soft_shadow(im: Image.Image, strength: float = 0.55, blur: int = 4) -> Image.Image:
+    """Sombra escura difusa atras do PNG, no mesmo tamanho (a logo branca precisa dela sobre fundo claro)."""
+    a = im.getchannel("A")
+    sh = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    sh.putalpha(a.filter(ImageFilter.GaussianBlur(blur)).point(lambda v: int(min(255, v * 1.35) * strength)))
+    out = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    out.alpha_composite(sh)
+    out.alpha_composite(im)
+    return out
 
 
 def render_brand(cfg, work: Path, platforms: list[str], scale: float = 1.0, mini: bool = False) -> Brand | None:
@@ -606,6 +632,7 @@ def render_brand(cfg, work: Path, platforms: list[str], scale: float = 1.0, mini
                 h = round(im.height * logo_w / im.width)
                 im = im.resize((logo_w, h), Image.LANCZOS)
                 im.putalpha(im.getchannel("A").point(lambda v: int(v * opacity)))
+                im = _soft_shadow(im, strength=0.55, blur=max(3, round(logo_w * 0.03)))
                 logo_path = work / f"logo{sfx}.png"
                 im.save(logo_path)
                 logo_wh = (logo_w, h)
@@ -613,7 +640,7 @@ def render_brand(cfg, work: Path, platforms: list[str], scale: float = 1.0, mini
                 logo_path = None
     handles: dict[str, tuple[Path, int, int, int]] = {}
     if g("edicao.marca_dagua_arroba", True):
-        px = 26 if mini else round(int(g("edicao.arroba_tamanho", 32) or 32) * scale)
+        px = 24 if mini else round(int(g("edicao.arroba_tamanho", 32) or 32) * scale)
         f = _font_w("semibold", px)
         for plat in platforms:
             hd = str(g(f"publicacao.contas.{plat}.handle", "") or "").strip()
@@ -624,10 +651,12 @@ def render_brand(cfg, work: Path, platforms: list[str], scale: float = 1.0, mini
             hd = _style.sanitize_text(_style.strip_emojis(hd))
             txt, cap = _text_img(hd, f, (255, 255, 255, 240))
             m = 10
+            # sem folga de acento no @ (minusculas, sem acento): corta para alinhar pela tinta
+            txt = txt.crop((0, _head(f), txt.width, txt.height))
             im = Image.new("RGBA", (txt.width + 2 * m, txt.height + 2 * m), (0, 0, 0, 0))
             sha = Image.new("RGBA", im.size, (0, 0, 0, 0))
             sha.alpha_composite(txt, (m, m + 2))
-            sha.putalpha(sha.getchannel("A").point(lambda v: int(v * 0.75)))
+            sha.putalpha(sha.getchannel("A").point(lambda v: int(v * 0.95)))
             black = Image.new("RGBA", im.size, (0, 0, 0, 0))
             black.putalpha(sha.getchannel("A"))
             im.alpha_composite(black.filter(ImageFilter.GaussianBlur(4)))

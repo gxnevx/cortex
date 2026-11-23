@@ -25,8 +25,8 @@ from typing import Any, Callable
 from .. import db
 from ..log import get as get_log
 from ..models import PostResult, RenderedClip
-from . import browser, guard, human, tiktok, youtube
-from .browser import (PROFILE_IN_USE_MSG, BrowserLaunchError, BrowserSession, ProfileInUseError, check_login,
+from . import browser, guard, human, tiktok, youtube, youtube_api
+from .browser import (PROFILE_IN_USE_MSG, BrowserLaunchError, BrowserSession, ProfileInUseError,
                       export_cookies_txt, login, screenshot)
 from .captions import build_post_text, source_info, strip_emojis
 
@@ -38,6 +38,13 @@ log = get_log(__name__)
 UPLOADERS = {"youtube": youtube, "tiktok": tiktok}
 NOMES = {"youtube": "YouTube", "tiktok": "TikTok"}
 BLOCKING_PREFIXES = ("ACAO_NECESSARIA", "LIMITE_DIARIO")
+
+
+def check_login(platform: str, cfg: Any = None, deep: bool = False) -> bool:
+    """Conta pronta para publicar? YouTube pela API oficial vale como login."""
+    if (platform or "").lower() == "youtube" and cfg is not None and youtube_api.enabled(cfg) and youtube_api.connected():
+        return True
+    return browser.check_login(platform, cfg, deep)
 
 
 def _emitter(on_event: Callable[[str], None] | None) -> Callable[[str], None]:
@@ -132,6 +139,12 @@ def publish_batch(clips: list[RenderedClip], cfg: Any, platforms: list[str] | No
         except Exception as e:
             log.warning("db.save_post: %s", e)
 
+    try:
+        guard.publish_clicked("_", "_")  # registro legivel? sem ele, publicar poderia repetir um post
+    except guard.LedgerError as e:
+        emit(f"Não vou publicar nada: {e}")
+        return results
+
     # redes pausadas por bloqueio recente (captcha, verificacao, limite): nem abre o navegador
     blocked: dict[str, str] = {}
     for p in plats:
@@ -204,6 +217,57 @@ def publish_batch(clips: list[RenderedClip], cfg: Any, platforms: list[str] | No
     return results
 
 
+def _allowed_now(clip: RenderedClip, p: str, cfg: Any, emit: Callable[[str], None], held: dict[str, int]) -> bool:
+    """Rechecagem logo antes do post: outro processo pode ter publicado; as regras mudam com o tempo."""
+    if db.already_posted(clip.plan.id, p) or guard.publish_clicked(clip.plan.id, p):
+        emit(f"[{p}] este corte já foi enviado para o {NOMES[p]}; pulando.")
+        return False
+    ok, why = _policy_ok(p, cfg)
+    if not ok:
+        emit(f"[{p}] regra de segurança da conta: {why}. Fica para depois.")
+        held[p] = held.get(p, 0) + 1
+    return ok
+
+
+def _after(r: PostResult, p: str, cfg: Any, dry_run: bool, emit: Callable[[str], None],
+           record: Callable[[PostResult], None], blocked: dict[str, str], posted: dict[str, int],
+           last_end: dict[str, float]) -> None:
+    record(r)
+    last_end[p] = time.time()
+    if r.ok:
+        if not dry_run:
+            posted[p] = posted.get(p, 0) + 1
+        emit(f"[{p}] {'(teste) ok' if dry_run else 'publicado'}: {r.url or '(sem link)'}")
+        return
+    emit(f"[{p}] falhou: {r.error}")
+    if (r.error or "").startswith(BLOCKING_PREFIXES):
+        blocked[p] = r.error or ""
+        if is_risk_signal(r.error):
+            until = guard.pause_platform(p, r.error or "", cfg)
+            emit(f"[{p}] {NOMES[p]} pausado até {time.strftime('%d/%m %H:%M', time.localtime(until))} "
+                 f"(não vou insistir; 'cortex login {p}' libera antes).")
+        else:
+            emit(f"[{p}] pausando o {NOMES[p]} neste lote (não vou insistir).")
+
+
+def _post_api(clip: RenderedClip, cfg: Any, dry_run: bool, emit: Callable[[str], None],
+              record: Callable[[PostResult], None], blocked: dict[str, str], posted: dict[str, int],
+              held: dict[str, int], last_end: dict[str, float]) -> None:
+    if not dry_run and not _allowed_now(clip, "youtube", cfg, emit, held):
+        return
+    vt, ch = source_info(clip.plan)
+    text = build_post_text(clip.plan, "youtube", cfg, video_title=vt, channel=ch)
+    emit(f"[youtube] {'(teste) ' if dry_run else ''}enviando pela API oficial: {strip_emojis(text[0])[:70]}")
+    try:
+        r = youtube_api.upload(clip, cfg, text, dry_run=dry_run, on_event=emit)
+    except Exception as e:
+        log.exception("API do YouTube")
+        clicked = guard.publish_clicked(clip.plan.id, "youtube")
+        r = PostResult(clip.plan.id, "youtube", bool(clicked), ts=time.time(), dry_run=dry_run,
+                       error=f"INCERTO: {e}" if clicked else f"Falha na API do YouTube: {e}")
+    _after(r, "youtube", cfg, dry_run, emit, record, blocked, posted, last_end)
+
+
 def _run_queue(queue: list[tuple[RenderedClip, str]], cfg: Any, dry_run: bool, emit: Callable[[str], None],
                record: Callable[[PostResult], None], blocked: dict[str, str], posted: dict[str, int]) -> None:
     held: dict[str, int] = {}
@@ -223,6 +287,11 @@ def _run_queue(queue: list[tuple[RenderedClip, str]], cfg: Any, dry_run: bool, e
         for p in slot_plats:
             if p in blocked:
                 held[p] = held.get(p, 0) + 1
+        if not dry_run:
+            sem_vaga = [p for p in todo if not _policy_ok(p, cfg)[0]]
+            for p in sem_vaga:
+                held[p] = held.get(p, 0) + 1
+            todo = [p for p in todo if p not in sem_vaga]
         if not todo:
             continue
         # intervalo entre posts na mesma rede (com o navegador FECHADO)
@@ -232,6 +301,13 @@ def _run_queue(queue: list[tuple[RenderedClip, str]], cfg: Any, dry_run: bool, e
         if wait > 1:
             emit(f"Aguardando {int(wait)} s antes do próximo post (navegador fechado)...")
             time.sleep(wait)
+
+        # YouTube pela API oficial quando conectada: nao precisa de navegador
+        if "youtube" in todo and youtube_api.ready(cfg):
+            _post_api(clip, cfg, dry_run, emit, record, blocked, posted, held, last_end)
+            todo = [p for p in todo if p != "youtube"]
+            if not todo:
+                continue
 
         # modo semi do TikTok: o humano clica em Publicar, entao a janela precisa estar visivel
         semi = (not dry_run and "tiktok" in todo and tiktok.tiktok_mode(cfg) == "semi")
@@ -258,16 +334,8 @@ def _run_queue(queue: list[tuple[RenderedClip, str]], cfg: Any, dry_run: bool, e
                 if p in blocked:
                     held[p] = held.get(p, 0) + 1
                     continue
-                if not dry_run:
-                    # rechecagem logo antes do post: outro processo pode ter publicado; as regras mudam com o tempo
-                    if db.already_posted(clip.plan.id, p) or guard.publish_clicked(clip.plan.id, p):
-                        emit(f"[{p}] este corte já foi enviado para o {NOMES[p]}; pulando.")
-                        continue
-                    ok, why = _policy_ok(p, cfg)
-                    if not ok:
-                        emit(f"[{p}] regra de segurança da conta: {why}. Fica para depois.")
-                        held[p] = held.get(p, 0) + 1
-                        continue
+                if not dry_run and not _allowed_now(clip, p, cfg, emit, held):
+                    continue
                 if i:
                     human.sleep(3, 8)  # troca de rede: pausa curta
                 vt, ch = source_info(clip.plan)
@@ -286,22 +354,7 @@ def _run_queue(queue: list[tuple[RenderedClip, str]], cfg: Any, dry_run: bool, e
                             page.close(run_before_unload=False)
                         except Exception:
                             pass
-                record(r)
-                last_end[p] = time.time()
-                if r.ok:
-                    if not dry_run:
-                        posted[p] = posted.get(p, 0) + 1
-                    emit(f"[{p}] {'(teste) ok' if dry_run else 'publicado'}: {r.url or '(sem link)'}")
-                    continue
-                emit(f"[{p}] falhou: {r.error}")
-                if (r.error or "").startswith(BLOCKING_PREFIXES):
-                    blocked[p] = r.error or ""
-                    if is_risk_signal(r.error):
-                        until = guard.pause_platform(p, r.error or "", cfg)
-                        emit(f"[{p}] {NOMES[p]} pausado até {time.strftime('%d/%m %H:%M', time.localtime(until))} "
-                             f"(não vou insistir; 'cortex login {p}' libera antes).")
-                    else:
-                        emit(f"[{p}] pausando o {NOMES[p]} neste lote (não vou insistir).")
+                _after(r, p, cfg, dry_run, emit, record, blocked, posted, last_end)
             if "youtube" in todo and "youtube" not in blocked and cfg.get("publicacao.exportar_cookies", True):
                 try:  # cookies frescos para o yt-dlp
                     export_cookies_txt(cfg, session=session)
@@ -323,6 +376,11 @@ def selftest(platform: str, cfg: Any) -> dict:
     platform = (platform or "").lower()
     if platform not in UPLOADERS:
         return {"ok": False, "erro": f"rede desconhecida: {platform}", "checks": {}}
+    if platform == "youtube" and youtube_api.ready(cfg):
+        try:
+            return {"ok": True, "erro": None, "checks": {f"API oficial: {youtube_api.channel_name()}": True}}
+        except Exception as e:
+            return {"ok": False, "erro": f"API oficial: {e}", "checks": {"API oficial": False}}
     checks: dict[str, bool] = {"Cookies de login no perfil": check_login(platform, cfg)}
     pz = guard.paused_until(platform)
     if pz:

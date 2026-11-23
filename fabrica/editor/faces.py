@@ -31,12 +31,15 @@ SAMPLE_W = 320
 MIN_FACE_H = 0.07        # rosto menor que 7% da altura e plateia/quadro na parede
 MIN_SCORE = 0.62
 MIN_SHOT_S = 0.35
-MAX_THREADS = 6          # evita saturar a CPU
+MAX_THREADS = 6          # nao satura a CPU
 # caixa do YuNet vai da sobrancelha/testa baixa ao queixo: estende ate a linha do cabelo e da margem
 FACE_TOP = 0.22          # fracao da altura da caixa acrescentada acima (testa)
 FACE_BOTTOM = 0.07       # abaixo (queixo)
 FACE_SIDE = 0.08         # de cada lado
 OTHER_MIN_PRESENCE = 0.3
+# folga so do PLANO (alem da margem acima): a caixa do detector varia uns 3 a 5% com a escala da
+# imagem (320 px na analise x 1080 px na saida); sem isto a conferencia independente raspava na margem
+PLAN_EXTRA_TOP, PLAN_EXTRA_BOTTOM, PLAN_EXTRA_SIDE = 0.03, 0.05, 0.03
 
 
 @dataclass
@@ -325,8 +328,13 @@ def face_envelope(dets: list[Det]) -> tuple[float, float, float, float]:
     y0 = pct([d.box[1] for d in dets], 0.1)
     x1 = pct([d.box[2] for d in dets], 0.9)
     y1 = pct([d.box[3] for d in dets], 0.9)
-    bw, bh = max(1e-4, x1 - x0), max(1e-4, y1 - y0)
-    return (x0 - FACE_SIDE * bw, y0 - FACE_TOP * bh, x1 + FACE_SIDE * bw, y1 + FACE_BOTTOM * bh)
+    return plan_box(x0, y0, max(1e-4, x1 - x0), max(1e-4, y1 - y0))
+
+
+def plan_box(x: float, y: float, w: float, h: float) -> tuple[float, float, float, float]:
+    """Retangulo que o PLANO protege: expand_box + folga para a variacao do detector."""
+    a, b, c, d = expand_box(x, y, w, h)
+    return (a - PLAN_EXTRA_SIDE * w, b - PLAN_EXTRA_TOP * h, c + PLAN_EXTRA_SIDE * w, d + PLAN_EXTRA_BOTTOM * h)
 
 
 def _local_box(dets: list, t: float, win: float) -> tuple[float, float, float, float] | None:
@@ -340,7 +348,7 @@ def _local_box(dets: list, t: float, win: float) -> tuple[float, float, float, f
     y0 = min(d.box[1] for d in near)
     x1 = max(d.box[2] for d in near)
     y1 = max(d.box[3] for d in near)
-    return expand_box(x0, y0, x1 - x0, y1 - y0)
+    return plan_box(x0, y0, x1 - x0, y1 - y0)
 
 
 def expand_box(x: float, y: float, w: float, h: float) -> tuple[float, float, float, float]:

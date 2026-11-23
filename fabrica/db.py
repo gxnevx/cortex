@@ -5,6 +5,7 @@ import json
 import sqlite3
 import threading
 import time
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Any, Iterable
 
@@ -54,10 +55,14 @@ def conn() -> sqlite3.Connection:
     c = getattr(_local, "conn", None)
     if c is None:
         paths.DATA.mkdir(parents=True, exist_ok=True)
-        c = sqlite3.connect(str(paths.DB_PATH), timeout=30)
+        c = sqlite3.connect(str(paths.DB_PATH), timeout=30, isolation_level=None)
         c.row_factory = sqlite3.Row
         c.execute("PRAGMA journal_mode=WAL")
         c.executescript(SCHEMA)
+        try:
+            c.execute("ALTER TABLE clips ADD COLUMN curador TEXT")   # decisao do editor-chefe
+        except sqlite3.OperationalError:
+            pass   # ja existe
         _local.conn = c
     return c
 
@@ -119,6 +124,28 @@ def set_video_status(video_id: str, status: str, error: str | None = None) -> No
     conn().commit()
 
 
+def release_stuck() -> int:
+    """Videos que ficaram 'processando' porque o programa caiu: voltam para a busca."""
+    rows = conn().execute("SELECT id FROM videos WHERE status='processando'").fetchall()
+    for r in rows:
+        conn().execute("UPDATE videos SET status=? WHERE id=?",
+                       ("ignorado" if bump_attempt(r["id"]) >= MAX_VIDEO_ATTEMPTS else "encontrado", r["id"]))
+    conn().commit()
+    return len(rows)
+
+
+MAX_VIDEO_ATTEMPTS = 2
+
+
+def bump_attempt(video_id: str) -> int:
+    """Conta as tentativas que nao chegaram ao fim (falha ou queda do PC)."""
+    c = conn()
+    c.execute("CREATE TABLE IF NOT EXISTS video_attempts (id TEXT PRIMARY KEY, n INTEGER)")
+    c.execute("INSERT INTO video_attempts (id, n) VALUES (?, 1) ON CONFLICT(id) DO UPDATE SET n = n + 1", (video_id,))
+    c.commit()
+    return int(c.execute("SELECT n FROM video_attempts WHERE id=?", (video_id,)).fetchone()[0])
+
+
 # ----------------------------------------------------------------- clips
 def save_plan(plan: ClipPlan, run_id: str) -> None:
     conn().execute(
@@ -163,7 +190,7 @@ def clips_today_from_channel(channel: str) -> int:
     start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
     r = conn().execute(
         """SELECT COUNT(*) FROM clips c JOIN videos v ON c.video_id = v.id
-           WHERE v.channel = ? AND c.created >= ? AND c.status NOT IN ('planejado', 'falhou')""",
+           WHERE v.channel = ? AND c.created >= ? AND c.status NOT IN ('planejado', 'falhou', 'rejeitado')""",
         (channel, start)).fetchone()
     return int(r[0])
 
@@ -197,6 +224,33 @@ def clips_by_status(*statuses: str) -> list[RenderedClip]:
     return out
 
 
+def clip_overview(limit: int = 60) -> list[dict]:
+    """Ultimos cortes com a situacao em palavras: na fila, postado (links), descartado..."""
+    out = []
+    for r in conn().execute("SELECT * FROM clips ORDER BY created DESC LIMIT ?", (limit,)).fetchall():
+        try:
+            rd = json.loads(r["rendered"] or "{}") or {}
+        except Exception:
+            rd = {}
+        posts = [dict(p) for p in conn().execute(
+            "SELECT platform, ok, url, error FROM posts WHERE clip_id=? AND dry_run=0 ORDER BY ts", (r["id"],)).fetchall()]
+        done = [p for p in posts if p["ok"] and not str(p["error"] or "").startswith("INCERTO")]
+        st = {"planejado": "não terminou", "renderizado": "pronto, esperando", "aprovado": "na fila para postar",
+              "rejeitado": "descartado", "publicado": "postado", "falhou": "falhou", "expirado": "passou da validade"}.get(
+            r["status"], r["status"])
+        if done and r["status"] in ("renderizado", "aprovado"):
+            st = "postado em " + ", ".join(p["platform"] for p in done) + ", falta o resto"
+        elif any(str(p["error"] or "").startswith("INCERTO") for p in posts):
+            st = "conferir na rede se saiu"
+        if r["curador"] and r["status"] == "rejeitado":
+            st = str(r["curador"])
+        path = rd.get("path") or r["render_path"] or ""
+        out.append({"id": r["id"], "title": r["title"], "score": r["score"] or 0, "created": r["created"], "status": r["status"],
+                    "situacao": st, "path": path, "thumbnail": rd.get("thumbnail") or "", "duration": rd.get("duration") or 0,
+                    "existe": bool(path) and Path(path).exists(), "posts": done})
+    return out
+
+
 def clip_rows(limit: int = 100) -> list[sqlite3.Row]:
     return conn().execute("SELECT * FROM clips ORDER BY created DESC LIMIT ?", (limit,)).fetchall()
 
@@ -227,6 +281,15 @@ def has_uncertain_post(clip_id: str) -> bool:
     """Algum envio deste corte ficou sem confirmacao (erro 'INCERTO: ...')?"""
     return conn().execute("SELECT 1 FROM posts WHERE clip_id=? AND dry_run=0 AND error LIKE 'INCERTO%'",
                           (clip_id,)).fetchone() is not None
+
+
+def failed_attempts(clip_id: str, platform: str) -> int:
+    """Tentativas reais que falharam (login, captcha, limite e falta de internet nao contam)."""
+    return int(conn().execute(
+        """SELECT COUNT(*) FROM posts WHERE clip_id=? AND platform=? AND ok=0 AND dry_run=0
+           AND error NOT LIKE 'ACAO_NECESSARIA%' AND error NOT LIKE 'LIMITE_DIARIO%'
+           AND error NOT LIKE '%sem conex%' AND error NOT LIKE '%ERR_INTERNET%' AND error NOT LIKE '%ERR_NAME%'
+           AND error NOT LIKE '%navegador%'""", (clip_id, platform)).fetchone()[0])
 
 
 def recent_posts(days: int = 7) -> list[sqlite3.Row]:

@@ -200,6 +200,7 @@ def main() -> int:
         rc = editor.render_clip(src, 0.0, dur, plan, tr, cfg, out, layout=lay, background=forced)
         st = dict(editor.LAST_STATS)
         st["parede_s"] = round(time.time() - t0, 1)
+        out = Path(rc.path)   # versao do YouTube (uma por rede)
         st["saida"] = check_output(out, rc.duration)
         results[lay] = st
         print(f"{lay}: {json.dumps(st, ensure_ascii=False)}")

@@ -197,6 +197,14 @@ def languages(cfg) -> list[str]:
         langs.insert(0, "pt")
     if not bool(cfg.get("busca.estrangeiro.ativo", True)):
         return ["pt"]
+    if bool(cfg.get("busca.estrangeiro.exige_claude", True)):
+        try:
+            from ..brain import get_brain
+
+            if get_brain(cfg, tarefa="clips").name != "claude":
+                return ["pt"]   # a IA local erra muito em outra lingua
+        except Exception:
+            return ["pt"]
     return langs
 
 

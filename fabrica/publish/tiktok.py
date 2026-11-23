@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..log import get as get_log
-from ..models import NeedsUserAction, PostResult, RenderedClip
+from ..models import CaptchaAppeared, NeedsUserAction, PostResult, RenderedClip
 from . import guard, human
 from .browser import exists, find, locator_for, page_text, screenshot
 from .captions import build_post_text, source_info, split_caption, strip_emojis
@@ -115,7 +115,7 @@ _VIS_ALIASES = {"public": "everyone", "todos": "everyone", "publico": "everyone"
                 "seguidores": "followers"}
 
 LOGIN_MSG = ("ACAO_NECESSARIA: faça login no TikTok no navegador da Fábrica "
-             "(menu > Login nas redes, ou: cortex login tiktok).")
+             "(menu > Contas, ou: cortex login tiktok).")
 CAPTCHA_MSG = ("ACAO_NECESSARIA: o TikTok mostrou um captcha/verificação. A Fábrica não resolve captcha e não "
                "tenta de novo sozinha: o TikTok fica pausado (24 h ou até você refazer o login). Rode "
                "'cortex login tiktok', resolva você mesmo na janela e feche (se repetir, publique menos por dia).")
@@ -141,7 +141,7 @@ def _check_blockers(page: Any) -> None:
     if is_login_wall(page):
         raise NeedsUserAction(LOGIN_MSG)
     if exists(page, SEL["captcha"]):
-        raise NeedsUserAction(CAPTCHA_MSG)
+        raise CaptchaAppeared(CAPTCHA_MSG)
 
 
 def _root(page: Any) -> Any:
@@ -312,14 +312,11 @@ def _set_visibility(h: human.Actor, root: Any, wanted: str, emit: Callable[[str]
             break
     if target is None:
         page.keyboard.press("Escape")
-        if wanted == "everyone":
-            emit("[tiktok] aviso: opção 'Todos' não encontrada; mantendo o padrão")
-            return
         raise RuntimeError(f"opção de privacidade '{wanted}' não encontrada")
     h.click(target, enabled=False, what=f"opção '{wanted}'")
     h.sleep(0.5, 1.0)
     now = (combo.inner_text() or "").strip().split("\n")[0]
-    if not rx.search(now) and wanted != "everyone":
+    if not rx.search(now):
         raise RuntimeError(f"a privacidade não mudou para '{wanted}' (está: {now!r})")
 
 
@@ -413,10 +410,11 @@ def _wait_ready(h: human.Actor, root: Any, timeout: float, emit: Callable[[str],
     end = time.time() + timeout
     last = 0.0
     while time.time() < end:
-        h.blockers()
-        body = page_text(page, "body", 8000)
-        if ERROR_RE.search(body):
-            raise RuntimeError(f"o TikTok recusou o vídeo: {ERROR_RE.search(body).group(0)}")
+        if h.blockers():  # o dono resolveu um CAPTCHA: recomeca a contagem
+            end = time.time() + timeout
+        avisos = _notices(page)
+        if ERROR_RE.search(avisos):
+            raise RuntimeError(f"o TikTok recusou o vídeo: {ERROR_RE.search(avisos).group(0)}")
         btn = _post_button(root, timeout=1)
         if btn is not None and _enabled(btn):
             return btn
@@ -471,7 +469,8 @@ def _wait_posted(h: human.Actor, root: Any, timeout: float = 150, human_posts: b
             if _post_button(root, timeout=0) is None and exists(root, SEL["select_video"]):
                 raise RuntimeError("o envio foi descartado na janela (modo semi); nada foi publicado")
         else:
-            h.blockers()
+            if h.blockers():  # o dono resolveu um CAPTCHA: recomeca a contagem
+                end = time.time() + timeout
             pn = find(page, SEL["post_now"], timeout=0)
             if pn is not None and not post_now_clicked:
                 # "Continuar publicando?" -> Publicar agora (parte do mesmo Publicar; uma vez so)
@@ -480,7 +479,8 @@ def _wait_posted(h: human.Actor, root: Any, timeout: float = 150, human_posts: b
                 h.click(pn, what="'Publicar agora'")
                 continue
         notes = _notices(page)
-        if SUCCESS_RE.search(notes) or SUCCESS_RE.search(page_text(page, "body", 8000)):
+        own = getattr(h, "own_text", "")     # o texto do nosso post nao vale como confirmacao
+        if SUCCESS_RE.search(notes) or (not SUCCESS_RE.search(own) and SUCCESS_RE.search(page_text(page, "body", 8000))):
             return
         if RATE_RE.search(notes):
             raise NeedsUserAction("LIMITE_DIARIO: o TikTok pediu para ir mais devagar (\"" +
@@ -573,6 +573,7 @@ def upload(page: Any, clip: RenderedClip, cfg: Any, dry_run: bool = False, *,
     clip_id = clip.plan.id
     res = PostResult(clip_id=clip_id, platform=PLATFORM, ok=False, ts=time.time(), dry_run=dry_run)
     h = human.Actor(page, cfg, PLATFORM, clip_id, emit, blockers=lambda: _check_blockers(page))
+    h.own_text = " ".join(text or ())
     try:
         res.url = _upload(h, clip, cfg, dry_run, text, emit)
         res.ok = True
@@ -726,8 +727,9 @@ def _upload(h: human.Actor, clip: RenderedClip, cfg: Any, dry_run: bool, text: t
         try:
             h.step("clicar em Publicar", lambda: h.click(btn, what="botão Publicar", on_press=press), retry=False)
             h.step("esperar a confirmação do TikTok", lambda: _wait_posted(h, root), retry=False)
-        except NeedsUserAction:
+        except NeedsUserAction as e:
             if clicked["v"]:
+                guard.pause_platform(PLATFORM, str(e), cfg)
                 raise UncertainPost("cliquei em Publicar e depois o TikTok pediu ação; NÃO vou reenviar. Confira "
                                     "em tiktok.com/tiktokstudio/content se o vídeo saiu.")
             raise

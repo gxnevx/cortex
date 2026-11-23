@@ -633,6 +633,18 @@ def login(platform: str, cfg: Any, timeout_s: float | None = None,
         raise ValueError(f"Plataforma desconhecida: {platform}")
     timeout_s = float(timeout_s or cfg.get("publicacao.login_timeout_s", 600))
 
+    from . import guard as _guard
+
+    lock = _guard.PublishLock()
+    if not lock.acquire():
+        raise RuntimeError("tem um post sendo enviado agora; espere ele terminar e tente de novo")
+    try:
+        return _login_locked(platform, cfg, timeout_s, on_event)
+    finally:
+        lock.release()
+
+
+def _login_locked(platform: str, cfg: Any, timeout_s: float, on_event: Callable[[str], None] | None) -> bool:
     port = devtools_port()
     if port:  # navegador de automacao esquecido aberto: fecha com calma antes
         _emit(on_event, "Fechando o navegador da Fábrica que tinha ficado aberto...")

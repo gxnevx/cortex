@@ -48,7 +48,7 @@ autopiloto:
 
 traducao:
   # Videos estrangeiros: legenda traduzida para portugues pela IA local (gratis)
-  motor: ollama                   # ollama | claude | auto
+  motor: claude                   # claude (certo) | ollama (gratis, mas erra gírias e jogos) | auto
   permitir_claude: false          # true = usa o Claude se o Ollama falhar (gasta cota)
   lote_caracteres: 1100
   temperatura: 0.2
@@ -64,7 +64,7 @@ conteudo:
   #   palavrao sem mascara, gancho e citacao em 100% dos cortes). Aceita tambem "sem limites" ou "extremo".
   # Piso fixo em qualquer nivel: a insinuacao precisa estar no corte; nunca inventa crime, traicao ou caso
   # de pessoa real; nada sexual com menores; nada de odio contra grupos.
-  tom_titulo: malicioso
+  tom_titulo: modo_besta
 
 execucao:
   videos_por_execucao: 5          # quantos videos-fonte processar por rodada (5, 10, 15, 20...)
@@ -93,9 +93,17 @@ busca:
   idiomas: [pt, en]
   estrangeiro:
     ativo: true
-    nota_minima: 75               # regua mais alta que a dos videos em portugues
+    nota_minima: 85               # regua mais alta que a dos videos em portugues
+    exige_claude: true            # so com o Claude escolhendo (a IA local erra muito em outra lingua)
   # Mescla de nichos por rodada (a IA respeita e o aprendizado ajusta com o tempo)
   mix_nichos: {politica: 0.3, games: 0.35, humor: 0.35}
+  # Games e virais: reacao forte (rage quit, surto, briga) ou curiosidade completa (easter egg, segredo)
+  virais:
+    ativo: true
+    temas: [GTA 6, GTA RP, Minecraft, Roblox]
+    sufixos_pt: [easter eggs, rage quit, streamer surtando]
+    consultas: [streamer ficou puto no jogo, briga ao vivo jogando, rage quit brasileiro, easter eggs escondidos em jogos, segredos de jogos que ninguém sabia]
+    max_consultas: 12
   # Via rapida: vigia que acha momento explodindo (clipe da Twitch/Kick, video novo bombando) e corta na hora
   via_rapida:
     ativa: true
@@ -142,6 +150,7 @@ cerebro:
   ollama_url: http://127.0.0.1:11434
   timeout_s: 300
   ollama_timeout_s: 600           # a IA local roda na CPU e precisa de mais tempo
+  ollama_modo: rapido              # rapido = os sinais separam os trechos e a IA escolhe e intitula | completo = le tudo (minutos por video)
   ollama_max_janelas: 4           # videos longos: quantas janelas a IA local analisa (menos = mais rapido)
   ollama_threads: 6               # nucleos usados pela IA local (este PC aguenta melhor sem usar todos)
 
@@ -158,15 +167,17 @@ transcricao:
 
 corte:
   # Pesquisa: Shorts de 21-40 s rendem 1,2x; 41-59 s rendem 0,8x. E acima de 60 s com reivindicacao e bloqueado.
-  duracao_min_s: 15
-  duracao_max_s: 45
+  duracao_min_s: 28               # menos que isso fica sem contexto
+  duracao_max_s: 58
   permitir_series: true           # "Parte 1, Parte 2..." quando o assunto rende
-  duracao_parte_s: 50
+  duracao_parte_s: 52
+  serie_min_s: 70                 # historia com mais que isso vira Parte 1, 2, 3
   max_partes: 3
   pontuacao_minima: 55            # cortes com nota abaixo disso sao descartados (0-100)
-  max_cortes_mesma_fonte_dia: 3
+  max_cortes_mesma_fonte_dia: 4   # uma serie de 3 partes + 1 corte
 
 edicao:
+  zooms: false                    # zoom que vai e volta nas falas (o dono nao gosta)
   # split -> video em cima + fundo (gameplay/ASMR) embaixo | blur -> fundo desfocado
   # full  -> tela cheia (rosto/podcast) | auto -> escolhe pelo conteudo
   layout: auto
@@ -204,12 +215,15 @@ publicacao:
   # Short acima de 60 s com reivindicacao de direitos e bloqueado no mundo todo.
   tiktok_longo:
     ativo: true
-    proporcao: 0.4                # 40% dos cortes ganham versao longa (suba para 0.8+ perto de 10 mil seguidores)
+    proporcao: 0.6                # 60% dos cortes ganham versao longa (suba para 0.8+ perto de 10 mil seguidores)
     min_s: 61
     max_s: 90
   navegador: chrome               # chrome | msedge
   headless: false
   janela_oculta: true             # o Chrome que publica abre FORA da tela (nao atrapalha voce); login continua visivel
+  espera_captcha_min: 30           # CAPTCHA: abre a janela e espera voce resolver por ate X minutos (0 = nao espera)
+  captcha_por_dia: 2               # passou disso no mesmo dia, a rede fica pausada (a conta esta em alerta)
+  youtube_via: auto                # auto = API oficial se conectada, senao navegador | api | navegador
   intervalo_entre_posts_s: [90, 240]   # espera entre posts num envio em lote (modo revisar)
   max_posts_por_dia:              # teto absoluto (o aquecimento pode limitar abaixo disso)
     youtube: 2                    # canais de cortes que mais crescem no Shorts postam ~1 por dia
@@ -221,8 +235,8 @@ publicacao:
     ativo: true                   # conta nova posta pouco no comeco (recomendado!)
     # [dia_inicial, dia_final, posts_por_dia] contados a partir do 1o login na Fabrica
     # pesquisa oficial (docs/ideias/contas_e_monetizacao.md): dias 0-2 sem post (use a conta na mao),
-    # semana 1: 1/dia, semanas 2-4: 2/dia, mes 2 em diante: ate 4/dia (o teto max_posts_por_dia limita o YouTube a 2)
-    tabela: [[0, 2, 0], [3, 7, 1], [8, 28, 2], [29, 99999, 4]]
+    # recomendado era: semana 1: 1/dia, semanas 2-4: 2/dia, mes 2 em diante: ate 4/dia (o teto max_posts_por_dia limita o YouTube a 2)
+    tabela: [[0, 28, 2], [29, 99999, 4]]    # o dono quis postar desde o primeiro dia (2 por dia em cada rede)
   contas:                         # contas do canal (as senhas NAO ficam aqui: o login fica salvo no navegador do CORTEX)
     youtube: {criada_em: ""}
     tiktok: {criada_em: ""}
@@ -248,3 +262,10 @@ armazenamento:
 
 notificacoes:
   windows_toast: true
+
+# ---------------------------------------------------------------------
+# EDITOR-CHEFE DO AUTOMATICO: le cada corte e decide sozinho se posta ou descarta
+# ---------------------------------------------------------------------
+curadoria:
+  nota_minima: 68                 # 0 a 100: mais alto = mais exigente
+  duracao_min_s: 25

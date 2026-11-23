@@ -25,6 +25,7 @@ log = get_log(__name__)
 CLICKS_FILE = "publicacao_cliques.json"
 PAUSES_FILE = "publicacao_pausas.json"
 LOCK_FILE = "publicando.lock"
+CAPTCHA_FILE = "publicacao_captcha.json"
 
 
 def _state_dir() -> Path:
@@ -33,18 +34,48 @@ def _state_dir() -> Path:
     return d
 
 
+class LedgerError(RuntimeError):
+    """O registro de posts existe mas esta ilegivel: publicar agora poderia repetir um post."""
+
+
 def _load(name: str) -> dict:
-    try:
-        return json.loads((_state_dir() / name).read_text(encoding="utf-8"))
-    except Exception:
+    f = _state_dir() / name
+    if not f.exists() and not f.with_suffix(".bak").exists():
         return {}
+    for path in (f, f.with_suffix(".bak")):
+        try:
+            d = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                return d
+        except Exception:
+            continue
+    if name == CLICKS_FILE:
+        raise LedgerError("o registro de posts (data/estado/publicacao_cliques.json) esta ilegivel; confira nas redes o "
+                          "ultimo post e apague o arquivo para continuar")
+    return {}
 
 
 def _save(name: str, data: dict) -> None:
+    """Grava no disco de verdade (fsync) e guarda a versao anterior: o PC pode cair no meio."""
     f = _state_dir() / name
-    tmp = f.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, f)
+    tmp = f.with_suffix(f".{os.getpid()}.tmp")
+    with tmp.open("w", encoding="utf-8") as fh:
+        fh.write(json.dumps(data, indent=1, ensure_ascii=False))
+        fh.flush()
+        os.fsync(fh.fileno())
+    for _ in range(10):
+        try:
+            if f.exists():
+                try:
+                    json.loads(f.read_text(encoding="utf-8"))
+                    os.replace(f, f.with_suffix(".bak"))
+                except ValueError:
+                    pass
+            os.replace(tmp, f)
+            return
+        except PermissionError:
+            time.sleep(0.05)
+    raise OSError(f"nao consegui gravar {f.name}")
 
 
 # ------------------------------------------------------- cliques em Publicar
@@ -69,6 +100,13 @@ def mark_publish_result(clip_id: str, platform: str, estado: str, url: str | Non
     entry.update({"estado": estado, "url": url, "fim": time.time()})
     data[k] = entry
     _save(CLICKS_FILE, data)
+
+
+def clear_click(clip_id: str, platform: str) -> None:
+    """So quando a rede confirmou que o video NAO foi recebido (API oficial)."""
+    data = _load(CLICKS_FILE)
+    if data.pop(_key(clip_id, platform), None) is not None:
+        _save(CLICKS_FILE, data)
 
 
 def publish_clicked(clip_id: str, platform: str) -> dict | None:
@@ -107,6 +145,35 @@ def clear_pause(platform: str) -> bool:
         _save(PAUSES_FILE, data)
         return True
     return False
+
+
+# ------------------------------------------------------ CAPTCHA (quem resolve e o dono)
+def note_captcha(platform: str) -> None:
+    data = _load(CAPTCHA_FILE)
+    hist = data.setdefault("hist", {})
+    hist[platform] = (hist.get(platform, []) + [time.time()])[-50:]
+    _save(CAPTCHA_FILE, data)
+
+
+def captchas_today(platform: str) -> int:
+    hist = (_load(CAPTCHA_FILE).get("hist") or {}).get(platform, [])
+    return sum(1 for t in hist if time.time() - float(t) < 86400)
+
+
+def set_waiting(platform: str, msg: str | None) -> None:
+    """O painel mostra este aviso enquanto o CORTEX espera o dono."""
+    data = _load(CAPTCHA_FILE)
+    w = data.setdefault("esperando", {})
+    if msg:
+        w[platform] = {"msg": msg, "ts": time.time()}
+    else:
+        w.pop(platform, None)
+    _save(CAPTCHA_FILE, data)
+
+
+def waiting() -> dict[str, str]:
+    w = _load(CAPTCHA_FILE).get("esperando") or {}
+    return {p: v["msg"] for p, v in w.items() if time.time() - float(v.get("ts", 0)) < 3 * 3600}
 
 
 # ---------------------------------------------------------------- trava

@@ -152,7 +152,7 @@ def test_render(tmp: Path):
         out = tmp / f"sint_{lay}.mp4"
         rc = editor.render_clip(src, 0.0, 8.5, plan, tr, cfg, out, layout=lay)
         st = editor.LAST_STATS
-        info = ff.probe(out)
+        info = ff.probe(rc.path)
         assert (info["width"], info["height"]) == (1080, 1920) and info["has_audio"]
         assert st["jump_cuts"] >= 1 and st["cold_open_s"] > 1.0, st
         assert abs(rc.duration - (8.5 - st["silencio_removido_s"] + st["cold_open_s"])) < 0.15, (rc.duration, st)

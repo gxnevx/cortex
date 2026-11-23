@@ -17,14 +17,14 @@ PLATFORMS = ("youtube", "tiktok")
 
 # =========================================================== acoes
 def do_run(cfg: Config, *, mode=None, keywords=None, urls=None, videos=None, publish=None,
-           dry_run=False, scheduled=False, brain=None) -> int:
+           dry_run=False, scheduled=False, brain=None, origem_fundo=False) -> int:
     from .pipeline import RunOptions, run
     from .report import print_summary
 
     opts = RunOptions(
         trigger="agendado" if scheduled else "manual",
         search_mode=mode, keywords=keywords or [], urls=urls or [], n_videos=videos,
-        publish_mode=publish, interactive=not scheduled, dry_run=dry_run, brain=brain,
+        publish_mode=publish, interactive=not (scheduled or origem_fundo), dry_run=dry_run, brain=brain,
     )
     ui.rule("RODADA " + ("AGENDADA" if scheduled else "MANUAL"), ui.C_RED)
     try:
@@ -112,32 +112,84 @@ def do_login(cfg: Config, platform: str) -> int:
 
 
 def do_claude_login() -> int:
-    """Abre o Claude Code numa janela nova para o usuario fazer /login (uma vez so)."""
+    """Abre a autorizacao do Claude no navegador do dono. Ele so clica em Autorizar."""
     import subprocess
+    import time
 
     from . import tools
+    from .brain.claude_cli import clean_env
+    from .util import run_cmd
 
     exe = tools.claude()
     if not exe:
-        ui.err("Nao achei o Claude Code neste PC. Instale o app Claude ou o Claude Code.")
+        ui.err("Não achei o Claude Code neste PC. Instale o app Claude ou o Claude Code.")
         return 1
-    ui.panel(
-        "Vou abrir o Claude Code numa janela nova.\n\n"
-        "1. Digite [b]/login[/b] e Enter, e siga o login no navegador.\n"
-        "2. Quando aparecer que voce esta logado, digite [b]/exit[/b] e feche a janela.\n\n"
-        "Depois disso o CORTEX passa a usar o Claude para escolher os cortes e escrever os titulos.",
-        title="Login no Claude", color=ui.C_CYAN)
-    subprocess.Popen(["cmd", "/c", "start", "Claude - login", "/D", str(paths.STATE), exe],
-                     cwd=str(paths.STATE))
-    try:
-        from .brain import get_brain  # noqa: F401
 
-        cache = paths.STATE / "cerebro_disponibilidade.json"
-        if cache.exists():
-            cache.unlink()  # forca nova checagem do login na proxima rodada
-    except Exception:
+    def logged() -> bool:
+        import json
+
+        try:
+            return bool(json.loads(run_cmd([exe, "auth", "status"], timeout=30, env=clean_env()).stdout).get("loggedIn"))
+        except Exception:
+            return False
+
+    if logged():
+        ui.ok("O Claude já está conectado.")
+        return 0
+    ui.panel("Vou abrir uma janela e o seu navegador na página do Claude.\n\n"
+             "1. Entre na sua conta do Claude (se pedir) e clique em [b]Autorizar[/b].\n"
+             "2. Se aparecer um código, cole na janela que abriu e aperte Enter.\n\n"
+             "O CORTEX não vê a sua senha. Uso limitado a poucas chamadas por dia (Ajustes > Avançado).",
+             title="Conectar o Claude", color=ui.C_CYAN)
+    subprocess.Popen(["cmd", "/c", "start", "Conectar o Claude", "/D", str(paths.STATE), exe, "auth", "login"],
+                     cwd=str(paths.STATE), env=clean_env())
+    try:
+        with ui.console.status(" Esperando você autorizar (até 5 min)...", spinner="line"):
+            end = time.time() + 300
+            while time.time() < end:
+                time.sleep(4)
+                if logged():
+                    (paths.STATE / "cerebro_disponibilidade.json").unlink(missing_ok=True)
+                    ui.ok("Claude conectado! Ele passa a escolher os cortes e escrever os títulos.")
+                    return 0
+    except KeyboardInterrupt:
         pass
-    ui.ok("Janela aberta. Depois de logar, rode o Diagnostico para conferir.")
+    ui.warn("Ainda não conectou. Se autorizar depois, rode de novo para conferir.")
+    return 1
+
+
+def do_youtube_api(cfg: Config) -> int:
+    """Conecta o YouTube pela API oficial (o dono cria o cliente no Google e autoriza no navegador dele)."""
+    import shutil
+
+    from . import policy
+    from .publish import youtube_api as api
+
+    if not api.CLIENT_FILE.exists():
+        found = api.find_client_download()
+        if found and ui.ask_confirm(f"Achei {found.name} na pasta Downloads. Usar este?", default=True):
+            api.CLIENT_FILE.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(found), str(api.CLIENT_FILE))
+    if not api.CLIENT_FILE.exists():
+        ui.panel(
+            "Faça uma vez só, com a conta Google do canal:\n\n"
+            "1. Abra console.cloud.google.com e crie um projeto chamado CORTEX.\n"
+            "2. APIs e serviços > Biblioteca: procure 'YouTube Data API v3' e clique em Ativar.\n"
+            "3. Tela de consentimento OAuth: tipo Externo, preencha nome e e-mail e clique em Publicar app\n"
+            "   (se ficar em teste, a conexão cai a cada 7 dias).\n"
+            "4. Credenciais > Criar credenciais > ID do cliente OAuth > App para computador.\n"
+            "5. Clique em Baixar JSON (deixe na pasta Downloads) e volte aqui.",
+            title="API oficial do YouTube", color=ui.C_CYAN)
+        return 1
+    ui.info("Vou abrir o navegador. Entre com a conta do canal e clique em Permitir.")
+    ui.dim("O Google avisa que o app não foi verificado: ele é seu, clique em Avançado e continue.")
+    try:
+        nome = api.connect()
+    except Exception as e:
+        ui.err(f"Não conectou: {e}")
+        return 1
+    policy.register_login("youtube")
+    ui.ok(f"Conectado ao canal {nome}. O YouTube agora vai pela API oficial, sem abrir navegador.")
     return 0
 
 
@@ -191,8 +243,9 @@ def show_schedule() -> None:
 
 
 def show_status(cfg: Config) -> None:
-    from . import storage, tools
+    from . import painel, storage, tools
 
+    ui.console.print(painel.summary(painel.snapshot(cfg)))
     ui.rule("DIAGNOSTICO")
     rows = []
     for name, p in tools.summary().items():
@@ -229,7 +282,7 @@ def show_status(cfg: Config) -> None:
                 okk = publish.check_login(p, cfg)
             except Exception:
                 okk = False
-            (ui.ok if okk else ui.warn)(f"Login {p}: {'OK' if okk else 'NAO LOGADO (menu > Login, ou: cortex login {p})'}")
+            (ui.ok if okk else ui.warn)(f"Login {p}: {'OK' if okk else 'NAO LOGADO (menu > Contas, ou: cortex login {p})'}")
     except Exception as e:
         ui.warn(f"Publicador indisponivel: {e}")
 
@@ -301,6 +354,20 @@ def show_metrics(cfg: Config) -> None:
         ui.info(line)
 
 
+def show_clips(n: int = 20) -> None:
+    """Todos os cortes recentes e a situacao de cada um (a mesma lista do relatorio)."""
+    from datetime import datetime
+
+    rows = []
+    for r in db.clip_overview(n):
+        rows.append([datetime.fromtimestamp(r["created"]).strftime("%d/%m %H:%M") if r["created"] else "",
+                     Text(ui.term(r["title"])[:56]), str(int(r["score"])), r["situacao"]])
+    if rows:
+        ui.table(["Quando", "Corte", "Nota", "Situação"], rows, title="Todos os cortes", compact=True)
+    else:
+        ui.info("Nenhum corte ainda.")
+
+
 def do_backgrounds(cfg: Config, action: str) -> int:
     from .editor import backgrounds
 
@@ -323,9 +390,9 @@ def do_backgrounds(cfg: Config, action: str) -> int:
 
 
 def open_report() -> int:
-    from .report import latest
+    from .report import refresh
 
-    p = latest()
+    p = refresh()
     if not p:
         ui.warn("Nenhum relatorio ainda.")
         return 1
@@ -334,275 +401,15 @@ def open_report() -> int:
     return 0
 
 
-# =========================================================== menu
-def _quick_status(cfg: Config) -> Text:
-    from . import storage
-
-    t = Text("  ")
-    try:
-        pend = db.stats()["aguardando_revisao"]
-    except Exception:
-        pend = 0
-    t.append(f"modo: {cfg.get('modo_publicacao')}", style=ui.C_CYAN)
-    t.append("  |  ", style=ui.C_DIM)
-    t.append(f"{cfg.get('execucao.videos_por_execucao')} videos/rodada", style="white")
-    t.append("  |  ", style=ui.C_DIM)
-    t.append(f"cerebro: {cfg.get('cerebro.motor')}", style="white")
-    t.append("  |  ", style=ui.C_DIM)
-    livre = storage.free_gb()
-    t.append(f"disco livre: {livre:.1f} GB", style=ui.C_OK if livre > 3 else ui.C_YEL)
-    if pend:
-        t.append("  |  ", style=ui.C_DIM)
-        t.append(f"{pend} corte(s) esperando revisao", style=f"bold {ui.C_YEL}")
-    return t
-
-
-def _ask_int(q: str, default: int) -> int:
-    ans = ui.ask_text(q, str(default))
-    try:
-        return max(1, int(ans))
-    except ValueError:
-        return default
-
-
-def _ask_publish_mode(cfg: Config) -> str | None:
-    return ui.ask_select("E depois de cortar?", [
-        ("revisar", "Me mostrar antes (eu aprovo e envia tudo de uma vez)"),
-        ("auto", "Publicar sozinho no TikTok + YouTube Shorts"),
-        ("nao_publicar", "So gerar os videos"),
-    ], default=cfg.get("modo_publicacao", "revisar"))
-
-
-def menu_settings(cfg: Config) -> None:
-    while True:
-        ui.rule("CONFIGURACOES")
-        choice = ui.ask_select("Mudar o que?", [
-            ("modo", f"Modo de publicacao padrao: {cfg.get('modo_publicacao')}"),
-            ("videos", f"Videos por rodada: {cfg.get('execucao.videos_por_execucao')}"),
-            ("cortes", f"Cortes por video: {cfg.get('execucao.cortes_por_video')}"),
-            ("busca", f"Modo de busca: {cfg.get('busca.modo')}  (palavras: {', '.join(cfg.get('busca.palavras_chave') or []) or '-'})"),
-            ("cerebro", f"Cerebro (IA): {cfg.get('cerebro.motor')}"),
-            ("layout", f"Layout dos videos: {cfg.get('edicao.layout')}"),
-            ("tom", f"Volume da polemica: {cfg.get('conteudo.tom_titulo')}"),
-            ("marca", f"Marca d'agua: {cfg.get('edicao.marca_dagua') or '(nenhuma)'}"),
-            ("arquivo", "Abrir config.yaml completo no Bloco de Notas"),
-            ("voltar", "<- Voltar"),
-        ])
-        if choice in (None, "voltar"):
-            return
-        if choice == "arquivo":
-            os.startfile(str(paths.CONFIG_PATH))
-            continue
-        if choice == "modo":
-            v = _ask_publish_mode(cfg)
-            if v:
-                save_value("modo_publicacao", v)
-        elif choice == "videos":
-            save_value("execucao.videos_por_execucao", _ask_int("Quantos videos-fonte por rodada?", cfg.get("execucao.videos_por_execucao", 5)))
-        elif choice == "cortes":
-            v = ui.ask_text("Cortes por video (numero ou 'auto'):", str(cfg.get("execucao.cortes_por_video")))
-            save_value("execucao.cortes_por_video", int(v) if v.isdigit() else "auto")
-        elif choice == "busca":
-            v = ui.ask_select("Modo de busca padrao:", [("trends", "Tendencias automaticas"),
-                                                         ("palavra_chave", "So minhas palavras-chave"),
-                                                         ("misto", "Os dois")], default=cfg.get("busca.modo"))
-            if v:
-                save_value("busca.modo", v)
-                if v in ("palavra_chave", "misto"):
-                    kw = ui.ask_text("Palavras-chave (separadas por virgula):", ", ".join(cfg.get("busca.palavras_chave") or []))
-                    save_value("busca.palavras_chave", [k.strip() for k in kw.split(",") if k.strip()])
-        elif choice == "cerebro":
-            v = ui.ask_select("Qual IA usar?", [("auto", "auto (Claude > Ollama > heuristico)"), ("claude", "Claude"),
-                                                 ("ollama", "Ollama (local)"), ("heuristico", "Sem IA (heuristico)")],
-                              default=cfg.get("cerebro.motor"))
-            if v:
-                save_value("cerebro.motor", v)
-        elif choice == "layout":
-            v = ui.ask_select("Layout:", [("auto", "auto"), ("split", "video em cima + gameplay embaixo"),
-                                          ("blur", "fundo desfocado"), ("full", "tela cheia")], default=cfg.get("edicao.layout"))
-            if v:
-                save_value("edicao.layout", v)
-        elif choice == "tom":
-            from . import tom
-
-            v = ui.ask_select("Volume da polemica nos titulos e textos:",
-                              [(lv, tom.LABELS[lv]) for lv in tom.LEVELS], default=tom.level(cfg))
-            if v:
-                save_value("conteudo.tom_titulo", v)
-                if v == "modo_besta":
-                    ui.warn("Modo besta: palavrao sem mascara e provocacao no maximo. As redes podem reduzir o "
-                            "alcance de texto com palavrao explicito. O piso (nada inventado sobre pessoa real, "
-                            "nada com menores, nada de odio) continua valendo.")
-        elif choice == "marca":
-            save_value("edicao.marca_dagua", ui.ask_text("Texto da marca d'agua (ex.: @seucanal):", cfg.get("edicao.marca_dagua", "")))
-        cfg = load_config()
-        ui.ok("Salvo.")
-
-
-def do_autopilot(dry_run: bool = False, no_publish: bool = False) -> int:
+# =========================================================== piloto
+def do_autopilot(dry_run: bool = False, no_publish: bool = False, headless: bool = False) -> int:
     from .autopilot import Autopilot
 
     try:
-        return Autopilot(dry_run=dry_run, no_publish=no_publish).run()
+        return Autopilot(dry_run=dry_run, no_publish=no_publish).run(headless=headless)
     except RuntimeError as e:
         ui.err(str(e))
         return 2
-
-
-def menu_autopilot(cfg: Config) -> None:
-    from . import policy, scheduler
-
-    ui.rule("PILOTO AUTOMATICO 24/7", ui.C_RED)
-    ui.panel(
-        "O CORTEX fica ligado sem parar:\n"
-        "  - quando a fila de cortes baixa, ele descobre o que esta em alta, corta e edita;\n"
-        "  - publica um corte por vez, espacado, priorizando o horario nobre;\n"
-        "  - respeita o aquecimento de conta nova e o limite diario de cada rede;\n"
-        "  - se algo der errado, registra, espera e tenta de novo.\n\n"
-        "Painel ao vivo com log. Para parar: Ctrl+C.",
-        title="Como funciona", color=ui.C_CYAN)
-    for line in policy.describe(cfg):
-        ui.dim(line)
-    auto_on = scheduler.autostart_enabled()
-    choice = ui.ask_select("Piloto automatico:", [
-        ("ligar", "LIGAR AGORA (produz e publica sozinho)"),
-        ("teste", "Ligar em modo TESTE (produz e simula a publicacao)"),
-        ("produzir", "Ligar so produzindo (sem publicar)"),
-        ("auto_on" if not auto_on else "auto_off",
-         "Ligar sozinho quando o Windows iniciar" if not auto_on else " Nao ligar mais sozinho com o Windows"),
-        ("voltar", "<- Voltar"),
-    ])
-    if choice == "ligar":
-        do_autopilot()
-    elif choice == "teste":
-        do_autopilot(dry_run=True)
-    elif choice == "produzir":
-        do_autopilot(no_publish=True)
-    elif choice == "auto_on":
-        try:
-            scheduler.install_autostart()
-            ui.ok("Pronto: o piloto liga sozinho 2 minutos depois que voce entrar no Windows.")
-        except Exception as e:
-            ui.err(str(e))
-    elif choice == "auto_off":
-        ui.ok("Inicio automatico desligado." if scheduler.remove_autostart() else "Nao estava ligado.")
-
-
-def menu_schedule(cfg: Config) -> None:
-    from . import scheduler
-
-    show_schedule()
-    choice = ui.ask_select("Agendamento:", [
-        ("ligar", f"Ligar/atualizar ({', '.join(cfg.get('execucao.horarios', []))})"),
-        ("horarios", "Mudar horarios e ligar"),
-        ("agora", ">  Disparar a rodada agendada agora (teste)"),
-        ("desligar", " Desligar"),
-        ("voltar", "<- Voltar"),
-    ])
-    if choice == "ligar":
-        do_schedule(cfg, None)
-    elif choice == "horarios":
-        v = ui.ask_text("Horarios (HH:MM separados por virgula):", ", ".join(cfg.get("execucao.horarios", [])))
-        hs = [h.strip() for h in v.split(",") if h.strip()]
-        save_value("execucao.horarios", hs)
-        do_schedule(load_config(), hs)
-    elif choice == "agora":
-        ui.ok("Disparado." if scheduler.run_now() else "Nenhuma tarefa agendada.")
-    elif choice == "desligar":
-        n = scheduler.remove_all()
-        ui.ok(f"{n} tarefa(s) removida(s).")
-
-
-def interactive_menu() -> int:
-    while True:
-        cfg = load_config()
-        os.system("cls")
-        ui.banner()
-        ui.console.print(_quick_status(cfg))
-        ui.console.print()
-        choice = ui.ask_select("O que vamos fazer?", [
-            ("piloto", "PILOTO AUTOMATICO 24/7 (tudo sozinho, com painel ao vivo)"),
-            ("rodar", "Rodar uma vez agora (descobrir o que esta em alta e cortar)"),
-            ("palavra", "Rodar com um tema / palavra-chave"),
-            ("link", "Cortar um link especifico (YouTube, Twitch, Kick, Rumble...)"),
-            ("trends", "Ver o que esta em alta agora"),
-            ("revisar", "Revisar e publicar cortes prontos"),
-            ("login", "Login (YouTube / TikTok / Claude)"),
-            ("agenda", "Agendamento automatico (2 a 4x por dia)"),
-            ("fundos", "Biblioteca de fundos (gameplay / ASMR)"),
-            ("relatorio", "Abrir ultimo relatorio"),
-            ("metricas", "Desempenho dos posts (views, saude da conta, aprendizado)"),
-            ("historico", "Historico de rodadas"),
-            ("status", "Diagnostico do sistema"),
-            ("config", " Configuracoes"),
-            ("sair", "Sair"),
-        ])
-        try:
-            if choice in (None, "sair"):
-                return 0
-            if choice == "piloto":
-                menu_autopilot(cfg)
-            elif choice == "rodar":
-                n = _ask_int("Quantos videos-fonte processar?", cfg.get("execucao.videos_por_execucao", 5))
-                pm = _ask_publish_mode(cfg)
-                do_run(cfg, mode="trends", videos=n, publish=pm)
-            elif choice == "palavra":
-                kw = ui.ask_text("Tema(s) / palavra(s)-chave (separe por virgula):")
-                if kw:
-                    n = _ask_int("Quantos videos-fonte processar?", cfg.get("execucao.videos_por_execucao", 5))
-                    pm = _ask_publish_mode(cfg)
-                    do_run(cfg, mode="palavra_chave", keywords=[k.strip() for k in kw.split(",") if k.strip()],
-                           videos=n, publish=pm)
-            elif choice == "link":
-                url = ui.ask_text("Cole o(s) link(s) (separe por espaco):")
-                if url:
-                    pm = _ask_publish_mode(cfg)
-                    urls = url.split()
-                    do_run(cfg, urls=urls, videos=len(urls), publish=pm)
-            elif choice == "trends":
-                trends = show_trends(cfg)
-                if trends and ui.ask_confirm("Quer cortar videos de algum desses assuntos agora?", default=False):
-                    picked = ui.ask_checkbox("Quais assuntos?", [(t.topic, t.topic, False) for t in trends[:25]])
-                    if picked:
-                        n = _ask_int("Quantos videos-fonte?", cfg.get("execucao.videos_por_execucao", 5))
-                        do_run(cfg, mode="palavra_chave", keywords=picked, videos=n, publish=_ask_publish_mode(cfg))
-            elif choice == "revisar":
-                from .review import review
-
-                review(cfg)
-            elif choice == "login":
-                p = ui.ask_select("Qual conta?", [("youtube", "YouTube"), ("tiktok", "TikTok"),
-                                                  ("claude", "Claude (a IA que escolhe os cortes)"), ("voltar", "<- Voltar")])
-                if p == "claude":
-                    do_claude_login()
-                elif p in PLATFORMS:
-                    do_login(cfg, p)
-                    if ui.ask_confirm("Testar a pagina de upload agora (sem publicar nada)?", default=True):
-                        do_selftest(cfg, p)
-            elif choice == "agenda":
-                menu_schedule(cfg)
-            elif choice == "fundos":
-                a = ui.ask_select("Fundos:", [("listar", "Ver biblioteca"), ("baixar", " Baixar mais (Creative Commons)"),
-                                              ("gerar", "Gerar fundos procedurais"), ("voltar", "<- Voltar")])
-                if a and a != "voltar":
-                    do_backgrounds(cfg, a)
-            elif choice == "relatorio":
-                open_report()
-            elif choice == "historico":
-                show_history()
-            elif choice == "metricas":
-                show_metrics(cfg)
-            elif choice == "status":
-                show_status(cfg)
-            elif choice == "config":
-                menu_settings(cfg)
-                continue
-        except KeyboardInterrupt:
-            ui.warn("Interrompido.")
-        except Exception as e:
-            ui.err(f"Erro: {e}")
-            log.get("cli").error(traceback.format_exc())
-        ui.pause()
 
 
 # =========================================================== argparse
@@ -632,7 +439,7 @@ def build_parser() -> argparse.ArgumentParser:
     b.add_argument("palavras", nargs="+")
     sub.add_parser("revisar", help="revisa e publica cortes prontos")
     lg = sub.add_parser("login", help="login no YouTube, TikTok ou Claude")
-    lg.add_argument("plataforma", choices=PLATFORMS + ("claude",))
+    lg.add_argument("plataforma", choices=PLATFORMS + ("youtube-api", "claude"))
     tp = sub.add_parser("testar-publicacao", help="confere a pagina de upload sem publicar")
     tp.add_argument("plataforma", nargs="?", choices=PLATFORMS)
     ag = sub.add_parser("agendar", help="liga o agendamento automatico diario")
@@ -642,6 +449,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap = sub.add_parser("autopiloto", help="PILOTO AUTOMATICO 24/7 com painel ao vivo")
     ap.add_argument("--teste", action="store_true", help="simula a publicacao (nao publica de verdade)")
     ap.add_argument("--so-produzir", action="store_true", help="produz cortes mas nao publica")
+    ap.add_argument("--fundo", action="store_true", help="sem janela (o menu e 'cortex acompanhar' mostram o andamento)")
+    sub.add_parser("acompanhar", help="painel ao vivo do que esta rodando (fechar nao para nada)")
+    sub.add_parser("parar", help="desliga o automatico")
+    sub.add_parser("vigia", help=argparse.SUPPRESS)
+    sub.add_parser("pedidos", help=argparse.SUPPRESS)
     ia = sub.add_parser("inicio-automatico", help="liga/desliga o piloto ao entrar no Windows")
     ia.add_argument("acao", choices=["ligar", "desligar"])
     sub.add_parser("status", help="diagnostico do sistema")
@@ -665,7 +477,17 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config()
     try:
         if not args.cmd:
+            from .menu import interactive_menu
+
             return interactive_menu()
+        if args.cmd in ("rodar", "cortar") and not getattr(args, "agendado", False):
+            from . import andamento, painel
+
+            if andamento.read():
+                ui.warn("Já tem uma rodada em andamento:")
+                ui.console.print(painel.summary(painel.snapshot(cfg)))
+                ui.dim("Veja ao vivo com: cortex acompanhar")
+                return 2
         if args.cmd == "rodar":
             ui.banner()
             kws = [k.strip() for k in (args.temas or "").split(",") if k.strip()]
@@ -687,6 +509,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "login":
             if args.plataforma == "claude":
                 return do_claude_login()
+            if args.plataforma == "youtube-api":
+                return do_youtube_api(cfg)
             return do_login(cfg, args.plataforma)
         elif args.cmd == "testar-publicacao":
             return do_selftest(cfg, args.plataforma)
@@ -700,7 +524,30 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "agenda":
             show_schedule()
         elif args.cmd == "autopiloto":
-            return do_autopilot(dry_run=args.teste, no_publish=args.so_produzir)
+            return do_autopilot(dry_run=args.teste, no_publish=args.so_produzir, headless=args.fundo)
+        elif args.cmd == "acompanhar":
+            from . import painel
+
+            painel.watch()
+        elif args.cmd == "parar":
+            from . import menu
+
+            menu.stop_autopilot()
+        elif args.cmd == "vigia":
+            from . import fundo
+
+            fundo.ensure()
+        elif args.cmd == "pedidos":
+            from . import autopilot, fundo
+
+            autopilot.set_low_priority()
+
+            def atender(c: Config, req: dict) -> int:
+                rc = do_run(c, mode=req.get("mode"), keywords=req.get("keywords"), urls=req.get("urls"),
+                            videos=req.get("videos"), publish=req.get("publish"), origem_fundo=True)
+                return rc
+
+            return fundo.serve_requests(load_config, atender)
         elif args.cmd == "inicio-automatico":
             from . import scheduler
 

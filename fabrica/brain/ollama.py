@@ -6,6 +6,7 @@ candidatos e, se sobrar candidato, um passo final ranqueia e da titulo aos melho
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -48,7 +49,9 @@ class OllamaBrain(LLMBrain):
         # IA local roda na CPU: precisa de mais folga que o Claude (prompt grande leva minutos)
         self.timeout = max(float(_cfg_get(cfg, "cerebro.timeout_s", 300) or 300),
                            float(_cfg_get(cfg, "cerebro.ollama_timeout_s", 600) or 600))
-        self.num_ctx = int(_cfg_get(cfg, "cerebro.ollama_num_ctx", 8192) or 8192)
+        # rapido: os sinais do video separam os trechos e a IA so escolhe/intitula (1 a 2 min por video na CPU)
+        self.quick = str(_cfg_get(cfg, "cerebro.ollama_modo", "rapido")).strip().lower() != "completo"
+        self.num_ctx = 4096 if self.quick else int(_cfg_get(cfg, "cerebro.ollama_num_ctx", 8192) or 8192)
         self.temperature = float(_cfg_get(cfg, "cerebro.ollama_temperatura", 0.4))
         self.window_s = float(_cfg_get(cfg, "cerebro.ollama_janela_min", 7)) * 60
         self.max_windows = int(_cfg_get(cfg, "cerebro.ollama_max_janelas", 8) or 8)
@@ -171,9 +174,15 @@ class OllamaBrain(LLMBrain):
             "stream": False,
             "format": schema or "json",
             "options": {"num_ctx": self.num_ctx, "temperature": self.temperature, "num_predict": num_predict,
-                        "num_thread": self.num_thread},
-            "keep_alive": "10m",
+                        "num_thread": self.num_thread, "use_mmap": True},  # mmap: 1,5 GB a menos reservados
+            "keep_alive": "5m",
         }
+        try:
+            from .. import memoria
+
+            memoria.prepare("ia", self.cfg)
+        except memoria.LowMemory as e:
+            raise BrainUnavailable(str(e)) from None
         if self._think_ok:
             body["think"] = False
         try:
@@ -219,9 +228,84 @@ class OllamaBrain(LLMBrain):
         best = sorted(wins, key=heat, reverse=True)[: self.max_windows]
         return sorted(best, key=lambda w: w.segments[0].start)
 
+    def _retitle(self, video: Candidate, text: str, cfg, title: str, hook: str) -> tuple[str, str]:
+        """Titulo generico: pede so o titulo, olhando so este trecho. Nao melhorou: usa o assunto do video."""
+        try:
+            d = extract_json(self.chat(prompts.retitle_prompt(video, text, cfg), prompts.SYSTEM_CLIPS,
+                                       prompts.RETITLE_SCHEMA, num_predict=120)) or {}
+            t = str(d.get("titulo") or "").strip()
+            if not prompts.is_generic(t):
+                return t, str(d.get("gancho") or hook).strip()
+        except BrainUnavailable:
+            raise
+        except Exception as e:
+            logger.debug("titulo: %s", safe_text(e))
+        first = (text or "").strip().split(". ")[0][:60].strip(" ,.")
+        if prompts.video_lang(video) == "pt" and len(first) > 20:
+            return f'"{first}"', first[:40].upper()
+        return (video.title or title)[:75], hook
+
+    def _pick_quick(self, video: Candidate, transcript: Transcript, cfg, limit: int) -> list[dict]:
+        """Trechos vem dos sinais (publico, chat, volume, palavras); a IA escolhe, ajusta os limites e escreve os textos."""
+        from .base import parse_time
+
+        dmin = float(_cfg_get(cfg, "corte.duracao_min_s", 15))
+        dmax = float(_cfg_get(cfg, "corte.duracao_max_s", 45))
+        wins = sorted(self._heuristic().candidate_windows(video, transcript, cfg, max_clips=limit + 3),
+                      key=lambda w: -w["score"])
+        series_on = bool(_cfg_get(cfg, "corte.permitir_series", True))
+        # contexto em volta de cada momento (para comecar e terminar no lugar certo); cabe com folga no modelo
+        blocks, used, budget = [], [], 7200
+        for w in wins[:limit + 2]:
+            a, b = max(0.0, w["start"] - 40), w["end"] + 60
+            txt = transcript.slice(a, b, rebase=False).text_with_timestamps()[:2400]
+            if not txt.strip() or (used and budget - len(txt) < 0):
+                continue
+            budget -= len(txt)
+            used.append((w, a, b))
+            blocks.append(f"{len(used)}. (por que está aqui: {str(w.get('reason', ''))[:90]})\n{txt}")
+        if not used:
+            return []
+        prompt = prompts.quick_clips_prompt(video, blocks, limit, cfg)
+        res = self.chat(prompt, prompts.SYSTEM_CLIPS, prompts.QUICK_CLIPS_SCHEMA, num_predict=240 * limit + 120)
+        out = []
+        for it in list_from_json(extract_json(res), ("cortes", "clips")):
+            try:
+                w, a, b = used[int(it.get("indice")) - 1]
+            except (TypeError, ValueError, IndexError):
+                continue
+            s, e = parse_time(it.get("inicio")), parse_time(it.get("fim"))
+            longa = (series_on and bool(it.get("historia")) and s is not None and e is not None
+                     and a - 3 <= s < e <= b + 90 and e - s >= float(_cfg_get(cfg, "corte.serie_min_s", 70)))
+            if longa:
+                e = min(e, s + 3 * float(_cfg_get(cfg, "corte.duracao_parte_s", 52)))
+            elif s is None or e is None or s < a - 3 or e > b + 8 or not dmin * 0.8 <= e - s <= dmax + 8:
+                s, e = w["start"], w["end"]     # limites invalidos: os do sinal
+            title, hook = str(it.get("titulo") or "").strip(), str(it.get("gancho") or "").strip()
+            if prompts.is_generic(title):
+                title, hook = self._retitle(video, transcript.slice(s, e).text, cfg, title, hook)
+            try:
+                # a IA local da 90 para quase tudo: o que manda e o sinal do publico
+                score = 0.35 * float(it.get("pontuacao", w["score"])) + 0.65 * float(w["score"])
+            except (TypeError, ValueError):
+                score = float(w["score"])
+            teaser = str(it.get("teaser_texto") or "").strip()
+            if longa:   # finalize_plans divide em Parte 1, 2, 3 pelo nome da serie
+                w = {**w, "series_name": re.sub(r"[^\w\s?!,]", "", title).strip()[:60] or video.title[:60]}
+            out.append({**w, "start": s, "end": e, "title": title, "hook": hook or w["hook"],
+                        "description": str(it.get("descricao") or w["description"]),
+                        "hashtags": it.get("hashtags") or w["hashtags"], "score": score,
+                        "category": it.get("categoria") or w["category"], "tipo": it.get("tipo"),
+                        "teaser_texto": teaser or w.get("teaser_texto", ""),
+                        "teaser_inicio": None if teaser else w.get("teaser_inicio")})
+        return out
+
     def _pick_raw(self, video: Candidate, transcript: Transcript, cfg, limit: int, sig, sig_summary: str) -> list[dict]:
         from .. import signals as sigmod
         from .base import coerce_raw
+
+        if self.quick:
+            return self._pick_quick(video, transcript, cfg, min(limit, 4))
 
         auto = str(_cfg_get(cfg, "execucao.cortes_por_video", "auto")).strip().lower() == "auto"
         wins = self._windows(transcript, sig)
@@ -295,6 +379,9 @@ class OllamaBrain(LLMBrain):
         return out or cands
 
     def _rank_raw(self, trends: list[Trend], cfg, limit: int) -> list[dict]:
-        prompt = prompts.trends_prompt(trends[:40], cfg, limit)
-        res = self.chat(prompt, prompts.SYSTEM_TRENDS, prompts.TRENDS_SCHEMA)
+        if self.quick:
+            prompt = prompts.quick_trends_prompt(trends[:30], cfg, min(limit, 10))
+            res = self.chat(prompt, prompts.SYSTEM_TRENDS, prompts.TRENDS_SCHEMA, num_predict=800)
+        else:
+            res = self.chat(prompts.trends_prompt(trends[:40], cfg, limit), prompts.SYSTEM_TRENDS, prompts.TRENDS_SCHEMA)
         return list_from_json(extract_json(res), ("temas", "trends", "assuntos"))

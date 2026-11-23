@@ -172,7 +172,7 @@ def geometry(layout: str, info: dict, cfg=None) -> Geo:
     sw, sh = int(info.get("width") or 1920), int(info.get("height") or 1080)
     if layout == "blur":
         bx, by, fw, fh = blur_video_box(info)
-        return Geo(layout, sw, sh, sw, sh, 0, fw, fh, bx, by)
+        return Geo(layout, sw, sh, blur_crop_w(sw, sh), sh, 0, fw, fh, bx, by)
     th = split_seam(cfg) if layout == "split" else H
     cw, ch, y0 = _crop_box(sw, sh, W, th)
     return Geo(layout, sw, sh, cw, ch, y0, W, th, 0, 0)
@@ -210,15 +210,11 @@ class Framing:
 
     def crop_x(self, t: float, dx: float | None = None) -> float:
         g = self.geo
-        if g.layout == "blur":
-            return 0.0
         d = self.dx.at(t) if dx is None else dx
         return min(max(self.pan.at(t) + d * g.cw, 0.0), float(g.sw - g.cw))
 
     def anchor_x(self, t: float, dx: float | None = None) -> float:
         """Ancora horizontal do zoom: o rosto continua no centro do punch-in mesmo com o recorte deslocado."""
-        if self.geo.layout == "blur":
-            return self.ax.at(t)
         shift = (self.crop_x(t, dx) - self.pan.at(t)) / self.geo.cw
         return min(0.85, max(0.15, self.ax.at(t) - shift))
 
@@ -286,7 +282,7 @@ def build_framing(layout: str, info: dict, cfg=None, motion: Motion | None = Non
     center = (sw - cw) / 2
     m = motion
     pan = Steps(float(int(center) // 2 * 2))
-    if layout != "blur" and m is not None and m.follow_face and m.track is not None and sw - cw >= 4:
+    if m is not None and m.follow_face and m.track is not None and sw - cw >= 4:
         keys = _faces.crop_keys(m.track, cw, sw, m.time_map, pieces=m.pieces)
         pan = Steps.from_points([(t, x, d) for t, x, d in keys[1:]], keys[0][1])
     ax_pts, ay_pts = [], []
@@ -300,10 +296,10 @@ def build_framing(layout: str, info: dict, cfg=None, motion: Motion | None = Non
                 eye = eyes.get((cx, cy))
                 if eye is None:
                     eye = _faces.eye_frac(cy, fh or 0.0)
+                ax = min(0.75, max(0.25, (cx * sw - pan.at(t)) / cw))
                 if layout == "blur":
-                    ax, ay = min(0.75, max(0.25, cx)), min(0.62, max(0.22, eye or 0.42))
+                    ay = min(0.62, max(0.22, eye or 0.42))
                 else:
-                    ax = min(0.75, max(0.25, (cx * sw - pan.at(t)) / cw))
                     ay = min(0.97, max(0.03, ((eye or 0.42) * sh - y0) / ch))
             ax_pts.append((t, ax, 0.0))
             ay_pts.append((t, ay, 0.0))
@@ -353,7 +349,11 @@ def video_graph(layout: str, info: dict, fps: int = 30, main: str = "0:v", bg: s
         bx, y, fw, fh = blur_video_box(info)
         if fr is not None:
             bx, y, fw, fh = fr.geo.ox, fr.geo.oy, fr.geo.ow, fr.geo.oh
-        if dynamic and fr.needs_zoompan():
+        if fr is not None and fr.geo.cw < fr.geo.sw:
+            g = fr.geo
+            x = fr.pan_expr() if dynamic else str(int((g.sw - g.cw) / 2) // 2 * 2)
+            fg = f"[m]crop={g.cw}:{g.ch}:x='{x}':y=0,{_zoom_or_scale(fr, fps)},setsar=1[fg];"
+        elif dynamic and fr.needs_zoompan():
             fg = f"[m]{_zoom_or_scale(fr, fps)},setsar=1[fg];"
         else:
             fg = f"[m]scale={fw}:{fh}:force_original_aspect_ratio=increase:flags=bicubic,crop={fw}:{fh},setsar=1[fg];"
@@ -376,10 +376,19 @@ def video_graph(layout: str, info: dict, fps: int = 30, main: str = "0:v", bg: s
     )
 
 
+BLUR_AR = 1.40     # proporcao do video no blur: 16:9 perde um pouco das laterais e ocupa 40% da tela (era 32%)
+
+
+def blur_crop_w(sw: int, sh: int) -> int:
+    """Largura da fonte usada no blur."""
+    return min(sw, int(round(sh * BLUR_AR / 2)) * 2) if sw / max(1, sh) > BLUR_AR else sw
+
+
 def blur_video_box(info: dict, center_y: int | None = None) -> tuple[int, int, int, int]:
     """(x, y, w, h) do video principal no layout blur (para posicionar legenda/titulo).
     center_y: centro vertical do video (o safezone desce um pouco para caber marca + titulo)."""
-    sw, sh = info.get("width") or 16, info.get("height") or 9
+    sw, sh = int(info.get("width") or 1920), int(info.get("height") or 1080)
+    sw = blur_crop_w(sw, sh)
     fw, fh = W, round(W * sh / sw / 2) * 2
     if fh > BLUR_MAX_H:
         fh = BLUR_MAX_H

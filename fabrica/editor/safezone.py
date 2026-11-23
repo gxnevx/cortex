@@ -36,9 +36,14 @@ FACE_GAP = 4             # folga extra entre um elemento e o retangulo do rosto 
 ZB_OPTS = (1.0, 1.05, 1.10, 1.15, 1.20)
 DY_OPTS = tuple(round(x, 3) for x in np.arange(-0.40, 0.4001, 0.04))
 DX_OPTS = (0.0, -0.09, 0.09, -0.18, 0.18, -0.24, 0.24)   # rosto fora do centro (fracao da largura do recorte)
-PLAN_BUDGET_S = 8.0               # tempo maximo de busca (o melhor achado ate ali vale)
+# teto DETERMINISTICO da busca (combinacoes avaliadas): nunca por relogio, senao o mesmo corte
+# ganharia planos diferentes conforme a carga da CPU
+PLAN_MAX_EVAL = 600
+VERIFY_FPS = 30.0                 # a conferencia final e em TODOS os quadros da saida
 K_OPTS = (1.0, 0.5, 0.0)          # punch-ins inteiros, pela metade ou desligados no plano
 W_ZOOM, W_SHIFT, W_EYE, W_DX, W_K = 12.0, 5.0, 3.0, 12.0, 2.0
+W_CUT = 60.0                      # rosto empurrado para fora da tela (fracao da largura, alem do natural)
+TAG_OFFSETS = (0.0, 1.5, 3.0)     # a etiqueta pode entrar um pouco mais tarde se o lugar so abrir depois
 
 
 Rect = tuple[float, float, float, float]
@@ -171,6 +176,13 @@ class Planner:
             fine = np.linspace(a + 0.02, max(a + 0.03, b - 0.02), int(max(3, (b - a) * 15)))
             zf = np.array([fr.zd_at(float(t)) for t in fine])
             ts += [float(fine[int(np.argmax(zf))]), float(fine[int(np.argmin(zf))])]
+            # bordas: entre dois eventos o zoom e constante ou uma rampa, entao o pior caso do rosto
+            # esta nas pontas (sem isto, uma fresta entre amostras escondia sobreposicao real)
+            for e in self._events(fr):
+                for t_e in (e - 0.004, e + 0.004):
+                    if a + 0.002 <= t_e <= b - 0.002:
+                        ts.append(float(t_e))
+            ts += [a + 0.002, b - 0.002]
             ts = np.array(sorted(set(round(t, 4) for t in ts)))
             n = len(ts)
             win = max(0.4, spacing / 2 + 0.15)   # cada amostra cobre o intervalo inteiro ate a vizinha
@@ -184,6 +196,20 @@ class Planner:
                                    np.array([fr.pan.at(t) for t in ts]), np.array([fr.ax.at(t) for t in ts]),
                                    np.array([fr.ay.at(t) for t in ts]), np.array([fr.zd_at(t) for t in ts])))
             self._hard.append(0.0)
+
+    def _events(self, fr: _layouts.Framing) -> list[float]:
+        """Instantes da saida em que algo muda: chaves de zoom/recorte/ancoras e janelas dos elementos."""
+        ev: list[float] = []
+        keys = list(fr.zoom.keys) if fr.zoom is not None else []
+        for st in (fr.pan, fr.ax, fr.ay):
+            keys += list(st.keys)
+        for k in keys:
+            ev += [k.t, k.t + max(0.0, k.d)]
+        start0 = (self.T + 0.25) if self.T > 0 else 0.6
+        for off in TAG_OFFSETS:
+            ev += [start0 + off, start0 + off + self.tag_dur]
+        ev.append(max(0.0, self.total - self.cta_s))
+        return sorted(set(round(x, 4) for x in ev))
 
     def _grid(self, sg: "_Seg"):
         """Retangulos do rosto para TODOS os candidatos (zb, dy, dx, k) do trecho (calculado uma vez)."""
@@ -205,6 +231,7 @@ class Planner:
             axs = sg.ax[None, :]
         X = (1 - 1 / z) * axs
         Y = np.clip(sg.ay[None, :] - (sg.ay[None, :] + DY[:, None]) / z, 0.0, 1 - 1 / z)
+        cut = np.zeros(len(ZB))
         rects = []   # float32: ate ~40 planos por clipe longo
         env = [INF, INF, -INF, -INF]
         as32 = np.float32
@@ -218,8 +245,12 @@ class Planner:
             a1 = (b[None, :, 2] * g.sw - px) / g.cw
             b0 = (b[:, 1] * g.sh - g.cy0) / g.ch
             b1 = (b[:, 3] * g.sh - g.cy0) / g.ch
-            x0 = np.maximum(g.ox + (a0 - X) * z * g.ow, g.ox)
-            x1 = np.minimum(g.ox + (a1 - X) * z * g.ow, g.ox + g.ow)
+            x0u, x1u = g.ox + (a0 - X) * z * g.ow, g.ox + (a1 - X) * z * g.ow
+            if bi == 0:   # rosto principal: quanto dele sai pelos lados da area do video
+                lost = np.clip(g.ox - x0u, 0, None) + np.clip(x1u - (g.ox + g.ow), 0, None)
+                cut = (lost / np.maximum(1.0, x1u - x0u) * present[None, :]).mean(axis=1)
+            x0 = np.maximum(x0u, g.ox)
+            x1 = np.minimum(x1u, g.ox + g.ow)
             y0 = np.maximum(g.oy + (b0[None, :] - Y) * z * g.oh, g.oy)
             y1 = np.minimum(g.oy + (b1[None, :] - Y) * z * g.oh, g.oy + g.oh)
             valid = ((x1 - x0) > 4) & ((y1 - y0) > 4) & present[None, :]
@@ -231,7 +262,7 @@ class Planner:
         eye_pen = np.clip((_style.SAFE_TOP + 50) - eye, 0, None).mean(axis=1) / 100.0 if g.layout != "blur" \
             else np.zeros(len(ZB))
         cost = (W_ZOOM * (ZB - 1.0) + W_SHIFT * np.abs(DY) + W_EYE * eye_pen + W_DX * np.abs(DX)
-                + W_K * (1.0 - KK))
+                + W_K * (1.0 - KK) + W_CUT * np.clip(cut - cut[nat], 0, None))
         sg.grid = (ZB, DY, DX, KK, nat, rects, tuple(env), cost)
         return sg.grid
 
@@ -344,6 +375,11 @@ class Planner:
         grp = self._group(items)
         if grp[1] < top_line - 0.5 or grp[3] > _style.SAFE_BOTTOM_Y - _style.SPACE:
             return None
+        if _inter(grp, _style.RAIL) > 0:
+            return None
+        if self.lay == "blur" and video_box is not None and slot in ("topo", "topo_alto") \
+                and grp[3] > video_box[1] - _style.GAP:
+            return None   # no blur o titulo fica inteiro acima do video, com respiro
         if _inter(_grow(grp, EDGE_GAP), cap_rect) > 0:
             return None
         return card, items, bar
@@ -417,7 +453,7 @@ class Planner:
         return rects, pos
 
     def _pill_row_brand(self, card, t_items: list, cap_rect: Rect):
-        """Marca mini alinhada a margem direita, na altura da pilula PARTE (com a do texto ao lado)."""
+        """Marca mini alinhada a margem esquerda, na altura da pilula PARTE (a direita fica a coluna de botoes)."""
         b = self.mini
         if b is None or card is None or not card.pill or not b.handles:
             return None
@@ -427,21 +463,21 @@ class Planner:
         hw = max(w - 2 * m for _p, w, _h, _c in b.handles.values())
         hh = max(h - 2 * m for _p, _w, h, _c in b.handles.values())
         gap = 8
-        right = W - _style.MARGIN
-        # [LOGO][@] encostado na margem direita, centrado na altura da pilula
-        x_logo = right - hw - gap - lw
-        if x_logo < px0 + pw + _style.GAP:
+        x_logo = _style.MARGIN
+        if x_logo + lw + gap + hw > px0 - _style.GAP:
             return None
         cyc = py0 + ph / 2
         logo = (x_logo, round(cyc - lh / 2), x_logo + lw, round(cyc - lh / 2) + lh)
-        hrect = (right - hw, round(cyc - hh / 2), right, round(cyc - hh / 2) + hh)
+        hrect = (x_logo + lw + gap, round(cyc - hh / 2), x_logo + lw + gap + hw, round(cyc - hh / 2) + hh)
         items = [Item("marca", logo), Item("arroba", hrect)]
+        if any(_inter(i.rect, _style.RAIL) > 0 for i in items):
+            return None
         if any(_inter(_grow(i.rect, EDGE_GAP), o.rect) > 0 for i in items for o in t_items + [Item("legenda", cap_rect)]):
             return None
         pos = {"logo": (int(logo[0]), int(logo[1])), "arroba": {}}
         for plat, (_p, w, h, _c) in b.handles.items():
             vw, vh = w - 2 * m, h - 2 * m
-            pos["arroba"][plat] = (int(hrect[2] - vw - m), int(hrect[1] + round((hh - vh) / 2) - m))
+            pos["arroba"][plat] = (int(hrect[0] - m), int(hrect[1] + round((hh - vh) / 2) - m))
         return items, pos
 
     def _video_box(self, fr: _layouts.Framing) -> Rect:
@@ -455,12 +491,14 @@ class Planner:
         lay = self.lay
         blur_opts = [(None, 0.0)]
         if lay == "blur":
-            blur_opts = [(860, 0.0), (900, 0.4), (940, 0.8), (980, 1.2)]
+            blur_opts = [(900, 0.0), (940, 0.3), (980, 0.7), (1020, 1.1)]
         sizes = [("normal", 0.0), ("compacto", 4.0), ("mini", 7.0)] if self.make_title else [(None, 0.0)]
         if lay == "full":
             tslots = [("topo", 0.0), ("topo_alto", 1.0), ("acima_legenda", 5.0)]
         elif lay == "split":
             tslots = [("emenda", 0.0), ("abaixo_emenda", 5.0), ("topo", 6.0)]
+            if not self.g("edicao.titulo_na_emenda", True):
+                tslots = [("topo", 0.0), ("topo_alto", 0.5), ("abaixo_emenda", 5.0)]
         else:
             tslots = [("topo", 0.0), ("topo_alto", 0.5), ("acima_video", 1.0)]
         brand_opts = [(None, None, 0.0, None)]
@@ -518,6 +556,7 @@ class Planner:
         combos.sort(key=lambda c: c[0])
         # 2) avalia o rosto (reenquadramento por plano) na ordem; para no primeiro custo impossivel de bater
         best: Scene | None = None
+        cands: list[Scene] = []       # planos sem sobreposicao nas amostras, para conferir quadro a quadro
         fallback, fallback_ctx = None, None
         t_start = _time.time()
         prepared = object()   # sentinela (bc pode ser None)
@@ -526,7 +565,7 @@ class Planner:
              bar) in combos:
             if best is not None and base >= best.cost:
                 break
-            if _time.time() - t_start > PLAN_BUDGET_S and (best is not None or fallback is not None):
+            if evaluated >= PLAN_MAX_EVAL and best is not None:   # sem plano livre ainda: vai ate o fim
                 break
             if prepared is not bc:
                 self._prepare(fr)
@@ -546,10 +585,24 @@ class Planner:
             if best is not None and sc.cost >= best.cost:
                 continue
             self._add_timed(sc, vbox, cap_rect)
+            cands.append(sc)
             if best is None or sc.cost < best.cost:
                 best = sc
-        sc = best
-        if sc is None and fallback is not None:
+        sc = None
+        rejected = 0
+        for c_ in sorted(cands, key=lambda x: x.cost)[:8]:   # conferencia exata, do mais barato ao mais caro
+            self._finish(c_)
+            if c_.overlap <= 0:
+                sc = c_
+                break
+            rejected += 1
+        if sc is None and cands:
+            fallback, fallback_ctx = min(cands, key=lambda x: (x.overlap, x.cost)), None
+        if rejected:
+            (sc or fallback).notes.append(f"{rejected} plano(s) reprovado(s) na conferencia quadro a quadro")
+        if sc is None and fallback is not None and fallback_ctx is None:
+            sc = fallback
+        elif sc is None and fallback is not None:
             # sem plano 100% livre: o de menor sobreposicao; etiqueta/CTA so entram onde for seguro
             sc = fallback
             self._prepare(sc.framing)
@@ -558,11 +611,46 @@ class Planner:
         if sc is None:   # nada coube: tudo no padrao, sem reenquadrar
             fr = self._framing_for(None if lay != "blur" else 860)
             card = self._title("normal") if self.make_title else None
-            sc = Scene(fr, card, "topo", None, self.cap.default_y, self.cap.lines, 860 if lay == "blur" else None)
+            cap_rect = self.cap.rect(self.cap.default_y, self.cap.lines)
+            items, bar = (self._title_items(card) if card is not None else ([], None))
+            sc = Scene(fr, card, "topo", bar, self.cap.default_y, self.cap.lines, 860 if lay == "blur" else None,
+                       items=list(items) + [Item("legenda", cap_rect)])
             sc.notes.append("sem plano valido")
         sc.notes.append(f"{evaluated}/{len(combos)} combinacoes em {_time.time() - t_start:.1f}s")
         self._finish(sc)
+        self._degrade(sc)
         return sc
+
+    # ordem em que abrimos mao de um elemento quando o rosto nao deixa espaco nenhum: NADA cobre o rosto
+    DROP_ORDER = ("etiqueta", "cta", "arroba", "marca", "barra", "parte", "titulo")
+
+    def _degrade(self, sc: Scene) -> None:
+        """Garantia final: se algum elemento ainda cobre o rosto em algum quadro, ele sai do video
+        (na ordem do menos para o mais importante). A legenda nunca sai: se for ela, fica registrado."""
+        for _ in range(len(self.DROP_ORDER)):
+            rep = face_overlap(sc.framing, self.raw_segs, sc.items, self.total, step=1.0 / VERIFY_FPS)
+            sc.overlap = float(rep["max_px"])
+            if sc.overlap <= 0:
+                return
+            guilty = {i.name for i in face_hits(sc.framing, self.raw_segs, sc.items, self.total, 1.0 / VERIFY_FPS)}
+            victim = next((n for n in self.DROP_ORDER if n in guilty), None)
+            if victim is None:
+                sc.notes.append(f"legenda sobre o rosto em {rep['t']}s ({rep['max_px']:.0f} px2): nao ha outro lugar")
+                return
+            if victim in ("marca", "arroba"):
+                names = {"marca", "arroba"}
+                sc.brand = None
+            elif victim in ("titulo", "parte", "barra"):
+                names = {"titulo", "parte", "barra"}
+                sc.title, sc.bar_rect = None, None
+            elif victim == "etiqueta":
+                names, sc.tag = {"etiqueta"}, None
+            else:
+                names, sc.cta = {"cta"}, None
+            sc.items = [i for i in sc.items if i.name not in names]
+            if victim in ("etiqueta", "cta"):
+                self._unhide_title(sc, victim)
+            sc.notes.append(f"removido para nao cobrir o rosto: {', '.join(sorted(names))}")
 
     def _framing_for(self, blur_center: int | None) -> _layouts.Framing:
         fr = self.base_framing
@@ -585,7 +673,7 @@ class Planner:
             opts = [(y0, 0.0), (y0 + 40, 1.0), (y0 + 80, 2.0)]
         else:
             y0 = c.default_y
-            opts = [(y0, 0.0), (y0 + 40, 1.0), (y0 + 80, 2.0), (y0 + 120, 3.0), (y0 - 40, 1.5)]
+            opts = [(y0, 0.0), (y0 + 40, 1.0), (y0 + 80, 2.0), (y0 + 120, 3.0), (y0 + 152, 3.6), (y0 - 40, 1.5)]
         return [(y, cst) for y, cst in opts if y + half <= _style.SAFE_BOTTOM_Y - 8]
 
     # ------------------------------------------------------------------ etiqueta e CTA
@@ -595,12 +683,12 @@ class Planner:
         grp = self._group(t_items) if t_items else None
         x0 = round(W / 2 - w / 2) if centered else _style.MARGIN
         g = _style.GAP
-        out = [("acima_legenda", x0, cap_rect[1] - g - h, 0.0)]
+        out = [("acima_legenda", x0, cap_rect[1] - g - h, 0.0 if self.lay != "blur" else 1.2)]
         if grp is not None:
             out.append(("abaixo_titulo", x0, grp[3] + g, 0.5))
             out.append(("acima_titulo", x0, grp[1] - g - h, 0.6))
         if self.lay == "blur":
-            out.append(("base_video", x0, vbox[3] - g - h, 0.0 if not centered else 0.8))
+            out.append(("base_video", x0, vbox[3] - g - h, 0.0))
             out.append(("acima_video", x0, vbox[1] - g - h, 1.0))
         elif self.lay == "split":
             out.append(("base_video", x0, min(self.seam, grp[1] if grp else self.seam) - g - h, 0.0 if not centered else 0.8))
@@ -650,7 +738,8 @@ class Planner:
             slots = self._timed_slots(sc, vw, vh, vbox, cap_rect, centered=False)
             choice = None
             start0 = (self.T + 0.25) if self.T > 0 else 0.6
-            for off, c_off in ((0.0, 0.0), (1.5, 1.5), (3.0, 3.0)):
+            for off in TAG_OFFSETS:
+                c_off = off
                 t0 = start0 + off
                 t1 = t0 + self.tag_dur
                 if t1 > self.total - 1.0:
@@ -666,7 +755,7 @@ class Planner:
                 sc.cost += total - f_cost + (f_cost - f_base)
                 sc.items.append(item)
                 if hides:
-                    self._hide_title(sc, item.t0, item.t1)
+                    self._hide_title(sc, item.t0, item.t1, "etiqueta")
                 sc.tag = Placed(slot, int(item.rect[0]), int(item.rect[1]), item.t0, item.t1)
         if self.cta is not None:
             vw, vh = self.cta.w - 2 * self.cta.pad_top, self.cta.h - self.cta.pad_top - self.cta.pad_bottom
@@ -682,12 +771,12 @@ class Planner:
                 sc.cost += total - f_cost + (f_cost - f_now)
                 sc.items.append(item)
                 if hides:
-                    self._hide_title(sc, t0, t1)
+                    self._hide_title(sc, t0, t1, "cta")
                 sc.cta = Placed(slot, int(item.rect[0]), int(item.rect[1]), t0, t1)
 
     @staticmethod
-    def _hide_title(sc: Scene, t0: float, t1: float) -> None:
-        sc.hide_title.append((t0, t1))
+    def _hide_title(sc: Scene, t0: float, t1: float, who: str = "") -> None:
+        sc.hide_title.append((t0, t1, who))
         new = []
         for it in sc.items:
             if it.name in ("titulo", "parte"):
@@ -698,6 +787,20 @@ class Planner:
             else:
                 new.append(it)
         sc.items[:] = new
+
+    def _unhide_title(self, sc: Scene, who: str) -> None:
+        """Elemento que ocupava o lugar do titulo saiu: o titulo volta (e a conferencia roda de novo)."""
+        if not any(w[2] == who for w in sc.hide_title):
+            return
+        sc.hide_title = [w for w in sc.hide_title if w[2] != who]
+        if sc.title is None:
+            return
+        base, _bar = self._title_items(sc.title)
+        keep = [i for i in sc.items if i.name not in ("titulo", "parte")]
+        sc.items = keep + [i for i in base if i.name in ("titulo", "parte")]
+        for a, b, w in list(sc.hide_title):   # as outras janelas escondidas continuam
+            sc.hide_title = [x for x in sc.hide_title if x != (a, b, w)]
+            self._hide_title(sc, a, b, w)
 
     # ------------------------------------------------------------------ resultado
     def _finish(self, sc: Scene) -> None:
@@ -735,8 +838,21 @@ def face_rects_at(fr: _layouts.Framing, segs: list, t: float) -> list[Rect]:
     return out
 
 
-def face_overlap(fr: _layouts.Framing, segs: list, items: list[Item], total: float, step: float = 1 / 15) -> dict:
-    """Confere a cada 1/15 s: maior area (px) de elemento sobre rosto e em que instante."""
+def face_hits(fr: _layouts.Framing, segs: list, items: list[Item], total: float, step: float = 1 / 30) -> list[Item]:
+    """Elementos que tocam um rosto em algum quadro."""
+    out: list[Item] = []
+    n = int(total / step) + 1
+    for i in range(n):
+        t = i * step
+        rs = face_rects_at(fr, segs, t)
+        for it in items:
+            if it not in out and it.t0 <= t <= it.t1 and any(_inter(r, it.rect) > 0 for r in rs):
+                out.append(it)
+    return out
+
+
+def face_overlap(fr: _layouts.Framing, segs: list, items: list[Item], total: float, step: float = 1 / 30) -> dict:
+    """Confere em cada quadro (1/30 s): maior area (px) de elemento sobre rosto e em que instante."""
     worst, worst_t, worst_name = 0.0, None, ""
     t = 0.0
     while t < total:

@@ -404,7 +404,8 @@ def render_title_card(text: str, out_path: Path, cfg=None, part: int | None = No
     has_part = bool(part)
     if not text and not has_part:
         return None
-    max_box_w = int(g("edicao.titulo_largura_max", 900))
+    # mesma coluna da legenda (140 a 940): a coluna de botoes da direita comeca em x=940
+    max_box_w = int(g("edicao.titulo_largura_max", 800))
     top = int(top if top is not None else g("edicao.titulo_topo", 260))
     hi_color = _style.highlight_color(cfg, category)
     if variant == "nativo":

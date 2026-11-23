@@ -108,8 +108,10 @@ def cleanup(cfg: Config, aggressive: bool = False) -> dict:
             if total <= limit:
                 break
             key = str(f.with_suffix(".mp4").resolve()).lower()
-            if status_by_path.get(key) == "renderizado" and not aggressive:
-                continue  # nao apaga o que esta aguardando revisao
+            if status_by_path.get(key) in ("renderizado", "aprovado") and not aggressive:
+                continue  # nao apaga o que esta na fila ou aguardando revisao
+            if status_by_path.get(key, "orfao") == "orfao" and now - f.stat().st_mtime < 6 * 3600:
+                continue  # pode estar sendo editado agora
             sz = _rm(f)
             freed += sz
             total -= sz
@@ -185,6 +187,9 @@ def release_published(clip_id: str, path: str, cfg: Config) -> str:
         return "mantido"
     root = onedrive_root(cfg) if mode == "onedrive" else None
     thumb = src.with_suffix(".jpg")
+    if mode == "onedrive" and root is None:
+        _log.warning("pasta do OneDrive nao encontrada: guardei o video no PC (%s)", src.name)
+        return "mantido"
     try:
         if root:
             dest_dir = root / "cortes" / datetime.now().strftime("%Y-%m")

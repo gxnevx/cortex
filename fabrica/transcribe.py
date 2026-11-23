@@ -333,6 +333,10 @@ def get_model(name: str = "small", threads: int = 0):
         if key in _MODEL_CACHE:
             return _MODEL_CACHE[key]
         paths.MODELS.mkdir(parents=True, exist_ok=True)
+        from . import memoria
+
+        _MODEL_CACHE.clear()  # um modelo Whisper por vez na memoria
+        memoria.prepare("whisper")
         kw = dict(device="cpu", compute_type="int8", cpu_threads=threads, num_workers=1,
                   download_root=str(paths.MODELS))
         t0 = time.time()
@@ -774,6 +778,10 @@ def transcribe(
     try:
         model = get_model(name, threads)
     except Exception as e:
+        from . import memoria
+
+        if isinstance(e, memoria.LowMemory):
+            raise
         fb = str(get("transcricao.modelo_whisper", DEFAULT_SELECTION_MODEL) or DEFAULT_SELECTION_MODEL)
         if fb == name:
             raise

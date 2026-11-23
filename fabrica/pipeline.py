@@ -66,17 +66,24 @@ class RunLock:
             try:
                 data = json.loads(LOCK.read_text(encoding="utf-8"))
                 age_h = (time.time() - data.get("ts", 0)) / 3600
-                if _pid_alive(int(data.get("pid", 0))) and age_h < 4:
+                from . import andamento
+
+                if andamento.alive(data) and age_h < 6:
                     raise RuntimeError(
                         f"Ja existe uma rodada em andamento (iniciada {datetime.fromtimestamp(data['ts']):%H:%M}). "
                         "Espere ela terminar."
                     )
             except (ValueError, KeyError):
                 pass
-        LOCK.write_text(json.dumps({"pid": os.getpid(), "ts": time.time()}), encoding="utf-8")
+        from . import andamento
+
+        LOCK.write_text(json.dumps({**andamento.me(), "ts": time.time()}), encoding="utf-8")
         return self
 
     def __exit__(self, *exc):
+        from . import andamento
+
+        andamento.end()
         try:
             LOCK.unlink()
         except OSError:
@@ -395,6 +402,9 @@ def _render(src: Path, ls: float, le: float, p: ClipPlan, captions: Transcript, 
     kw = {}
     if platforms and "platforms" in inspect.signature(editor.render_clip).parameters:
         kw["platforms"] = platforms
+    from . import memoria
+
+    memoria.prepare("render", cfg)
     return editor.render_clip(src, ls, le, p, captions, cfg, out, **kw)
 
 
@@ -545,12 +555,84 @@ def to_portuguese_captions(p: ClipPlan, captions: Transcript, cfg: Config, conte
     return pt
 
 
+_SENT_END = (".", "?", "!", "…")
+
+
+def snap_sentences(p: ClipPlan, wide: Transcript, wa: float, s_abs: float, e_abs: float, tem_longa: bool,
+                   cfg: Config) -> tuple[float, float]:
+    """Encosta o corte no comeco e no fim de frases (pontuacao do Whisper). Ajusta p.start/p.end (e a versao longa)
+    e devolve a faixa nova. `wide` = legenda com folga, tempos relativos a `wa`. Partes do meio de uma serie nao mexem."""
+    words = wide.words()
+    if len(words) < 8:
+        return s_abs, e_abs
+    starts = [words[0].start] + [b.start for a, b in zip(words, words[1:]) if a.text.strip().endswith(_SENT_END)]
+    ends = [w.end for w in words if w.text.strip().endswith(_SENT_END)]
+    maxd = float(cfg.get("corte.duracao_max_s", 58))
+
+    def near(opts: list[float], t: float, back: float, fwd: float) -> float | None:
+        ok = [x for x in opts if t - back <= x <= t + fwd]
+        return min(ok, key=lambda x: abs(x - t)) if ok else None
+
+    def fit(a: float, b: float, limit: float) -> tuple[float, float]:
+        ra, rb = a - wa, b - wa
+        na = near(starts, ra, 5.0, 2.5) if not p.part or p.part == 1 else None
+        nb = near(ends, rb, 2.5, 5.0) if not p.part or p.part == (p.parts_total or 0) else None
+        na = max(0.0, na - 0.12) if na is not None else ra
+        nb = nb + 0.25 if nb is not None else rb
+        if nb - na > limit:         # passou do teto: fica com o fim de frase anterior (sem perder o desfecho)
+            prev = [x for x in ends if na + 0.8 * (rb - ra) < x <= na + limit - 0.25]
+            nb = prev[-1] + 0.25 if prev else min(rb, na + limit)
+        return (na + wa, nb + wa) if nb - na >= 0.8 * (b - a) else (a, b)
+
+    if tem_longa:
+        p.start, p.end = (round(x, 3) for x in fit(p.start, p.end, maxd))
+        a, b = fit(s_abs, e_abs, float(cfg.get("publicacao.tiktok_longo.max_s", 90)))
+        a, b = min(a, p.start), max(b, p.end)
+        p.ext_start, p.ext_end = round(a, 3), round(b, 3)
+        return p.ext_start, p.ext_end
+    p.start, p.end = (round(x, 3) for x in fit(p.start, p.end, maxd))
+    return p.start, p.end
+
+
+def whole_sentence(words: list, a: float, b: float, max_chars: int = 62) -> str:
+    """A frase COMPLETA mais forte que encosta em [a, b] (3 a 11 palavras). Vazio = nao ha frase boa para citar."""
+    sents, cur = [], []
+    for w in words:
+        cur.append(w)
+        if w.text.strip().endswith(_SENT_END):
+            sents.append(cur)
+            cur = []
+    best, best_v = "", -1.0
+    for st in sents:
+        if st[-1].end < a - 0.2 or st[0].start > b + 0.2:
+            continue
+        txt = _re.sub(r"\s+", " ", " ".join(w.text.strip() for w in st)).strip(" ,.;:-\"")
+        n = len(txt.split())
+        if not 3 <= n <= 11 or len(txt) > max_chars:
+            continue
+        v = sum(_POLEMIC.get(_plain(x), 0) for x in txt.split()) + 0.1 * n
+        if v > best_v:
+            best, best_v = txt, v
+    return best
+
+
+def _plain(w: str) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFD", w.lower())
+    return "".join(ch for ch in t if ch.isalnum())
+
+
 def refine_with_captions(p: ClipPlan, captions: Transcript, cfg: Config, rep: Reporter | None = None) -> Transcript:
     """Com a legenda limpa (Whisper) do corte: escolhe o gancho de abertura e coloca a frase mais pesada
     entre aspas no texto do video e no titulo. Ajusta o fim do corte para caber no limite de duracao.
     `captions` tem tempos relativos ao inicio do corte. Devolve a legenda (talvez encurtada)."""
     words = captions.words()
     if not words or not cfg.get("edicao.cold_open", True):
+        return captions
+    if p.tipo in ("tutorial", "curiosidade"):   # comeca pelo contexto, sem adiantar a resposta
+        p.teaser_start = p.teaser_end = None
+        p.teaser_text = ""
         return captions
     # Teste A/B (a pesquisa de concorrentes indica que os campeoes nao usam gancho; o dono quer gancho):
     # uma fracao dos cortes sai sem gancho e o aprendizado mede qual rende mais nesta conta.
@@ -595,17 +677,21 @@ def refine_with_captions(p: ClipPlan, captions: Transcript, cfg: Config, rep: Re
 
     # texto do video e titulo: a frase entre aspas (traduzida, se o corte for estrangeiro)
     mode = str(ts["palavroes"])
-    raw_quote = _re.sub(r"\s+", " ", p.teaser_text).strip(" ,.;:-")
+    raw_quote = whole_sentence(words, best["start"], best["end"])
     if (p.idioma_origem or "pt")[:2] != "pt":
         raw_quote = _translate_text(raw_quote, cfg)
     quote = mask_profanity(raw_quote, mode) if raw_quote else ""
-    use_quote = (cfg.get("conteudo.titulo_com_citacao", True)
+    use_quote = (cfg.get("conteudo.titulo_com_citacao", True) and p.tipo in ("", "fala", "reacao")
                  and _ab_bucket(p.id, "citacao") < float(ts["citacao_proporcao"]))
+    from .brain.prompts import is_generic
+
+    # a IA ja escreveu um titulo com citacao ou um titulo proprio: ele vale mais que a citacao automatica
+    if '"' in (p.title or "") or not is_generic(p.title or ""):
+        use_quote = False
     if quote and use_quote:
         q_hook = quote.upper() if ts["caps_gancho"] else quote
-        if len(q_hook) > 42:  # corta nas palavras mais fortes
-            q_hook = " ".join(q_hook.split()[:7])
-        p.hook = f"\"{q_hook}\""
+        if len(q_hook) <= 46:   # frase inteira ou nada: pedaco de frase nao faz sentido
+            p.hook = f"\"{q_hook}\""
         from .util import _EMOJI_RE
 
         emo = "".join(_EMOJI_RE.findall(p.title or ""))[:4] if cfg.get("conteudo.emojis", True) else ""
@@ -644,7 +730,7 @@ def _fallback_brain(cfg: Config, current: str | None = None):
 def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Reporter,
                       budget: int) -> tuple[list[RenderedClip], list[str]]:
     """Processa um video-fonte inteiro. Devolve (cortes renderizados, avisos)."""
-    from . import download, editor, transcribe
+    from . import download, editor, memoria, transcribe
 
     warnings: list[str] = []
     workdir = paths.run_dir(run_id) / slugify(c.id, 40)
@@ -727,7 +813,8 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
             if ext:
                 rep.dim(f"versao longa do TikTok: {fmt_duration(ext[0])}-{fmt_duration(ext[1])} "
                         f"({fmt_duration(ext[1] - ext[0])}) para '{p.title[:40]}'")
-        groups = _group_plans(plans, pad=1.5, dur=c.duration)
+        pad = float(cfg.get("corte.margem_frase_s", 6))
+        groups = _group_plans(plans, pad=pad, dur=c.duration)
         storage.check_free_space(cfg, need_gb=0.3)
         with rep.working(f"Baixando {len(groups)} trecho(s) do video..."):
             files = download.download_sections(c, [(s, e) for s, e, _ in groups], cfg, workdir)
@@ -740,13 +827,21 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
                 full: Transcript | None = None
                 try:
                     with rep.working(f"Legendando '{p.title[:40]}'..."):
-                        full = _transcribe_clip(Path(f), cfg, s_abs - gs, e_abs - gs, c, p)
+                        # um pouco alem dos dois lados, para o corte comecar e terminar em frase inteira
+                        wa, wb = max(gs, s_abs - pad + 0.5), min(_ge, e_abs + pad - 0.5)
+                        wide = _transcribe_clip(Path(f), cfg, wa - gs, wb - gs, c, p)
+                        if wide and wide.segments:
+                            s_abs, e_abs = snap_sentences(p, wide, wa, s_abs, e_abs, tem_longa, cfg)
+                            full = wide.slice(s_abs - wa, e_abs - wa)
+                except memoria.LowMemory:
+                    raise
                 except Exception as e:
                     _log.warning("Whisper no corte falhou (%s); usando transcricao original", e)
                 if not full or not full.segments:
                     full = transcript.slice(s_abs, e_abs)
                 off = p.start - s_abs
                 captions = full.slice(off, off + p.duration) if tem_longa else full
+                p.fala = _re.sub(r"\s+", " ", full.text).strip()[:1500]
                 # gancho de abertura + frase polemica entre aspas, a partir da legenda limpa do corte
                 try:
                     captions = refine_with_captions(p, captions, cfg, rep)
@@ -779,6 +874,9 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
                     rendered.append(rc)
                     rep.ok(f"Corte pronto: {p.title}  [{rc.layout}, {fmt_duration(rc.duration)}"
                            + (" + versao longa TikTok" if tem_longa else "") + "]")
+                except memoria.LowMemory:
+                    db.set_clip_status(p.id, "falhou")
+                    raise
                 except Exception as e:
                     db.set_clip_status(p.id, "falhou")
                     warnings.append(f"falha ao editar '{p.title[:40]}': {e}")
@@ -788,7 +886,9 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
     except storage.DiskFullError:
         raise
     except Exception as e:
-        db.upsert_video(c, "falhou", run_id, error=str(e)[:500])
+        passageiro = isinstance(e, memoria.LowMemory)
+        desistir = not passageiro and db.bump_attempt(c.id) >= db.MAX_VIDEO_ATTEMPTS
+        db.upsert_video(c, "ignorado" if desistir else "falhou", run_id, error=str(e)[:500])
         raise
     finally:
         if cfg.get("armazenamento.apagar_brutos_apos_render", True):
@@ -889,7 +989,9 @@ def discover(cfg: Config, opts: RunOptions, brain, rep: Reporter, summary: dict,
 
 # =============================================================== rodada
 def run(cfg: Config, opts: RunOptions, rep: Reporter | None = None) -> dict:
-    rep = rep or Reporter(quiet=not opts.interactive)
+    from . import andamento
+
+    rep = andamento.Tap(rep or Reporter(quiet=not opts.interactive))
     paths.ensure_dirs()
     run_id = run_id_now()
     search_mode = ("via_rapida" if opts.candidates else
@@ -913,6 +1015,9 @@ def run(cfg: Config, opts: RunOptions, rep: Reporter | None = None) -> dict:
     }
     TOTAL = 4
     with RunLock():
+        andamento.begin({"manual": "pedido seu", "autopiloto": "automático", "agendado": "agendada"}.get(opts.trigger, opts.trigger),
+                        ", ".join(opts.urls or keywords)[:120])
+        db.release_stuck()
         db.start_run(run_id, opts.trigger, search_mode, keywords, publish_mode)
         try:
             # 1 ─ preparo
@@ -930,13 +1035,22 @@ def run(cfg: Config, opts: RunOptions, rep: Reporter | None = None) -> dict:
             # 2 ─ descoberta
             rep.stage(2, TOTAL, "Descobrindo o que esta em alta" if search_mode != "link" else "Lendo os links")
             cands = discover(cfg, opts, brain_trends, rep, summary, run_id, n_videos)
+            if not opts.urls and brain.name != "claude" and cfg.get("busca.estrangeiro.exige_claude", True):
+                fora = [c for c in cands if (c.extra or {}).get("estrangeiro")]
+                if fora:
+                    cands = [c for c in cands if c not in fora]
+                    rep.info(f"{len(fora)} video(s) em outra lingua ficaram de fora (so entram com o Claude escolhendo)")
 
             # 3 ─ processamento
             rep.stage(3, TOTAL, "Cortando e editando")
             all_rendered: list[RenderedClip] = []
-            processed = 0
+            processed = fails = 0
+            max_h = float(cfg.get("execucao.max_horas_rodada", 3))
             for c in cands:
                 if processed >= n_videos or len(all_rendered) >= max_clips:
+                    break
+                if fails >= int(cfg.get("execucao.max_falhas_rodada", 4)) or time.time() - t0 > max_h * 3600:
+                    rep.warn("Rodada encerrada: muitas falhas seguidas ou tempo demais. Tento de novo na proxima.")
                     break
                 cinfo = {"id": c.id, "title": c.title, "channel": c.channel, "platform": c.platform, "url": c.url,
                          "views": c.views, "duration": c.duration, "score": c.score, "reasons": c.reasons,
@@ -977,8 +1091,16 @@ def run(cfg: Config, opts: RunOptions, rep: Reporter | None = None) -> dict:
                     cinfo["status"] = "parado"
                     break
                 except Exception as e:
+                    fails += 1
                     msg = str(e).strip().splitlines()[0][:300] if str(e).strip() else type(e).__name__
                     cinfo["status"], cinfo["error"] = "falhou", msg
+                    from . import memoria
+
+                    if isinstance(e, memoria.LowMemory):   # 3) sem memoria: nao adianta tentar os outros videos agora
+                        summary["errors"].append(msg)
+                        summary["actions"].append(msg)
+                        rep.error(msg)
+                        break
                     summary["warnings"].append(f"'{c.title[:50]}': {msg}")
                     rep.warn(f"Pulei este video: {msg}")
                     _log.debug(traceback.format_exc())
@@ -1008,7 +1130,7 @@ def run(cfg: Config, opts: RunOptions, rep: Reporter | None = None) -> dict:
                     _merge_posts(summary, results)
                 else:
                     summary["actions"].append(
-                        f"{len(all_rendered)} cortes aguardando sua revisao: abra o CORTEX e escolha 'Revisar e publicar'.")
+                        f"{len(all_rendered)} cortes aguardando sua revisao: abra o CORTEX > Ver cortes prontos.")
                     rep.info(summary["actions"][-1])
             else:
                 rep.info(f"Modo 'nao_publicar': cortes salvos em {paths.RENDERS}")
@@ -1071,6 +1193,9 @@ def _merge_posts(summary: dict, results) -> None:
             c["status"] = status_by_clip[c["id"]]
 
 
+MAX_TENTATIVAS = 3
+
+
 def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Reporter) -> tuple[list, list[str]]:
     """Checa login de cada rede e publica. Devolve (resultados, acoes necessarias)."""
     from . import publish
@@ -1093,7 +1218,7 @@ def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Re
             else:
                 rep.warn(f"{p}: {why} (regra de seguranca da conta; ajuste em config.yaml > publicacao)")
         else:
-            actions.append(f"Faca login no {p}: abra o CORTEX > 'Login' (ou: cortex login {p})")
+            actions.append(f"Faca login no {p}: abra o CORTEX > Contas (ou: cortex login {p})")
             rep.warn(actions[-1])
     if not platforms:
         return [], actions
@@ -1119,8 +1244,14 @@ def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Re
                     rep.dim(f"video liberado do PC ({destino})")
             except Exception as e:
                 _log.warning("liberar video publicado: %s", e)
-        elif rs and all(not r.ok for r in rs) and not any(db.already_posted(clip.plan.id, p) for p in all_targets):
-            db.set_clip_status(clip.plan.id, "falhou")
+        else:
+            desistiu = [p for p in all_targets if not db.already_posted(clip.plan.id, p)
+                        and db.failed_attempts(clip.plan.id, p) >= MAX_TENTATIVAS]
+            if desistiu and all(db.already_posted(clip.plan.id, p) or p in desistiu for p in all_targets):
+                saiu = any(db.already_posted(clip.plan.id, p) for p in all_targets)
+                db.set_clip_status(clip.plan.id, "publicado" if saiu else "falhou")
+                actions.append(f"'{clip.plan.title[:45]}' nao foi para {', '.join(desistiu)} depois de {MAX_TENTATIVAS} "
+                               "tentativas (veja os prints em logs/screenshots).")
     for r in results:
         if r.ok:
             rep.ok(f"{r.platform}: {r.url or 'publicado'}" + (" (teste)" if r.dry_run else ""))
