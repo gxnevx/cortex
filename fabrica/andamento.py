@@ -59,11 +59,23 @@ def alive(d: dict | None) -> bool:
     return not d.get("nasceu") or abs(b - float(d["nasceu"])) < 2
 
 
-def write_json(path: Path, data: Any) -> None:
-    """Gravacao atomica (no Windows outra janela pode estar lendo: tenta de novo)."""
+def write_json(path: Path, data: Any, durable: bool | None = None) -> None:
+    """Gravacao atomica (no Windows outra janela pode estar lendo: tenta de novo).
+
+    durable: forca a ida ao disco (aguenta tela azul). Sem dizer, vale para arquivo que muda pouco (nao para o batimento).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
+    if durable is None:
+        try:
+            durable = time.time() - path.stat().st_mtime > 60
+        except OSError:
+            durable = True
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(data, ensure_ascii=False))
+        if durable:
+            fh.flush()
+            os.fsync(fh.fileno())
     for _ in range(10):
         try:
             os.replace(tmp, path)

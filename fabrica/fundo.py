@@ -44,11 +44,20 @@ def spawn(args: list[str]) -> int:
 
 # ------------------------------------------------------------------ automatico
 def wanted() -> bool:
-    return bool((andamento.read_json(WANTED) or {}).get("ligado"))
+    """O dono deixou ligado? Se a queda do PC estragou o arquivo, vale a copia."""
+    d = andamento.read_json(WANTED)
+    if not isinstance(d, dict) or "ligado" not in d:
+        d = andamento.read_json(WANTED.with_suffix(".bak"))
+        if isinstance(d, dict) and "ligado" in d:
+            _log.warning("o arquivo de ligado/desligado estava estragado; usei a copia")
+            andamento.write_json(WANTED, d, durable=True)
+    return bool(d.get("ligado")) if isinstance(d, dict) else False
 
 
 def set_wanted(on: bool) -> None:
-    andamento.write_json(WANTED, {"ligado": bool(on), "ts": time.time()})
+    d = {"ligado": bool(on), "ts": time.time()}
+    andamento.write_json(WANTED.with_suffix(".bak"), d, durable=True)
+    andamento.write_json(WANTED, d, durable=True)
 
 
 def start_autopilot(wait_s: float = 25) -> bool:

@@ -800,7 +800,7 @@ class Autopilot:
                 pid = int(d["pid"])
                 if pid != os.getpid() and andamento.alive(d):
                     raise RuntimeError("O automático já está rodando.")
-            except (ValueError, KeyError):
+            except (ValueError, KeyError, TypeError, OSError):
                 pass
         self._lock_file.write_text(json.dumps({**andamento.me(), "ts": time.time()}))
 

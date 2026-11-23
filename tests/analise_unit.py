@@ -298,6 +298,17 @@ check("desligado: so avisa", "atualização" in (M.check_downloads(Config({})) o
 M.db.conn = lambda: _R([ruim] * 4 + [{"status": "processado", "error": None}])
 check("um que baixou: nao mexe", M.check_downloads(ligado) is None and usou == [1])
 M.db.conn, M.update_ytdlp = conn0, upd0
+
+# ------------------------------------------------------------------ tela azul zera o arquivo de ligado
+from fabrica import fundo as F  # noqa: E402
+
+F.WANTED = TMP / "automatico_ligado.json"
+F.set_wanted(True)
+F.WANTED.write_bytes(bytes(40))
+check("arquivo de ligado zerado pela queda: continua ligado", F.wanted() and F.WANTED.read_bytes()[:1] == b"{")
+F.set_wanted(False)
+F.WANTED.write_bytes(bytes(40))
+check("e se estava desligado, continua desligado", not F.wanted())
 E.posts = real
 
 print(f"\n{'TUDO OK' if not fails else 'FALHAS: ' + ', '.join(fails)}")
