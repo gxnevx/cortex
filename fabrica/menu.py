@@ -205,8 +205,10 @@ def cancel_run(run: dict) -> None:
 def results_flow(cfg: Config) -> None:
     from . import cli
 
-    cli.show_clips(20)
-    cli.show_metrics(cfg)
+    cli.show_analysis(cfg)
+    if ui.ask_confirm("Ler os números e analisar agora? (usa 1 chamada do Claude)", default=False):
+        cli.show_analysis(cfg, rodar=True)
+    cli.show_clips(12)
     cli.show_history(6)
     if ui.ask_confirm("Abrir o relatório no navegador?", default=False):
         cli.open_report()

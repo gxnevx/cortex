@@ -348,6 +348,50 @@ def show_metrics(cfg: Config) -> None:
         ui.info(line)
 
 
+def show_analysis(cfg: Config, rodar: bool = False) -> None:
+    """Numeros de cada post, nota das contas, placar dos testes A/B e a leitura do analista."""
+    from . import analista, estrategia, experimentos, numeros
+
+    if rodar:
+        with ui.console.status(" Lendo os números no YouTube Studio e no TikTok Studio...", spinner="line"):
+            numeros.collect(cfg)
+        with ui.console.status(" Analisando...", spinner="line"):
+            experimentos.adotar()
+            estrategia.decidir(cfg)
+            analista.analisar(cfg, force=True)
+    rows = []
+    for rede in cfg.get("publicacao.plataformas", PLATFORMS):
+        for p in estrategia.posts(rede)[:10]:
+            ret = "-" if p["ret"] is None else f"{p['ret']:.0f}%"
+            rows.append([Text(ui.term(p["titulo"])[:40]), estrategia.NOMES.get(rede, rede), f"{p['idade_h']:.0f} h", str(p["views"]),
+                         str(p["likes"]), ret, "-" if not p["tempo"] else f"{p['tempo']:.0f} s"])
+    if rows:
+        ui.table(["Post", "Rede", "Idade", "Views", "Curtidas", "Assistem", "Tempo médio"], rows, title="Números reais (do seu canal)", compact=True)
+    for rot, txt, nivel in estrategia.linhas(cfg):
+        (ui.ok if nivel in ("ótima", "boa") else ui.warn)(f"{rot}: {txt}")
+    for rede in cfg.get("publicacao.plataformas", PLATFORMS):
+        s = estrategia.saude(rede, cfg)
+        for m in s["motivos"]:
+            ui.dim(f"{estrategia.NOMES.get(rede, rede)}: {m}")
+        ui.info(f"Primeiro viral no {estrategia.NOMES.get(rede, rede)} (10 mil views): {estrategia.viral(rede, cfg)['texto']}")
+    ab = [[Text(r["pergunta"]), Text(experimentos.frase(r))] for r in experimentos.avaliar()]
+    ui.table(["Teste A/B", "Placar"], ab, title="O que está sendo testado", compact=True)
+    a = analista.last()
+    if a.get("resumo"):
+        ui.rule("ANALISTA")
+        ui.info(a["resumo"])
+        for k, tit in (("deu_certo", "Deu certo"), ("nao_deu", "Não deu")):
+            for x in a.get(k) or []:
+                ui.dim(f"{tit}: {x['o_que']} [{x['forca']}: {x['prova']}]")
+        for k, tit in (("padrao", "Padrão"), ("proximo_teste", "Próximo teste"), ("alerta", "Alerta")):
+            if a.get(k):
+                ui.info(f"{tit}: {a[k]}")
+    h = (estrategia.state().get("historico") or [])[-1:]
+    for x in h:
+        for d in x.get("decisoes", []):
+            ui.dim(f"Decisão: {d}")
+
+
 def show_clips(n: int = 20) -> None:
     """Todos os cortes recentes e a situacao de cada um (a mesma lista do relatorio)."""
     from datetime import datetime
@@ -453,6 +497,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="diagnostico do sistema")
     sub.add_parser("historico", help="ultimas rodadas")
     sub.add_parser("metricas", help="views dos posts, saude das contas e aprendizado")
+    an = sub.add_parser("analise", help="numeros, nota das contas, testes A/B e a leitura do analista")
+    an.add_argument("--agora", action="store_true", help="le os numeros e analisa agora")
     rt = sub.add_parser("retomar", help="tira uma conta da pausa de seguranca")
     rt.add_argument("plataforma", choices=PLATFORMS)
     sub.add_parser("relatorio", help="abre o ultimo relatorio")
@@ -554,6 +600,8 @@ def main(argv: list[str] | None = None) -> int:
             show_status(cfg)
         elif args.cmd == "historico":
             show_history()
+        elif args.cmd == "analise":
+            show_analysis(cfg, rodar=args.agora)
         elif args.cmd == "metricas":
             show_metrics(cfg)
         elif args.cmd == "retomar":

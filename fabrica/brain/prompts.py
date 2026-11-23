@@ -69,7 +69,7 @@ TRENDS_SCHEMA = {
             "indice": {"type": "integer"},
             "categoria": {"type": "string"},
             "pontuacao": {"type": "integer"},
-            "tipo": {"type": "string"}, "motivo": {"type": "string"},
+            "titulo_alt": {"type": "string"}, "tipo": {"type": "string"}, "motivo": {"type": "string"},
             "buscas": {"type": "array", "items": {"type": "string"}},
         },
         "required": ["indice", "categoria", "pontuacao", "buscas"],
@@ -172,6 +172,23 @@ def _video_block(video: Candidate) -> str:
 _REACT = re.compile(r"\breact|reag|rea[cç][aã]o|assistindo|trailer|tr[aá]iler", re.I)
 
 
+def learned_block() -> str:
+    """O que os numeros do proprio canal mostraram (testes A/B e analista)."""
+    try:
+        from .. import estrategia, experimentos
+
+        lines = experimentos.aprendizados()
+        ev = estrategia.evitar()
+    except Exception:
+        return ""
+    out = ""
+    if lines:
+        out += "\nO QUE OS NÚMEROS DESTE CANAL MOSTRAM: " + " | ".join(lines)
+    if ev:
+        out += "\nEVITE NESTE CANAL: " + "; ".join(ev)
+    return out + ("\n" if out else "")
+
+
 def kind_rules(video: Candidate) -> str:
     """Regras extras por tipo de video (react de trailer/clipe, games)."""
     from . import games
@@ -253,12 +270,13 @@ O QUE É UM BOM CORTE
 QUANTIDADE: {qty}
 PONTUAÇÃO ("pontuacao", de 0 a 100) = chance real de viralizar. Seja exigente: 85 ou mais só para momentos excepcionais; abaixo de {min_score} o corte será descartado.
 
-{kind_rules(video)}
+{kind_rules(video)}{learned_block()}
 TIPO DO CORTE (campo "tipo")
 {TIPO_RULES}
 
 TEXTOS (português do Brasil){foreign_block(video)}
 {_title_rules(cfg)}
+- "titulo_alt": o MESMO assunto no outro estilo, para teste: se o "titulo" tem frase entre aspas, aqui vai um título direto sem aspas; se o "titulo" é direto, aqui vai um com a frase mais forte entre aspas (só se ela foi dita). Igualmente bom.
 - "descricao": 1 a 2 frases com o contexto do trecho.
 - "hashtags": 3 a 5, sem espaços, minúsculas e sem acento: 1 ampla, 1 a 2 do nicho e 1 da pessoa/programa/jogo (ex.: "#podcast", "#politica").
 - "motivo": por que esse trecho vai viralizar (curto).

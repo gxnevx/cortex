@@ -761,6 +761,7 @@ def coerce_raw(d: dict) -> dict | None:
         "reason": str(_first(d, "motivo", "reason", "porque", "justificativa", default="") or ""),
         "category": _first(d, "categoria", "category"),
         "tipo": str(_first(d, "tipo", default="") or "").strip().lower(),
+        "titulo_alt": str(_first(d, "titulo_alt", default="") or "").strip(),
         "series": str(series).strip() if series and str(series).strip().lower() not in ("null", "none", "nao", "não", "false") else None,
         "part": part,
         "layout": _first(d, "layout"),
@@ -1191,6 +1192,7 @@ def finalize_plans(raw_plans: list[dict | ClipPlan], video: Candidate, transcrip
                 parts_total=total if is_series else None,
                 layout=normalize_layout(m.get("layout")),
                 tipo=_tipo(m, video),
+                titulo_alt=clean_title(fix_title(str(m.get("titulo_alt") or ""))) if not is_series and m.get("titulo_alt") else "",
             ))
             p = out[-1]
             try:

@@ -105,7 +105,26 @@ def snapshot(cfg: Config | None = None) -> dict:
     last = db.conn().execute("SELECT platform, url, ts FROM posts WHERE ok=1 AND dry_run=0 ORDER BY ts DESC LIMIT 1").fetchone()
     return {"automatico": on, "querido": fundo.wanted(), "batida": hb, "rodada": andamento.read(), "pedidos": fundo.requests(),
             "redes": redes, "precisa": precisa, "fila": q, "proximo_post": proximo, "memoria": mem, "disco": free,
-            "ultimo_post": dict(last) if last else None}
+            "ultimo_post": dict(last) if last else None, **_saude(cfg)}
+
+
+_SAUDE: dict[str, Any] = {"ts": 0.0, "v": {}}
+
+
+def _saude(cfg: Config) -> dict:
+    """Nota das contas e estimativa (guardadas por 2 min: o painel redesenha o tempo todo)."""
+    if time.time() - _SAUDE["ts"] > 120:
+        from . import estrategia
+
+        try:
+            _SAUDE["v"] = {"saude": estrategia.linhas(cfg), "viral": {p: estrategia.viral(p, cfg)["texto"] for p in
+                                                                     cfg.get("publicacao.plataformas", ["youtube", "tiktok"])}}
+        except Exception as e:
+            from . import log
+
+            log.get("painel").debug("saude: %s", e)
+        _SAUDE["ts"] = time.time()
+    return dict(_SAUDE["v"])
 
 
 def now_text(s: dict) -> str:
@@ -127,7 +146,7 @@ def summary(s: dict) -> Text:
     t = Text()
 
     def line(k: str, v: str, style: str = "white") -> None:
-        t.append(f"  {k:<13} ", style=ui.C_DIM)
+        t.append(f"  {k:<14} ", style=ui.C_DIM)
         t.append(ui.term(v) + "\n", style=style)
 
     if s["automatico"]:
@@ -151,6 +170,10 @@ def summary(s: dict) -> Text:
             line(NOMES.get(p, p), "sem login", ui.C_RED)
         else:
             line(NOMES.get(p, p), f"login ok | {r['hoje']} de {r['limite']} hoje | próximo {when(r.get('proximo') or 0)}", ui.C_OK)
+    for rot, txt, nivel in s.get("saude") or []:
+        line(rot, txt, {"ótima": ui.C_OK, "boa": ui.C_OK, "regular": ui.C_YEL, "fraca": ui.C_RED}.get(nivel, ui.C_DIM))
+    for rede, txt in (s.get("viral") or {}).items():
+        line("Viral " + NOMES.get(rede, rede), txt, ui.C_DIM)
     if s["ultimo_post"]:
         u = s["ultimo_post"]
         line("Último post", f"{NOMES.get(u['platform'], u['platform'])} {datetime.fromtimestamp(u['ts']):%d/%m %H:%M} {u['url'] or ''}")
@@ -230,6 +253,9 @@ def render(s: dict) -> Layout:
     mem = s["memoria"]
     day.add_row("Memória", Text(f"{mem['ram_livre']:.1f} GB livres", style=ui.C_OK if mem["reserva_livre"] > 3 else ui.C_YEL))
     day.add_row("Disco", Text(f"{s['disco']:.1f} GB livres", style=ui.C_OK if s["disco"] > 4 else ui.C_YEL))
+    for rot, txt, nivel in s.get("saude") or []:
+        day.add_row(rot, Text(txt.split(" | ")[0], style={"ótima": ui.C_OK, "boa": ui.C_OK, "regular": ui.C_YEL,
+                                                           "fraca": ui.C_RED}.get(nivel, ui.C_DIM)))
     if hb:
         day.add_row("Rodadas", Text(f"{hb.get('rodadas_ok', 0)} ok de {hb.get('rodadas', 0)}"))
         day.add_row("PC", Text("em uso por você (eu espero)" if hb.get("pc_em_uso") else "livre"))
@@ -264,7 +290,7 @@ def render(s: dict) -> Layout:
     lay = Layout()
     lay.split_column(
         Layout(Group(_head(), state), name="head", size=8),
-        Layout(name="mid", size=10),
+        Layout(name="mid", size=11),
         Layout(Panel(qt, title=f"Cortes na fila ({len(s['fila'])})", border_style=ui.C_DIM), size=7),
         Layout(Panel(lg, title="Ao vivo", border_style=ui.C_DIM)),
         Layout(Text(" Ctrl+C sai do painel. O trabalho continua em segundo plano.", style=ui.C_DIM), size=1),

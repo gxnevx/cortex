@@ -280,3 +280,13 @@ notificacoes:
 curadoria:
   nota_minima: 68                 # 0 a 100: mais alto = mais exigente
   duracao_min_s: 25
+
+# ---------------------------------------------------------------------
+# ESTRATEGISTA: nota das contas, testes A/B e decisoes com numeros reais
+# ---------------------------------------------------------------------
+experimentos:
+  ativo: true                     # sorteia cada corte nos testes A/B
+estrategia:
+  decide_quantidade: true         # muda a quantidade por dia, 1 passo por vez, so com 8+ posts medidos
+  teto: {youtube: 3, tiktok: 6}   # nunca passa disso
+  viral_views: 10000              # o que conta como "viral" na estimativa

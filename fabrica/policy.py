@@ -65,6 +65,12 @@ def account_age_days(platform: str, cfg: Config) -> int | None:
 
 def daily_limit(platform: str, cfg: Config) -> int:
     base = int((cfg.get("publicacao.max_posts_por_dia", {}) or {}).get(platform, 4))
+    if cfg.get("estrategia.decide_quantidade", True):
+        from . import estrategia
+
+        q = (estrategia.state().get("quantidade") or {}).get(platform)
+        if q:       # decidido com numeros reais (8+ posts maduros), um passo por vez, dentro do teto
+            return max(1, min(int(q), int((cfg.get("estrategia.teto", {"youtube": 3, "tiktok": 6}) or {}).get(platform, base))))
     if not cfg.get("publicacao.aquecimento.ativo", True):
         return base
     age = account_age_days(platform, cfg)

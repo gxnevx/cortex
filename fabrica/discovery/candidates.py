@@ -274,7 +274,9 @@ def _viral_queries(cfg, trends: list[Trend] | None) -> list[tuple[str, str]]:
         out += [(f"{tema} {sfx}", tema) for sfx in pt_suf]
         if en:
             out += [(f"{tema} {sfx}", tema) for sfx in en_suf]
-    for q in cfg.get("busca.virais.consultas", []) or []:
+    from .. import estrategia
+
+    for q in estrategia.buscas() + list(cfg.get("busca.virais.consultas", []) or []):
         out.append((str(q), str(q)))
     return out[: int(cfg.get("busca.virais.max_consultas", 10))]
 
@@ -666,7 +668,9 @@ def find_candidates(cfg, trends: list[Trend] | None = None, keywords: list[str] 
         seen_titles.add(tkey)
         per_ch[key] = per_ch.get(key, 0) + 1
         eligible.append(c)
-    mix = cfg.get("busca.mix_nichos", nichos.DEFAULT_MIX)
+    from .. import estrategia as _est
+
+    mix = _est.mix(cfg.get("busca.mix_nichos", nichos.DEFAULT_MIX))
     out = nichos.select_mix(eligible, limit, mix if isinstance(mix, dict) else nichos.DEFAULT_MIX)
     _log.info("find_candidates: %d brutos, %d pre, %d detalhados -> %d (coleta %.1fs, detalhe %.1fs, total %.1fs)"
               " descartes=%s", len(raws), len(pre), len(enriched), len(out), t_collect, time.time() - t1,

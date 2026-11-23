@@ -442,8 +442,6 @@ def plan_extension(p: ClipPlan, transcript: Transcript, video_dur: float | None,
         return None
     if "tiktok" not in (cfg.get("publicacao.plataformas", []) or []) or p.part:
         return None  # series (Parte X) ficam curtas: as partes sao contiguas
-    if _ab_bucket(p.id, "longo") >= float(cfg.get("publicacao.tiktok_longo.proporcao", 0.4)):
-        return None
     min_s = float(cfg.get("publicacao.tiktok_longo.min_s", 61))
     max_s = float(cfg.get("publicacao.tiktok_longo.max_s", 90))
     dur = p.end - p.start
@@ -623,6 +621,35 @@ def _plain(w: str) -> str:
     return "".join(ch for ch in t if ch.isalnum())
 
 
+def _sortear(plans: list[ClipPlan], cfg: Config) -> None:
+    """Sorteia o lado de cada corte nos testes A/B (antes de qualquer decisao que dependa do resultado)."""
+    from . import experimentos
+    from .brain.prompts import is_generic
+    from .util import _EMOJI_RE
+
+    if not cfg.get("experimentos.ativo", True):
+        return
+    for p in plans:
+        e = {t: experimentos.lado(p.id, t) for t in experimentos.TESTES}
+        # titulo: so entra se existem os dois estilos, os dois bons
+        alt, tem = p.titulo_alt, '"' in p.title
+        if alt and 15 <= len(alt) <= 95 and not is_generic(alt) and (('"' in alt) != tem) and not p.part:
+            if (e["titulo"] == "A") != tem:
+                p.title, p.titulo_alt = alt, p.title
+        else:
+            e.pop("titulo")
+        # layout: conversa na horizontal, sem indicacao forte de jogo
+        if p.category == "games" or p.layout == "split" or p.tipo == "reacao":
+            e.pop("layout")
+        else:
+            p.layout = "blur" if e["layout"] == "A" else "full"
+        if e["emoji"] == "B":
+            t = _EMOJI_RE.sub("", p.title).strip()
+            if len(t) >= 12:
+                p.title = _re.sub(r"\s{2,}", " ", t)
+        p.exp = e
+
+
 def refine_with_captions(p: ClipPlan, captions: Transcript, cfg: Config, rep: Reporter | None = None) -> Transcript:
     """Com a legenda limpa (Whisper) do corte: escolhe o gancho de abertura e coloca a frase mais pesada
     entre aspas no texto do video e no titulo. Ajusta o fim do corte para caber no limite de duracao.
@@ -631,6 +658,7 @@ def refine_with_captions(p: ClipPlan, captions: Transcript, cfg: Config, rep: Re
     if not words or not cfg.get("edicao.cold_open", True):
         return captions
     if p.tipo in ("tutorial", "curiosidade"):   # comeca pelo contexto, sem adiantar a resposta
+        p.exp.pop("gancho", None)
         p.teaser_start = p.teaser_end = None
         p.teaser_text = ""
         return captions
@@ -639,10 +667,6 @@ def refine_with_captions(p: ClipPlan, captions: Transcript, cfg: Config, rep: Re
     from . import tom
 
     ts = tom.settings(cfg)  # o nivel de tom (neutro ... modo besta) manda nas proporcoes e no palavrao
-    if _ab_bucket(p.id, "gancho") >= float(ts["cold_open_proporcao"]):
-        p.teaser_start = p.teaser_end = None
-        p.teaser_text = ""
-        return captions
     min_s, max_s = 1.5, float(cfg.get("edicao.cold_open_max_s", 3.0))
     min_gap = float(cfg.get("edicao.cold_open_min_inicio_s", 4.0))
     min_score = float(cfg.get("edicao.cold_open_nota_minima", 3.5))
@@ -670,7 +694,12 @@ def refine_with_captions(p: ClipPlan, captions: Transcript, cfg: Config, rep: Re
     if best is None and brain_has and p.tipo == "reacao" and 1.0 <= p.teaser_end - p.teaser_start <= 5.0:
         return captions     # a frase famosa e da cena (a transcricao nao pega): abre pelo tempo que a IA marcou
     if best is None:
+        p.exp.pop("gancho", None)             # sem frase forte nao ha o que testar
         p.teaser_start = p.teaser_end = None  # sem frase forte: melhor sem gancho do que gancho fraco
+        p.teaser_text = ""
+        return captions
+    if p.exp.get("gancho") == "B":            # sorteado para comecar direto (a frase forte existe, mas nao abre o video)
+        p.teaser_start = p.teaser_end = None
         p.teaser_text = ""
         return captions
     p.teaser_start = round(p.start + best["start"], 3)
@@ -804,10 +833,15 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
             db.save_plan(p, run_id)
             rep.dim(f"nota {int(p.score):3d}  |  {fmt_duration(p.start)}-{fmt_duration(p.end)}  |  {p.title}")
 
+        _sortear(plans, cfg)
         # versao estendida do TikTok (>= 61 s): decide ANTES do download para baixar o trecho maior
         for p in plans:
             try:
                 ext = plan_extension(p, transcript, c.duration, cfg)
+                if ext is None:
+                    p.exp.pop("longo", None)        # nao da para alongar este: fica fora do teste
+                elif p.exp.get("longo") == "A":
+                    ext = None                      # sorteado para a versao curta
             except Exception as e:
                 _log.debug("versao longa: %s", e)
                 ext = None
@@ -872,6 +906,8 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
                                      platforms=["youtube"] if tem_longa else None)
                     if tem_longa:
                         rc = _add_long_version(rc, Path(f), s_abs, e_abs, gs, p, full, captions, cfg, out, rep)
+                    if rc.layout in ("react", "split"):
+                        p.exp.pop("layout", None)
                     db.save_rendered(rc)
                     rendered.append(rc)
                     rep.ok(f"Corte pronto: {p.title}  [{rc.layout}, {fmt_duration(rc.duration)}"

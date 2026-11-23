@@ -204,6 +204,8 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
 
                 title = series_title(title, c.plan.part, c.plan.parts_total)
             c.plan.title = title
+            c.plan.exp.pop("titulo", None)      # titulo refeito: sai do teste de titulo
+            c.plan.exp.pop("emoji", None)
         if ok:
             c.plan.score = round(0.5 * c.plan.score + 0.5 * nota, 1)
         db.update_clip_plan(c.plan)

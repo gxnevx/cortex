@@ -42,6 +42,19 @@ Roda em segundo plano: fechar o terminal não para nada, e um vigia do Windows r
 
 Variações: `cortex autopiloto --teste` (simula a publicação) e `cortex autopiloto --so-produzir`.
 
+## O que deu certo e o que não deu (testes A/B de verdade)
+
+Em **Resultados** (ou `cortex analise`):
+
+| Parte | Como funciona |
+|---|---|
+| Números reais | Lê o YouTube Studio e o TikTok Studio do próprio canal: views, curtidas, % que continua vendo, tempo médio. |
+| Nota das contas | 0 a 100 por rede: alcance 35, retenção 30, tendência 15, engajamento 10, conta 10. Com menos de 3 posts com 20 h, é provisória. |
+| Testes A/B | Cada corte é sorteado antes de ser feito. Só julga em marcos fixos (12, 24, 40, 60, 90 posts de cada lado). Em simulação, 5% de falso vencedor. O vencedor vai para 80% dos cortes. |
+| Tempo até viralizar | Faixa, nunca data, com o grau de confiança. Com menos de 5 posts com 24 h, avisa que é chute. |
+| Analista | Uma vez por dia o Claude lê tudo e separa prova, indício e palpite. Sugere buscas e o que evitar. |
+| Estrategista | Muda a quantidade por dia (um passo por vez, com 8 ou mais posts medidos, dentro do teto) e a mistura de assuntos. |
+
 ## YouTube pela API oficial (recomendado)
 
 Com a API conectada, o YouTube recebe os vídeos pelo caminho autorizado do Google, sem abrir navegador. O navegador vira plano B. Em **Contas > YouTube pela API oficial** (ou `cortex login youtube-api`) ele mostra o passo a passo: criar um projeto em console.cloud.google.com, ativar a YouTube Data API v3, publicar a tela de consentimento, criar um ID de cliente OAuth do tipo App para computador e baixar o JSON. O token fica criptografado pelo Windows em `data/` e nunca vai para o repositório.

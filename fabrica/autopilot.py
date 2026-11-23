@@ -337,6 +337,14 @@ class Autopilot:
                 if self.state.pub_activity.startswith("publicando"):
                     self.stop.wait(120)  # nao le metricas no meio de um upload
                     continue
+                try:
+                    from . import analista
+
+                    for m in analista.ciclo(cfg):
+                        self.state.alert(m)
+                        notify.toast("CORTEX: novidade da análise", m, cfg)
+                except Exception as e:
+                    _log.warning("analise: %s", str(e)[:200])
                 res = metrics.collect(cfg) or {}
                 saude = res.get("saude") or {}
                 ruins = [f"{p}: {n}" for p, n in saude.items() if n not in ("normal", None)]
@@ -546,6 +554,8 @@ class Autopilot:
                     if curadoria.pending(cfg) and not andamento.read():   # julga depois que a rodada termina
                         self.state.set_pub("escolhendo o que vale postar")
                         r = curadoria.curate(cfg)
+                        if not (r["aprovados"] or r["descartados"]):
+                            self.state.pub_activity = "cortes sensíveis esperando o Claude (volta amanhã)"
                         if r["aprovados"] or r["descartados"]:
                             self.state.set_pub(f"{len(r['aprovados'])} aprovado(s), {len(r['descartados'])} descartado(s)")
                             if r["aprovados"]:
