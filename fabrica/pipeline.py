@@ -614,6 +614,50 @@ def whole_sentence(words: list, a: float, b: float, max_chars: int = 62) -> str:
     return best
 
 
+# palavra que, sozinha na abertura, aponta para algo que quem chegou agora nao viu (ou emenda numa frase anterior)
+_SOLTA = {"e", "mas", "que", "porque", "pois", "entao", "ai", "dai", "ele", "ela", "eles", "elas", "dele", "dela", "isso", "isto", "aquilo", "esse", "essa",
+          "esses", "essas", "aquele", "aquela", "ou", "nem", "tambem", "de", "do", "da", "dos", "das", "ne", "la", "ali"}
+
+
+def gancho_inteiro(captions: Transcript, a: float, b: float, max_s: float = 3.0) -> dict | None:
+    """A abertura que toca [a, b] como frase INTEIRA que se entende sozinha, ou None (melhor abrir direto do que com pedaco de frase)."""
+    ws: list = []
+    fecha: list[bool] = []
+    for s in captions.segments:
+        novas = [w for w in s.words if w.text.strip()]
+        if ws and novas and novas[0].text.strip()[:1].isupper():      # legenda sem ponto: trecho novo com maiuscula e frase nova
+            fecha[-1] = True
+        ws += novas
+        fecha += [w.text.strip().endswith(_SENT_END) for w in novas]
+    for i in range(len(ws) - 1):
+        fecha[i] = fecha[i] or ws[i + 1].start - ws[i].end > 0.6
+    sents, cur = [], []
+    for w, f in zip(ws, fecha):
+        cur.append(w)
+        if f:
+            sents.append(cur)
+            cur = []
+    if cur:
+        sents.append(cur)
+
+    def toca(st: list) -> float:
+        return min(st[-1].end, b) - max(st[0].start, a)
+
+    idx = [i for i, st in enumerate(sents) if toca(st) > 0.15]
+    if not idx:
+        return None
+    grupos = [sents[idx[0]:idx[-1] + 1]] + [[sents[i]] for i in sorted(idx, key=lambda i: -toca(sents[i]))]
+    for g in grupos:
+        pal = [w for st in g for w in st]
+        dur = pal[-1].end - pal[0].start
+        if not 1.0 <= dur <= max_s + 0.2 or len(pal) < 3 or _plain(pal[0].text) in _SOLTA:
+            continue
+        if sum(max(0.0, toca(st)) for st in g) < 0.5 * (b - a):
+            continue        # outra frase: nao e a que a IA quis
+        return {"start": round(pal[0].start, 3), "end": round(pal[-1].end, 3), "text": _re.sub(r"\s+", " ", " ".join(w.text.strip() for w in pal)).strip()}
+    return None
+
+
 def _plain(w: str) -> str:
     import unicodedata
 
@@ -681,7 +725,7 @@ def refine_with_captions(p: ClipPlan, captions: Transcript, cfg: Config, rep: Re
     min_score = float(cfg.get("edicao.cold_open_nota_minima", 3.5))
     brain_has = (p.teaser_start is not None and p.teaser_end is not None
                  and p.start <= p.teaser_start < p.teaser_end <= p.end)
-    best = None
+    best, achou = None, False
     # 1) a frase que a IA sugeriu, procurada nas palavras da legenda limpa (texto sempre o que foi dito)
     if brain_has and p.teaser_text:
         try:
@@ -692,15 +736,21 @@ def refine_with_captions(p: ClipPlan, captions: Transcript, cfg: Config, rep: Re
                                     hint_start=p.teaser_start - p.start, cfg=cfg, min_s=min_s, max_s=max_s,
                                     lead=min_gap)
                 if sp and sp.get("fonte") == "sugerido":
-                    best = sp
+                    achou = True
+                    inteiro = gancho_inteiro(captions, sp["start"], sp["end"], max_s)
+                    best = {**sp, **inteiro} if inteiro and inteiro["start"] >= min_gap - 0.5 else None
         except Exception as e:
             _log.debug("pick_teaser: %s", e)
     # 2) senao, o trecho mais polemico da legenda limpa (so se for polemico de verdade)
     if best is None:
         spans = [s for s in polemic_spans(words, cfg, min_s, max_s)
                  if s["start"] >= min_gap and s["score"] >= min_score and (s.get("tipos") is None or s.get("tipos"))]
-        best = spans[0] if spans else None
-    if best is None and brain_has and p.tipo == "reacao" and 1.0 <= p.teaser_end - p.teaser_start <= 5.0:
+        for s in spans:
+            inteiro = gancho_inteiro(captions, s["start"], s["end"], max_s)
+            if inteiro and inteiro["start"] >= min_gap - 0.5:
+                best = {**s, **inteiro}
+                break
+    if best is None and brain_has and not achou and p.tipo == "reacao" and 1.0 <= p.teaser_end - p.teaser_start <= 5.0:
         return captions     # a frase famosa e da cena (a transcricao nao pega): abre pelo tempo que a IA marcou
     if best is None:
         p.exp.pop("gancho", None)             # sem frase forte nao ha o que testar
@@ -767,6 +817,33 @@ def _fallback_brain(cfg: Config, current: str | None = None):
     return get_brain(cfg, force="heuristico")
 
 
+def pedir_candidatos(minutos: float, budget: int, motor: str) -> int:
+    """Quantos candidatos pedir ao cerebro. Video longo com o Claude: mais do que cabe editar (o ajuste fino corta os fracos depois)."""
+    from .brain import prompts
+
+    alvo = prompts.candidatos(minutos, 10) if motor == "claude" else None
+    return max(budget, alvo[1]) if alvo else budget
+
+
+def os_melhores(plans: list[ClipPlan], n: int) -> list[ClipPlan]:
+    """Os n melhores pela nota do editor (ou da escolha). Serie entra inteira ou nao entra."""
+    if len(plans) <= n:
+        return list(plans)
+    grupos: dict[str, list[ClipPlan]] = {}
+    for p in plans:
+        grupos.setdefault(f"{p.source_id}|{p.series}" if p.part else p.id, []).append(p)
+
+    def nota(g: list[ClipPlan]) -> float:
+        return max(float((p.editor or {}).get("nota") or p.score or 0) for p in g)
+
+    ordem = sorted(grupos.values(), key=nota, reverse=True)
+    out: list[ClipPlan] = []
+    for g in ordem:
+        if len(out) + len(g) <= n:
+            out += g
+    return out or sorted(ordem[0], key=lambda p: p.part or 0)[:n]
+
+
 def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Reporter,
                       budget: int) -> tuple[list[RenderedClip], list[str]]:
     """Processa um video-fonte inteiro. Devolve (cortes renderizados, avisos)."""
@@ -795,9 +872,10 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
             c.extra["audio_path"] = str(audio)  # sinal de picos de volume para o cerebro
 
         plans: list[ClipPlan] = []
+        pedir = pedir_candidatos(float(c.duration or 0) / 60, budget, brain.name)
         try:
             with rep.working(f"{brain.name}: escolhendo os melhores momentos..."):
-                plans = brain.pick_clips(c, transcript, cfg, max_clips=budget)
+                plans = brain.pick_clips(c, transcript, cfg, max_clips=pedir)
         except Exception as e:
             nxt = _fallback_brain(cfg, brain.name)
             warnings.append(f"{brain.name} falhou em '{c.title[:40]}': {str(e)[:120]} - usei {nxt.name}")
@@ -807,8 +885,8 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
             plans = fb.pick_clips(c, transcript, cfg, max_clips=budget)
             if not plans and fb.name != "heuristico":
                 plans = _fallback_brain(cfg, fb.name).pick_clips(c, transcript, cfg, max_clips=budget)
-        if len(plans) > budget:  # o cerebro ja respeita o limite; isto e so uma garantia
-            plans = sorted(plans, key=lambda p: -p.score)[:budget]
+        if len(plans) > pedir:  # o cerebro ja respeita o limite; isto e so uma garantia
+            plans = sorted(plans, key=lambda p: -p.score)[:pedir]
         plans.sort(key=lambda p: p.start)
         if not plans:
             raise RuntimeError("nenhum trecho com potencial viral encontrado")
@@ -902,6 +980,15 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
             groups = [(a, b, [p for p in g if p.id not in fora]) for a, b, g in groups]
             if not any(g for _, _, g in groups):
                 raise RuntimeError("nenhum corte bom o bastante para editar neste video")
+
+        # candidatos a mais (video longo): so os melhores sao editados; o limite por canal continua valendo
+        vivos = [p for _, _, g in groups for p in g]
+        ficam = {p.id for p in os_melhores(vivos, budget)}
+        for p in vivos:
+            if p.id not in ficam:
+                db.conn().execute("UPDATE clips SET curador=? WHERE id=?", ("descartado antes de editar: passou, mas havia melhores deste vídeo", p.id))
+                db.set_clip_status(p.id, "rejeitado")
+        groups = [(a, b, [p for p in g if p.id in ficam]) for a, b, g in groups]
 
         for (gs, _ge, gplans), f in zip(groups, files):
             for p in sorted(gplans, key=lambda p: p.start):

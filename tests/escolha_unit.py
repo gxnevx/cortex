@@ -146,5 +146,44 @@ longo.duration, curto.duration = 203 * 60, 12 * 60
 pl, pc = (prompts.clips_prompt(x, "[00:01] teste", "", Config({}), n) for x, n in ((longo, 10), (curto, 3)))
 check("pedido do video longo e do curto", "De 5 a 8 candidatos" in pl and "De 5 a 8" not in pc and "no máximo 3" in pc)
 
+# ------------------------------------------------------------------ abertura: frase inteira que se entende sozinha, ou nada (caso real de 24/11)
+from fabrica import pipeline  # noqa: E402
+from fabrica.models import ClipPlan, Segment, Transcript, Word  # noqa: E402
+
+
+def legenda(*partes: tuple[float, str]) -> Transcript:
+    """Cada parte comeca no segundo dado, 0,3 s por palavra."""
+    out = []
+    for t0, txt in partes:
+        ws = [Word(t0 + k * 0.3, t0 + k * 0.3 + 0.28, w) for k, w in enumerate(txt.split())]
+        out.append(Segment(ws[0].start, ws[-1].end, txt, ws))
+    return Transcript(out, "pt", "whisper")
+
+
+def abre(leg: Transcript, a: float, b: float) -> str:
+    return (pipeline.gancho_inteiro(leg, a, b) or {}).get("text", "")
+
+
+fome = legenda((0, "Ninguém conseguia me cuidar"), (2, "Às vezes eu passo fome em casa"), (6, "porque meu tio voltava antes"),
+               (8, "Ele é um pouco mais vagabundo"), (9.9, "Ele volta antes"), (12, "Tio, eu vou morrer."), (14, "Com 5 anos, sozinho em casa, mano?"))
+check("abertura: frase solta com 'ele' nao abre", abre(fome, 8.0, 10.5) == "", abre(fome, 8.0, 10.5))
+check("abertura: frase inteira abre", abre(fome, 12.0, 13.1) == "Tio, eu vou morrer.", abre(fome, 12.0, 13.1))
+check("abertura: pedaco vira a frase inteira", abre(fome, 14.3, 15.7) == "Com 5 anos, sozinho em casa, mano?", abre(fome, 14.3, 15.7))
+longa = legenda((0, "começo qualquer do assunto."), (5, "engenharia é o seguinte, mano. É uma coisa que ninguém nunca entendeu direito desde o começo da faculdade"))
+check("abertura: nao leva o comeco da frase seguinte", abre(longa, 5.0, 6.8) == "engenharia é o seguinte, mano.", abre(longa, 5.0, 6.8))
+check("abertura: pedaco de frase longa nao abre", abre(longa, 8.0, 10.0) == "", abre(longa, 8.0, 10.0))
+cfg0 = Config({"edicao": {"cold_open": True}})
+pl0 = ClipPlan(id="fome", source_id="s", start=100, end=118, title="Aos 5 anos ficou sozinho em casa e passava fome", teaser_start=108.0, teaser_end=110.4,
+               teaser_text="Ele é um pouco mais vagabundo", tipo="fala")
+pipeline.refine_with_captions(pl0, fome, cfg0)
+check("abertura: sugestao solta nao vai para o video", "vagabundo" not in pl0.teaser_text, pl0.teaser_text)
+pl1 = ClipPlan(id="fome2", source_id="s", start=100, end=118, title="Aos 5 anos ficou sozinho em casa e passava fome", teaser_start=112.0, teaser_end=113.2,
+               teaser_text="Tio, eu vou morrer", tipo="fala")
+pipeline.refine_with_captions(pl1, fome, cfg0)
+check("abertura: sugestao boa continua abrindo", pl1.teaser_text == "Tio, eu vou morrer." and abs(pl1.teaser_start - 112.0) < 0.1, (pl1.teaser_text, pl1.teaser_start))
+pl2 = ClipPlan(id="fome3", source_id="s", start=100, end=118, title="Reage ao caso", teaser_start=108.0, teaser_end=110.4, teaser_text="Ele é um pouco mais vagabundo", tipo="reacao")
+pipeline.refine_with_captions(pl2, fome, cfg0)
+check("abertura: em react a sugestao solta tambem cai", "vagabundo" not in pl2.teaser_text, pl2.teaser_text)
+
 print("\n" + ("TUDO OK" if not fails else "FALHAS: " + ", ".join(fails)))
 sys.exit(1 if fails else 0)

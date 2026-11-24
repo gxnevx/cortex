@@ -49,8 +49,31 @@ def test_publish_order():
     print("ok publish_order")
 
 
+def test_candidatos():
+    f = pipeline.pedir_candidatos
+    # limite de 4 por canal (caso real): video longo pede mais do que edita; curto e sem Claude pedem so o que editam
+    assert (f(91, 4, "claude"), f(203, 4, "claude"), f(49, 4, "claude")) == (8, 8, 6), (f(91, 4, "claude"), f(49, 4, "claude"))
+    assert (f(12, 4, "claude"), f(91, 4, "ollama"), f(91, 10, "claude"), f(91, 1, "claude")) == (4, 4, 10, 8)
+    from fabrica.brain import prompts
+    assert prompts.candidatos(91, f(91, 4, "claude")) == (5, 8) and prompts.candidatos(49, f(49, 4, "claude")) == (3, 6)
+
+    def c(i, nota, part=None, series=None):
+        p = plan(i, i * 100, i * 100 + 40, 50)
+        p.editor, p.part, p.series = {"nota": nota}, part, series
+        return p
+
+    ps = [c(1, 70), c(2, 80, 1, "s"), c(3, 64, 2, "s"), c(4, 75), c(5, 66), c(6, 90)]
+    assert {p.id for p in pipeline.os_melhores(ps, 4)} == {"c6", "c2", "c3", "c4"}
+    assert {p.id for p in pipeline.os_melhores(ps, 2)} == {"c6", "c4"}                    # serie so entra inteira
+    assert [p.id for p in pipeline.os_melhores(ps, 9)] == [p.id for p in ps]
+    serie = [c(1, 80, 1, "s"), c(2, 70, 2, "s"), c(3, 70, 3, "s")]
+    assert [p.id for p in pipeline.os_melhores(serie, 2)] == ["c1", "c2"]
+    print("ok candidatos")
+
+
 if __name__ == "__main__":
     test_group_plans()
     test_lock()
     test_publish_order()
+    test_candidatos()
     print("TUDO OK")
