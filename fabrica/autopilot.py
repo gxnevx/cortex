@@ -166,11 +166,12 @@ def set_low_priority() -> None:
 
 
 def capacity(cfg: Config) -> int:
-    """Quantos cortes da para postar hoje (o mesmo corte vai para todas as redes)."""
-    from . import policy
+    """Quantos cortes diferentes da para postar hoje (YouTube e TikTok recebem o mesmo; rede exclusiva soma os dela)."""
+    from . import exclusivas, policy
+    from .publish import guard
 
-    plats = cfg.get("publicacao.plataformas", ["youtube", "tiktok"]) or []
-    return max([policy.effective_limit(p, cfg) for p in plats] or [0])
+    n = max([policy.effective_limit(p, cfg) for p in exclusivas.conjunto(cfg)] or [0])
+    return n + sum(policy.effective_limit(p, cfg) for p in exclusivas.redes(cfg) if not guard.paused_until(p))
 
 
 def target_queue(cfg: Config) -> int:
@@ -624,16 +625,30 @@ class Autopilot:
                         self.state.set_pub(" | ".join(reasons)[:90] or "aguardando")
                         self.state.next_post = self._next_post_time(cfg, logged) if logged else time.time() + 600
                     continue
-                # so cortes que ainda faltam em alguma rede liberada agora (evita travar num corte ja postado nela)
-                q = [c for c in queue(cfg) if c.plan.id not in self.state.tested_ids
-                     and any(not db.already_posted(c.plan.id, p) and db.failed_attempts(c.plan.id, p) < MAX_TENTATIVAS
-                             for p in platforms)]
-                # estavel: quem falhou vai para o fim; via rapida com nota boa passa na frente (menos no meio de uma serie)
-                q.sort(key=lambda c: (sum(db.failed_attempts(c.plan.id, p) for p in platforms),
-                                      0 if c.plan.id in self._hot and (c.plan.score or 0) >= 72 and not c.plan.part else 1))
+                from . import exclusivas
+
+                excl = [p for p in platforms if p in exclusivas.redes(cfg)]
+                if len(excl) < len(platforms):      # primeiro YouTube e TikTok; a rede exclusiva vai na volta seguinte
+                    platforms = [p for p in platforms if p not in excl]
+                    # so cortes que ainda faltam em alguma rede liberada agora (evita travar num corte ja postado nela)
+                    q = [c for c in queue(cfg) if c.plan.id not in self.state.tested_ids and not exclusivas.e_de_exclusiva(c.plan.id, cfg)
+                         and any(not db.already_posted(c.plan.id, p) and db.failed_attempts(c.plan.id, p) < MAX_TENTATIVAS
+                                 for p in platforms)]
+                    # estavel: quem falhou vai para o fim; via rapida com nota boa passa na frente (menos no meio de uma serie)
+                    q.sort(key=lambda c: (sum(db.failed_attempts(c.plan.id, p) for p in platforms),
+                                          0 if c.plan.id in self._hot and (c.plan.score or 0) >= 72 and not c.plan.part else 1))
+                else:
+                    platforms = excl[:1]
+                    c0 = exclusivas.escolher(platforms[0], cfg, [c for c in queue(cfg) if c.plan.id not in self.state.tested_ids])
+                    q = [c0] if c0 is not None else []
                 if not q:
-                    self.state.set_pub("fila vazia - esperando o produtor")
-                    self.state.next_post = time.time() + 120
+                    if excl and platforms == excl[:1]:      # sem sobra: a rede exclusiva espera, as outras seguem no horario delas
+                        self.state.set_pub(f"{platforms[0]}: sem corte sobrando agora")
+                        outras = [p for p in logged if p not in excl]
+                        self.state.next_post = min(time.time() + 900, self._next_post_time(cfg, outras) if outras else time.time() + 900)
+                    else:
+                        self.state.set_pub("fila vazia - esperando o produtor")
+                        self.state.next_post = time.time() + 120
                     continue
                 clip = q[0]
                 self.state.set_pub(f"publicando: {clip.plan.title[:50]}")

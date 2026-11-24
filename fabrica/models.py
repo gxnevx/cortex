@@ -188,7 +188,8 @@ class RenderedClip:
 
     def path_for(self, platform: str) -> str:
         """Arquivo certo para a rede (cai no principal se nao houver versao propria)."""
-        p = (self.variants or {}).get(platform)
+        v = self.variants or {}
+        p = v.get(platform) or (v.get("tiktok") if platform == "instagram" else None)   # mesmo @ do TikTok: mesma versao
         return p if p else self.path
 
     def all_files(self) -> list[str]:

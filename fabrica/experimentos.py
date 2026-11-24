@@ -188,7 +188,7 @@ def adotar(placar: list[dict] | None = None) -> list[str]:
 
 def frase(r: dict) -> str:
     """Resultado em uma linha simples."""
-    nome = {"youtube": "YouTube", "tiktok": "TikTok"}.get(r["rede"], r["rede"])
+    nome = {"youtube": "YouTube", "tiktok": "TikTok", "instagram": "Instagram"}.get(r["rede"], r["rede"])
     if r["veredito"] == "cedo":
         return f"{nome}: cedo demais ({r['na']} x {r['nb']} posts, faltam {r['falta']})"
     quem = r[r["ganhador"]]

@@ -22,7 +22,7 @@ from . import andamento, db, paths, ui
 from .config import Config, load_config
 from .util import fmt_duration
 
-NOMES = {"youtube": "YouTube", "tiktok": "TikTok"}
+NOMES = {"youtube": "YouTube", "tiktok": "TikTok", "instagram": "Instagram"}
 SPIN = "|/-\\"
 _LOG_LINE = re.compile(r"^(\d\d:\d\d:\d\d) (INFO|WARNING|ERROR)\s+(\S+): (.*)$")
 _login_cache: dict[str, Any] = {"ts": 0.0, "v": {}}

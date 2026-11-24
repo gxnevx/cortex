@@ -16,7 +16,7 @@ from . import guard
 
 log = get_log(__name__)
 
-NOMES = {"youtube": "YouTube", "tiktok": "TikTok"}
+NOMES = {"youtube": "YouTube", "tiktok": "TikTok", "instagram": "Instagram"}
 
 
 def _move(page: Any, visible: bool) -> bool:

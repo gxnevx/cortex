@@ -106,7 +106,11 @@ def _variant_platforms(cfg) -> list[str]:
     if cfg is None or not cfg.get("edicao.marca_dagua_arroba", True):
         return []
     plats = cfg.get("publicacao.plataformas", ["youtube", "tiktok"]) or []
-    return [str(p) for p in plats if str(p) in ("youtube", "tiktok")]
+    out = [str(p) for p in plats if str(p) in ("youtube", "tiktok")]
+    ig, tt = (str(cfg.get(f"publicacao.contas.{r}.handle", "") or "").strip().lstrip("@").lower() for r in ("instagram", "tiktok"))
+    if "instagram" in plats and ig and ig != tt:     # com o mesmo @ usa a versao do TikTok
+        out.append("instagram")
+    return out
 
 
 def _video_info(plan) -> dict | None:
@@ -338,7 +342,7 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
 
         # ---------- marca (logo + @ de cada rede: uma versao do video por rede)
         plats = _variant_platforms(cfg) if platforms is None else [
-            p_ for p_ in dict.fromkeys(str(x).lower() for x in platforms) if p_ in ("youtube", "tiktok")]
+            p_ for p_ in dict.fromkeys(str(x).lower() for x in platforms) if p_ in ("youtube", "tiktok", "instagram")]
         if platforms is not None and not plats:
             raise ValueError(f"nenhuma rede valida em platforms={platforms}")
         brands = []

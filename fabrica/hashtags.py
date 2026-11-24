@@ -365,7 +365,7 @@ def _sig(*parts: Any) -> str:
 # ---------------------------------------------------------------------------------------- escolha
 def platform_limit(platform: str, cfg: Any = None, data: dict | None = None) -> int:
     """Quantas hashtags de assunto (sem contar o #Shorts). publicacao.max_hashtags: numero ou
-    {youtube: 3, tiktok: 4}; padrao 5. TikTok no maximo 5; YouTube no maximo 15 no total."""
+    {youtube: 3, tiktok: 4, instagram: 3}; padrao 5. TikTok no maximo 5; YouTube no maximo 15 no total."""
     data = data or load_data()
     v = _cfg(cfg, "publicacao.max_hashtags", 5)
     if isinstance(v, dict):

@@ -24,7 +24,7 @@ from . import andamento, db, log, numeros, paths
 
 _log = log.get("estrategia")
 STATE = paths.STATE / "estrategia.json"
-NOMES = {"youtube": "YouTube", "tiktok": "TikTok"}
+NOMES = {"youtube": "YouTube", "tiktok": "TikTok", "instagram": "Instagram"}
 VIRAL_VIEWS = 10_000
 
 
@@ -49,7 +49,7 @@ def _med(v: list[float]) -> float | None:
 
 def duracao(rede: str, rd: dict, plan: dict) -> float:
     """Duracao do video que foi para esta rede (o TikTok pode ter recebido a versao longa)."""
-    if rede == "tiktok" and plan.get("ext_start") is not None and plan.get("ext_end"):
+    if rede in ("tiktok", "instagram") and plan.get("ext_start") is not None and plan.get("ext_end"):
         return float(plan["ext_end"]) - float(plan["ext_start"])
     return float(rd.get("duration") or 0)
 
@@ -222,7 +222,7 @@ def decidir(cfg: Any, force: bool = False) -> list[str]:
         return []
     frases: list[str] = []
     q = dict(st.get("quantidade") or {})
-    teto = cfg.get("estrategia.teto", {"youtube": 3, "tiktok": 6}) or {}
+    teto = cfg.get("estrategia.teto", {"youtube": 3, "tiktok": 6, "instagram": 3}) or {}
     for rede in cfg.get("publicacao.plataformas", ["youtube", "tiktok"]):
         s = saude(rede, cfg)
         from . import policy

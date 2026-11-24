@@ -1245,12 +1245,14 @@ MAX_TENTATIVAS = 3
 def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Reporter,
                   only: list[str] | None = None) -> tuple[list, list[str]]:
     """Checa login de cada rede e publica. Devolve (resultados, acoes necessarias)."""
-    from . import publish
+    from . import exclusivas, publish
 
     actions: list[str] = []
     platforms = []
+    if only is None:        # rede com cortes proprios so recebe quando pedida pelo nome
+        only = exclusivas.conjunto(cfg)
     for p in cfg.get("publicacao.plataformas", ["youtube", "tiktok"]):
-        if only is not None and p not in only:
+        if p not in only:
             continue
         try:
             logged = publish.check_login(p, cfg)
@@ -1274,11 +1276,24 @@ def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Re
     clips = publish_order(clips)
     rep.info(f"Publicando {len(clips)} corte(s) em: {', '.join(platforms)}" + (" [MODO TESTE]" if dry_run else ""))
     results = publish.publish_batch(clips, cfg, platforms=platforms, dry_run=dry_run, on_event=rep.info)
-    all_targets = list(cfg.get("publicacao.plataformas", ["youtube", "tiktok"]) or [])
+    all_targets = exclusivas.conjunto(cfg)
     for clip in clips:
         rs = [r for r in results if r.clip_id == clip.plan.id]
         if dry_run:
             continue
+        dele = [p for p in exclusivas.redes(cfg) if p in exclusivas.postados(clip.plan.id)]
+        if dele:        # corte so dessa rede: acabou aqui (nao vai para as outras)
+            db.set_clip_status(clip.plan.id, "publicado")
+            if db.has_uncertain_post(clip.plan.id) or not all(db.already_posted(clip.plan.id, p) for p in dele):
+                actions.append(f"Confira no app se '{clip.plan.title[:50]}' foi publicado (nao vi a confirmacao). O video foi mantido no PC.")
+            else:
+                try:
+                    storage.release_published(clip.plan.id, clip.path, cfg)
+                except Exception as e:
+                    _log.warning("liberar video publicado: %s", e)
+            continue
+        if any(p in exclusivas.redes(cfg) for p in platforms):
+            continue        # nao saiu na rede dele: volta para a fila
         # so e "publicado" quando saiu em TODAS as redes; senao continua na fila para a que faltou
         # INCERTO = cliquei em Publicar e nao vi a confirmacao: guarda o video ate o dono conferir
         if any((r.error or "").startswith("INCERTO") for r in rs) or db.has_uncertain_post(clip.plan.id):

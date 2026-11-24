@@ -29,7 +29,7 @@ from . import db, log, paths
 
 _log = log.get("metrics")
 
-NOMES = {"youtube": "YouTube", "tiktok": "TikTok"}
+NOMES = {"youtube": "YouTube", "tiktok": "TikTok", "instagram": "Instagram"}
 DEFAULT_CHECKPOINTS_H = [2, 24, 72, 168]
 # ordem de prioridade quando ha muitos itens vencidos: 24h (alarmes) > 72h (aprendizado) > 2h > 7d
 _PRIORITY = {24: 0, 72: 1, 2: 2, 168: 3}
@@ -190,6 +190,7 @@ def fmt_age(hours: float) -> str:
 # ====================================================================== URLs
 _YT_ID_RE = re.compile(r"(?:youtu\.be/|/shorts/|[?&]v=|/video/|/embed/)([\w-]{11})")
 _TT_ID_RE = re.compile(r"/video/(\d{8,})")
+_IG_ID_RE = re.compile(r"instagram\.com/(?:[\w.]+/)?(?:reel|reels|p)/([\w-]+)", re.I)
 _TT_HANDLE_RE = re.compile(r"tiktok\.com/@([\w.]+)", re.I)
 _TT_PROFILE_RE = re.compile(r"tiktok\.com/@([\w.]+)/?(?:[?#].*)?$", re.I)
 _YT_PROFILE_RE = re.compile(r"youtube\.com/(@[\w.-]+|channel/UC[\w-]{20,}|c/[\w.-]+)", re.I)
@@ -198,7 +199,7 @@ _YT_PROFILE_RE = re.compile(r"youtube\.com/(@[\w.-]+|channel/UC[\w-]{20,}|c/[\w.
 def video_id_from_url(platform: str, url: str | None) -> str | None:
     if not url:
         return None
-    m = (_YT_ID_RE if platform == "youtube" else _TT_ID_RE).search(url)
+    m = {"youtube": _YT_ID_RE, "instagram": _IG_ID_RE}.get(platform, _TT_ID_RE).search(url)
     return m.group(1) if m else None
 
 
@@ -208,6 +209,8 @@ def normalize_video_url(platform: str, url: str | None) -> str | None:
         return None
     if platform == "youtube":
         return f"https://www.youtube.com/shorts/{vid}"
+    if platform == "instagram":
+        return f"https://www.instagram.com/reel/{vid}/"
     m = _TT_HANDLE_RE.search(url or "")
     return f"https://www.tiktok.com/@{m.group(1) if m else '_'}/video/{vid}"
 
@@ -450,7 +453,7 @@ def due_items(cfg: Any, now: float | None = None) -> list[dict]:
     links = _link_rows()
     out = []
     for p in posts:
-        if p.get("platform") not in NOMES or not p.get("ts"):
+        if p.get("platform") not in ("youtube", "tiktok") or not p.get("ts"):
             continue
         age_h = (now - float(p["ts"])) / 3600.0
         cp = _due_checkpoint(age_h, cps, done.get(int(p["id"]), set()))

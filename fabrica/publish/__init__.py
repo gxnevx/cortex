@@ -1,4 +1,4 @@
-"""Publicador: YouTube Shorts e TikTok pelo navegador (Chrome real com perfil proprio da Fabrica).
+"""Publicador: YouTube Shorts, TikTok e Reels pelo navegador (Chrome real com perfil proprio da Fabrica).
 
 API (docs/CONTRATOS.md):
     login(platform, cfg) -> bool
@@ -25,7 +25,7 @@ from typing import Any, Callable
 from .. import db
 from ..log import get as get_log
 from ..models import PostResult, RenderedClip
-from . import browser, guard, human, tiktok, youtube, youtube_api
+from . import browser, guard, human, instagram, tiktok, youtube, youtube_api
 from .browser import (PROFILE_IN_USE_MSG, BrowserLaunchError, BrowserSession, ProfileInUseError,
                       export_cookies_txt, login, screenshot)
 from .captions import build_post_text, source_info, strip_emojis
@@ -35,8 +35,8 @@ __all__ = ["login", "check_login", "publish_batch", "export_cookies_txt", "build
 
 log = get_log(__name__)
 
-UPLOADERS = {"youtube": youtube, "tiktok": tiktok}
-NOMES = {"youtube": "YouTube", "tiktok": "TikTok"}
+UPLOADERS = {"youtube": youtube, "tiktok": tiktok, "instagram": instagram}
+NOMES = {"youtube": "YouTube", "tiktok": "TikTok", "instagram": "Instagram"}
 BLOCKING_PREFIXES = ("ACAO_NECESSARIA", "LIMITE_DIARIO")
 
 
@@ -129,7 +129,11 @@ def publish_batch(clips: list[RenderedClip], cfg: Any, platforms: list[str] | No
     - cada resultado e salvo com db.save_post. Os cortes que ficaram para tras nao geram resultado.
     """
     emit = _emitter(on_event)
-    wanted = [str(p).lower() for p in (platforms or cfg.get("publicacao.plataformas", ["youtube", "tiktok"]))]
+    if not platforms:       # rede com cortes proprios so recebe quando pedida pelo nome (exclusivas.py)
+        from .. import exclusivas
+
+        platforms = exclusivas.conjunto(cfg)
+    wanted = [str(p).lower() for p in platforms]
     plats = [p for p in wanted if p in UPLOADERS]
     for p in wanted:
         if p not in UPLOADERS:

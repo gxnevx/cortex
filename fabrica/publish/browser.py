@@ -39,6 +39,7 @@ PROFILE_IN_USE_MSG = "Feche a janela do navegador da Fábrica e tente de novo."
 LOGIN_URLS = {
     "youtube": "https://studio.youtube.com/",
     "tiktok": "https://www.tiktok.com/login?redirect_url=https%3A%2F%2Fwww.tiktok.com%2Ftiktokstudio%2Fupload",
+    "instagram": "https://www.instagram.com/accounts/login/",
 }
 
 # Cookies que indicam sessao ativa. Cada grupo precisa de pelo menos 1 cookie presente e nao expirado.
@@ -51,6 +52,10 @@ LOGIN_COOKIES: dict[str, dict[str, Any]] = {
     "tiktok": {
         "domains": ("tiktok.com",),
         "groups": [("sessionid", "sessionid_ss", "sid_tt")],
+    },
+    "instagram": {
+        "domains": ("instagram.com",),
+        "groups": [("sessionid",), ("ds_user_id",)],
     },
 }
 
@@ -539,9 +544,9 @@ def check_login(platform: str, cfg: Any = None, deep: bool = False) -> bool:
 
 
 def _deep_login_check(platform: str, cfg: Any) -> bool:
-    from . import tiktok, youtube
+    from . import instagram, tiktok, youtube
 
-    mod = youtube if platform == "youtube" else tiktok
+    mod = {"youtube": youtube, "instagram": instagram}.get(platform, tiktok)
     with BrowserSession(cfg, headless=True) as s:
         page = s.new_page()
         page.goto(mod.UPLOAD_URL, wait_until="domcontentloaded")
@@ -654,7 +659,7 @@ def _login_locked(platform: str, cfg: Any, timeout_s: float, on_event: Callable[
 
     exe, _ = browser_exe(cfg)
     proc = _popen([exe] + _base_args(cfg) + ["--new-window", LOGIN_URLS[platform]])
-    nome = "YouTube (conta Google)" if platform == "youtube" else "TikTok"
+    nome = {"youtube": "YouTube (conta Google)", "instagram": "Instagram"}.get(platform, "TikTok")
     _emit(on_event, f"Abri o navegador da Fábrica. Entre na sua conta do {nome} normalmente "
                     f"(senha, código, captcha: tudo por você). Quando terminar, FECHE a janela. "
                     f"Espero até {int(timeout_s // 60)} min.")

@@ -1,4 +1,4 @@
-"""Numeros de cada post, lidos nas paginas do PROPRIO canal (YouTube Studio e TikTok Studio). So leitura.
+"""Numeros de cada post, lidos nas paginas do PROPRIO canal (YouTube Studio, TikTok Studio e perfil do Instagram). So leitura.
 
 Guarda uma linha por leitura em post_numeros: views, curtidas, comentarios, compartilhamentos, % que continuou
 assistindo, tempo medio, % que viu ate o fim, novos seguidores. E a base dos testes A/B (experimentos.py) e do
@@ -118,6 +118,39 @@ def parse_tiktok(text: str) -> dict:
     return out
 
 
+def parse_instagram(grade: str, hover: str = "") -> dict:
+    """Cartao do reel no perfil: visualizacoes; com o mouse em cima: curtidas e comentarios."""
+    v = [x for x in (num(t) for t in (grade or "").split("\n")) if x is not None]
+    h = [x for x in (num(t) for t in (hover or "").split("\n")) if x is not None]
+    out: dict = {"views": v[0] if v else None}
+    if len(h) >= 2:
+        out["likes"], out["comments"] = h[0], h[1]
+    return out
+
+
+def _read_instagram(page: Any, code: str, cfg: Any, cache: dict) -> dict:
+    """Le a aba Reels do perfil uma vez por varredura."""
+    from .publish import instagram
+
+    want = instagram.handle(cfg)
+    if not want:
+        return {}
+    if "grade" not in cache:
+        cache["grade"] = {r["code"]: r["text"] for r in instagram.list_reels(page, want)}
+    if code not in cache["grade"]:
+        return {}
+    hover = ""
+    try:
+        a = page.locator(f'a[href*="/reel/{code}"]').first
+        a.scroll_into_view_if_needed(timeout=4000)
+        a.hover(timeout=4000)
+        page.wait_for_timeout(900)
+        hover = a.inner_text() or ""
+    except Exception as e:
+        _log.debug("curtidas do instagram: %s", e)
+    return parse_instagram(cache["grade"][code], hover)
+
+
 # ------------------------------------------------------------------ coleta
 def due(cfg: Any, now: float | None = None) -> list[dict]:
     """Posts que precisam de leitura nova: de 2 em 2 h no comeco, depois de 6 em 6 h, depois 1 vez por dia."""
@@ -162,6 +195,8 @@ def collect(cfg: Any) -> dict:
     try:
         with browser.BrowserSession(cfg) as s:
             page = s.new_page()
+            ig: dict = {}
+            todo.sort(key=lambda p: p["platform"] == "instagram")      # o perfil do Instagram e lido uma vez so, no fim
             for p in todo:
                 vid = metrics.video_id_from_url(p["platform"], p["url"])
                 if not vid:
@@ -171,6 +206,8 @@ def collect(cfg: Any) -> dict:
                         page.goto(f"https://studio.youtube.com/video/{vid}/analytics/tab-overview/period-default",
                                   wait_until="domcontentloaded")
                         data = _wait_parse(page, parse_youtube)
+                    elif p["platform"] == "instagram":
+                        data = _read_instagram(page, vid, cfg, ig)
                     else:
                         page.goto(f"https://www.tiktok.com/tiktokstudio/analytics/{vid}", wait_until="domcontentloaded")
                         data = _wait_parse(page, parse_tiktok)

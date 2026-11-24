@@ -9,7 +9,7 @@ from . import log, paths, ui
 from .painel import plan_line
 from .config import Config, load_config, save_value
 
-NOMES = {"youtube": "YouTube", "tiktok": "TikTok"}
+NOMES = {"youtube": "YouTube", "tiktok": "TikTok", "instagram": "Instagram"}
 
 
 # ------------------------------------------------------------------ situacao
@@ -49,7 +49,7 @@ def _pending() -> int:
 RISK = (
     "[b]RISCO DE BANIMENTO[/b]\n\n"
     "No automático o CORTEX posta sozinho, pelo navegador, sem ninguém conferir.\n"
-    "YouTube e TikTok podem reduzir o alcance, suspender ou banir a conta por isso,\n"
+    "YouTube, TikTok e Instagram podem reduzir o alcance, suspender ou banir a conta por isso,\n"
     "e donos de vídeos podem pedir a remoção. Use uma conta que você aceita perder.\n\n"
     "Se aparecer CAPTCHA, eu abro o navegador na sua tela, você resolve e eu continuo."
 )
@@ -205,6 +205,7 @@ def cancel_run(run: dict) -> None:
 def results_flow(cfg: Config) -> None:
     from . import cli
 
+    cli.show_schedule(cfg, 3)
     cli.show_analysis(cfg)
     if ui.ask_confirm("Ler os números e analisar agora? (usa 1 chamada do Claude)", default=False):
         cli.show_analysis(cfg, rodar=True)
@@ -315,7 +316,7 @@ def interactive_menu() -> int:
             ("auto", "AUTOMÁTICO ligado (ver ou desligar)" if snap["automatico"] else "LIGAR O AUTOMÁTICO"),
             ("cortar", "Fazer cortes agora"),
             ("prontos", f"Ver cortes prontos ({n})"),
-            ("resultados", "Resultados"),
+            ("resultados", "Cronograma e resultados"),
             ("contas", "Contas"),
             ("ajustes", "Ajustes"),
             ("sair", "Sair (o que está rodando continua)" if busy else "Sair"),

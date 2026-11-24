@@ -47,6 +47,8 @@ autopiloto:
     tiktok:
       padrao: ["20:00-21:45", "10:30-12:00", "14:00-15:30", "22:50-23:50", "17:10-18:10", "08:00-09:15"]
       sab: ["21:30-23:30", "18:30-20:00", "10:30-12:00", "14:00-15:30", "16:40-17:00", "08:00-09:15"]
+    instagram:                    # sem pesquisa propria ainda; o auditor reordena com numeros reais
+      padrao: ["18:15-19:45", "12:05-13:20", "21:50-22:50", "08:30-09:40"]
   horarios_nobres_semana:
     seg: ["12:00-14:00", "21:00-23:30"]
     ter: ["12:00-14:00", "21:00-23:30"]
@@ -222,7 +224,8 @@ edicao:
   fps: 30
 
 publicacao:
-  plataformas: [youtube, tiktok]
+  plataformas: [youtube, tiktok]   # + instagram para postar Reels
+  redes_exclusivas: [instagram]   # recebe cortes diferentes dos que saem nas outras redes
   # tiktok_modo: auto = publica sozinho | semi = preenche tudo e VOCE clica em Publicar
   tiktok_modo: auto
   # Versao longa so no TikTok (>= 1 min, monetizavel nas Recompensas para Criadores). YouTube segue curto:
@@ -242,9 +245,11 @@ publicacao:
   max_posts_por_dia:              # teto absoluto (o aquecimento pode limitar abaixo disso)
     youtube: 3                    # canais de cortes que mais crescem no Shorts postam ~1 por dia
     tiktok: 4
+    instagram: 2
   intervalo_minimo_min:           # minimo entre dois posts na mesma rede
     youtube: 150
     tiktok: 90
+    instagram: 240
   aquecimento:
     ativo: true                   # conta nova posta pouco no comeco (recomendado!)
     # [dia_inicial, dia_final, posts_por_dia] contados a partir do 1o login na Fabrica
@@ -254,10 +259,11 @@ publicacao:
   contas:                         # contas do canal (as senhas NAO ficam aqui: o login fica salvo no navegador do CORTEX)
     youtube: {criada_em: ""}
     tiktok: {criada_em: ""}
+    instagram: {criada_em: ""}
   youtube_visibilidade: public    # public | unlisted | private
   tiktok_visibilidade: everyone   # everyone | friends | only_me
   hashtags_fixas: []              # a pesquisa indica: #viral/#fyp nao ajudam mais
-  max_hashtags: {youtube: 3, tiktok: 5}   # pesquisa: 3 no Shorts; o TikTok avisa a partir de 5
+  max_hashtags: {youtube: 3, tiktok: 5, instagram: 3}   # pesquisa: 3 no Shorts; o TikTok avisa a partir de 5
   descricao_rodape: ""
   creditar_fonte: true            # "Fonte: canal original" na descricao
 
@@ -291,7 +297,7 @@ experimentos:
   ativo: true                     # sorteia cada corte nos testes A/B
 estrategia:
   decide_quantidade: true         # muda a quantidade por dia, 1 passo por vez, so com 8+ posts medidos
-  teto: {youtube: 3, tiktok: 6}   # nunca passa disso
+  teto: {youtube: 3, tiktok: 6, instagram: 3}   # nunca passa disso
   viral_views: 10000              # o que conta como "viral" na estimativa
 
 # ---------------------------------------------------------------------

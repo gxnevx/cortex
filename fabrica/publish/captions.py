@@ -473,6 +473,8 @@ def build_post_text(plan: ClipPlan, platform: str, cfg: Any, video_title: str | 
     room = TT_CAPTION_MAX - len(tag_line) - 1
     if len(head) > room:
         head = _cut(head, room)
+    if platform == "instagram":     # o @ do canal no YouTube pode ser de outra pessoa no Instagram
+        head = re.sub(r"(?<!\w)@(?=\w)", "", head)
     caption = (head + "\n" + tag_line).strip() if tag_line else head
     return title, caption[:TT_CAPTION_MAX]
 

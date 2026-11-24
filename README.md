@@ -11,7 +11,7 @@ Sistema local (roda no seu PC, pelo CMD) que faz sozinho todo o ciclo de um cana
 | 3. Escolhe os momentos | Transcreve (legenda da plataforma ou Whisper local) e a IA escolhe os trechos com mais chance de viralizar, com nota de 0 a 100 e o porquê. Assunto longo vira Parte 1, 2, 3. |
 | 4. Baixa só o necessário | Só os trechos que viram corte, nunca o vídeo inteiro. |
 | 5. Edita em 9:16 | Vídeo + gameplay/ASMR, fundo desfocado ou tela cheia; legenda grande palavra por palavra; título com emoji; selo PARTE X; barra de progresso; áudio normalizado. |
-| 6. Publica | YouTube Shorts e TikTok, pelo navegador, sozinho ou depois da sua aprovação. |
+| 6. Publica | YouTube Shorts, TikTok e Reels do Instagram (opcional), pelo navegador, sozinho ou depois da sua aprovação. |
 | 7. Relata | Painel ao vivo no terminal, relatório HTML, notificação do Windows e cópia no OneDrive. |
 
 ## Primeiros passos
@@ -24,7 +24,7 @@ Dê dois cliques em **`cortex.bat`**. O menu tem só o essencial:
 | **Fazer cortes agora** | Cole um link, escreva um assunto ou deixe vazio para ele escolher o que está em alta. |
 | **Ver cortes prontos** | Assistir, editar, publicar ou descartar. |
 | **Resultados** | Views dos posts, saúde das contas e últimas rodadas. |
-| **Contas** | Entrar no YouTube, TikTok, API oficial do YouTube e Claude. |
+| **Contas** | Entrar no YouTube, TikTok, Instagram, API oficial do YouTube e Claude. |
 | **Ajustes** | Vídeos por dia, nível da polêmica, assuntos, iniciar com o Windows, diagnóstico. |
 
 ## Automático 24/7
@@ -72,7 +72,8 @@ Com a API conectada, o YouTube recebe os vídeos pelo caminho autorizado do Goog
 | `cortex tendencias` | o que está em alta agora |
 | `cortex buscar neymar` | lista vídeos de um tema sem processar |
 | `cortex revisar` | revisa, aprova e publica de uma vez |
-| `cortex login youtube`, `tiktok`, `youtube-api` ou `claude` | logins |
+| `cortex login youtube`, `tiktok`, `instagram`, `youtube-api` ou `claude` | logins |
+| `cortex cronograma` | o que sai em cada rede e quando |
 | `cortex testar-publicacao` | confere a página de upload sem publicar |
 | `cortex agendar` / `desagendar` / `agenda` | modo agendado (2 a 4 vezes por dia) em vez do 24/7 |
 | `cortex status` | diagnóstico completo |
@@ -95,6 +96,8 @@ Tudo fica em **`config.yaml`** (menu Ajustes > Avançado). O piloto relê o arqu
 | `corte.duracao_max_s: 58` | no YouTube, Short acima de 60 s com reivindicação de direitos é bloqueado no mundo todo |
 | `edicao.layout`, `edicao.marca_dagua` | layout dos vídeos e sua marca d'água (ex.: @seucanal) |
 | `edicao.encoder` | `libx264` (CPU, padrão, mais estável neste PC) ou `h264_amf` (placa AMD, mais rápido) |
+| `publicacao.plataformas` | `[youtube, tiktok]`; acrescente `instagram` para postar Reels |
+| `publicacao.redes_exclusivas` | redes que recebem cortes diferentes das outras (padrão do exemplo: `[instagram]`) |
 | `publicacao.tiktok_modo` | `auto` ou `semi` (ele preenche tudo e você só clica em Publicar) |
 | `publicacao.aquecimento` | regras de conta nova |
 | `armazenamento.onedrive` | arquiva os cortes publicados no OneDrive e libera o disco |
@@ -112,7 +115,7 @@ Os cortes publicados vão para **`OneDrive\CORTEX\cortes\AAAA-MM\`** e ficam "so
 
 ## Leia antes de ligar no automático
 
-1. **Termos de uso.** O YouTube e o TikTok proíbem automação de upload fora das ferramentas oficiais. Publicar por navegador automatizado pode levar a bloqueio da conta. O CORTEX reduz o risco com volume baixo, aquecimento, horários e textos variados, mas o risco existe e a decisão é sua. Alternativas mais seguras: `autopiloto.publicacao: revisar` ou `publicacao.tiktok_modo: semi`.
+1. **Termos de uso.** O YouTube, o TikTok e o Instagram proíbem automação de upload fora das ferramentas oficiais. Publicar por navegador automatizado pode levar a bloqueio da conta. O CORTEX reduz o risco com volume baixo, aquecimento, horários e textos variados, mas o risco existe e a decisão é sua. Alternativas mais seguras: `autopiloto.publicacao: revisar` ou `publicacao.tiktok_modo: semi`.
 2. **Direitos autorais.** Repostar conteúdo de terceiros pode gerar reivindicação ou strike. O CORTEX bloqueia canais que proíbem cortes, pula transmissões esportivas, TV, filmes, música e apostas, e credita a fonte.
 3. **Captcha e verificação.** O CORTEX nunca burla: pausa aquela rede, avisa no painel e por notificação, e você resolve no navegador do CORTEX.
 

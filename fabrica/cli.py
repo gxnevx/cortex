@@ -12,7 +12,7 @@ from . import __version__, db, log, paths, ui
 from .config import Config, load_config, save_value
 from .util import fmt_duration, fmt_views
 
-PLATFORMS = ("youtube", "tiktok")
+PLATFORMS = ("youtube", "tiktok", "instagram")
 
 
 # =========================================================== acoes
@@ -191,7 +191,7 @@ def do_selftest(cfg: Config, platform: str | None) -> int:
     from . import publish
 
     rc = 0
-    for p in ([platform] if platform else list(cfg.get("publicacao.plataformas", PLATFORMS))):
+    for p in ([platform] if platform else list(cfg.get("publicacao.plataformas", PLATFORMS[:2]))):
         with ui.console.status(f" Testando a pagina de upload do {p} (nao publica nada)...", spinner="line"):
             try:
                 res = publish.selftest(p, cfg)
@@ -271,7 +271,7 @@ def show_status(cfg: Config) -> None:
     try:
         from . import publish
 
-        for p in cfg.get("publicacao.plataformas", PLATFORMS):
+        for p in cfg.get("publicacao.plataformas", PLATFORMS[:2]):
             try:
                 okk = publish.check_login(p, cfg)
             except Exception:
@@ -338,7 +338,7 @@ def show_metrics(cfg: Config) -> None:
                  compact=True)
     else:
         ui.info("Ainda nao ha posts publicados para medir.")
-    for p in cfg.get("publicacao.plataformas", PLATFORMS):
+    for p in cfg.get("publicacao.plataformas", PLATFORMS[:2]):
         h = metrics.account_health(p, cfg) or {}
         (ui.ok if h.get("nivel", "normal") == "normal" else ui.warn)(
             f"Conta {p}: {h.get('nivel', 'normal')} | {h.get('motivo') or 'tudo certo'}")
@@ -346,6 +346,25 @@ def show_metrics(cfg: Config) -> None:
         ui.dim(m)
     for line in learning.insights(cfg) or []:
         ui.info(line)
+
+
+def show_schedule(cfg: Config, dias: int = 4) -> None:
+    """Cronograma das redes: o que ja saiu hoje e a previsao dos proximos dias."""
+    from datetime import datetime
+
+    from . import cronograma, estrategia
+
+    por_dia: dict[str, list] = {}
+    sem = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+    for x in cronograma.montar(cfg, dias):
+        d = datetime.fromtimestamp(x["ts"])
+        st = "saiu" if x["feito"] else "previsto" if x["clip_id"] else "a definir"
+        tit = ui.term(x["titulo"])[:58] + (f" (parte {x['parte']})" if x["parte"] else "")
+        por_dia.setdefault(f"{sem[d.weekday()]} {d:%d/%m}", []).append(
+            [f"{d:%H:%M}", estrategia.NOMES.get(x["rede"], x["rede"]), Text(tit or "(corte novo)"), st])
+    for dia, rows in por_dia.items():
+        ui.table(["Hora", "Rede", "Corte", ""], rows, title=dia, compact=True)
+    ui.dim("Previsão com a fila de agora: corte novo melhor passa na frente.")
 
 
 def show_analysis(cfg: Config, rodar: bool = False) -> None:
@@ -360,7 +379,7 @@ def show_analysis(cfg: Config, rodar: bool = False) -> None:
             estrategia.decidir(cfg)
             analista.analisar(cfg, force=True)
     rows = []
-    for rede in cfg.get("publicacao.plataformas", PLATFORMS):
+    for rede in cfg.get("publicacao.plataformas", PLATFORMS[:2]):
         for p in estrategia.posts(rede)[:10]:
             ret = "-" if p["ret"] is None else f"{p['ret']:.0f}%"
             rows.append([Text(ui.term(p["titulo"])[:40]), estrategia.NOMES.get(rede, rede), f"{p['idade_h']:.0f} h", str(p["views"]),
@@ -369,7 +388,7 @@ def show_analysis(cfg: Config, rodar: bool = False) -> None:
         ui.table(["Post", "Rede", "Idade", "Views", "Curtidas", "Assistem", "Tempo médio"], rows, title="Números reais (do seu canal)", compact=True)
     for rot, txt, nivel in estrategia.linhas(cfg):
         (ui.ok if nivel in ("ótima", "boa") else ui.warn)(f"{rot}: {txt}")
-    for rede in cfg.get("publicacao.plataformas", PLATFORMS):
+    for rede in cfg.get("publicacao.plataformas", PLATFORMS[:2]):
         s = estrategia.saude(rede, cfg)
         for m in s["motivos"]:
             ui.dim(f"{estrategia.NOMES.get(rede, rede)}: {m}")
@@ -483,7 +502,7 @@ def build_parser() -> argparse.ArgumentParser:
     b = sub.add_parser("buscar", help="busca videos por palavra-chave (sem processar)")
     b.add_argument("palavras", nargs="+")
     sub.add_parser("revisar", help="revisa e publica cortes prontos")
-    lg = sub.add_parser("login", help="login no YouTube, TikTok ou Claude")
+    lg = sub.add_parser("login", help="login no YouTube, TikTok, Instagram ou Claude")
     lg.add_argument("plataforma", choices=PLATFORMS + ("youtube-api", "claude"))
     tp = sub.add_parser("testar-publicacao", help="confere a pagina de upload sem publicar")
     tp.add_argument("plataforma", nargs="?", choices=PLATFORMS)
@@ -505,6 +524,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="diagnostico do sistema")
     sub.add_parser("historico", help="ultimas rodadas")
     sub.add_parser("metricas", help="views dos posts, saude das contas e aprendizado")
+    cr = sub.add_parser("cronograma", help="o que sai em cada rede e quando")
+    cr.add_argument("--dias", type=int, default=4)
     an = sub.add_parser("analise", help="numeros, nota das contas, testes A/B e a leitura do analista")
     an.add_argument("--agora", action="store_true", help="le os numeros e analisa agora")
     rt = sub.add_parser("retomar", help="tira uma conta da pausa de seguranca")
@@ -611,6 +632,8 @@ def main(argv: list[str] | None = None) -> int:
             show_status(cfg)
         elif args.cmd == "historico":
             show_history()
+        elif args.cmd == "cronograma":
+            show_schedule(cfg, args.dias)
         elif args.cmd == "analise":
             show_analysis(cfg, rodar=args.agora)
         elif args.cmd == "metricas":

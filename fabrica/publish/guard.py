@@ -123,6 +123,9 @@ def pause_platform(platform: str, motivo: str, cfg: Any = None, hours: float | N
             hours = 24.0
     until = time.time() + max(0.0, hours) * 3600
     data = _load(PAUSES_FILE)
+    old = data.get(platform) or {}
+    if float(old.get("ate", 0)) > until:        # ja estava parado por mais tempo: vale a pausa maior
+        until, motivo = float(old["ate"]), str(old.get("motivo") or motivo)
     data[platform] = {"ate": until, "motivo": motivo[:300], "desde": time.time()}
     _save(PAUSES_FILE, data)
     log.warning("%s pausado ate %s: %s", platform, time.strftime("%d/%m %H:%M", time.localtime(until)), motivo)

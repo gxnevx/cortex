@@ -126,7 +126,7 @@ andamento.end()
 check("acabou: some do andamento", andamento.read() is None)
 snap = painel.snapshot(load_config())
 txt = painel.summary(snap).plain
-check("resumo diz tudo em poucas linhas", "Automático" in txt and "YouTube" in txt and len(txt.splitlines()) <= 12, txt)
+check("resumo diz tudo em poucas linhas", "Automático" in txt and "YouTube" in txt and len(txt.splitlines()) <= 9 + 3 * max(1, len(snap["redes"]) - 1), txt)
 check("quando() humano", "daqui 5 h" in painel.when(time.time() + 5 * 3600) and "daqui 2 dias" in painel.when(time.time() + 50 * 3600))
 con = Console(file=io.StringIO(), width=120, height=45)
 con.print(painel.render(snap))
@@ -138,10 +138,11 @@ done: list = []
 fundo.serve_requests(load_config, lambda c, r: (done.append(r["urls"][0]), 0)[1])
 check("pedidos atendidos na ordem", done == ["a", "b"] and fundo.requests() == [], done)
 
-answers[:] = ["ajustes", "dia", "2", "4", "slow", "voltar", "sair"]
+pede = dict(zip(load_config().get("publicacao.plataformas"), (2, 4, 1)))
+answers[:] = ["ajustes", "dia", *map(str, pede.values()), "slow", "voltar", "sair"]
 menu.interactive_menu()
 y = yaml.safe_load(cf.read_text(encoding="utf-8"))["publicacao"]
-check("ajustes gravam videos por dia", y["max_posts_por_dia"] == {"youtube": 2, "tiktok": 4}, y["max_posts_por_dia"])
+check("ajustes gravam videos por dia", {p: y["max_posts_por_dia"].get(p) for p in pede} == pede, y["max_posts_por_dia"])
 check("ajustes ligam o comeco devagar", y["aquecimento"]["ativo"] is True)
 time.sleep = time_sleep
 

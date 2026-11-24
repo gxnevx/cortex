@@ -13,6 +13,8 @@ def main() -> None:
     # contas: zera nome, @ e e-mail; criada_em vazia
     out = re.sub(r'(\n\s+youtube:\s*)\{criada_em:[^}]*\}', r'\1{criada_em: ""}', out)
     out = re.sub(r'(\n\s+tiktok:\s*)\{criada_em:[^}]*\}', r'\1{criada_em: ""}', out)
+    out = re.sub(r'\n\s+instagram:\s*\{criada_em:[^}]*\}', '\n    instagram: {criada_em: ""}', out)
+    out = out.replace("plataformas: [youtube, tiktok, instagram]", "plataformas: [youtube, tiktok]   # + instagram para postar Reels")
     # marca
     out = re.sub(r'(\n\s+marca_dagua:\s*)"[^"]*"', r'\1""', out)
     # qualquer e-mail ou @ que tenha escapado em comentarios/valores

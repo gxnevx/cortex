@@ -25,7 +25,7 @@ def last() -> dict:
 
 def _tabela(cfg: Any) -> tuple[str, int]:
     rows = []
-    for rede in ("youtube", "tiktok"):
+    for rede in cfg.get("publicacao.plataformas", ["youtube", "tiktok"]):
         for p in estrategia.posts(rede)[:25]:
             rows.append(f"{rede} | {p['idade_h']:.0f} h | {p['views']} views | {p['likes']} curtidas | "
                         + (f"retenção {p['ret']:.0f}% | " if p["ret"] is not None else "retenção ? | ")
@@ -38,7 +38,7 @@ def prompt(cfg: Any) -> tuple[str, int]:
     tab, n = _tabela(cfg)
     ab = "\n".join(f"- {r['pergunta']} {experimentos.frase(r)}" for r in experimentos.avaliar()) or "nenhum teste com dados"
     sa = "\n".join(f"- {estrategia.NOMES[r]}: nota {s['nota']} ({s['resumo']}); pontos {s['partes']}; alertas: {', '.join(s['motivos']) or 'nenhum'}"
-                   for r, s in ((r, estrategia.saude(r, cfg)) for r in ("youtube", "tiktok")) if s["nota"] is not None)
+                   for r, s in ((r, estrategia.saude(r, cfg)) for r in cfg.get("publicacao.plataformas", ["youtube", "tiktok"])) if s["nota"] is not None)
     return f"""POSTS (rede | idade | views | curtidas | retenção | duração | assunto/tipo | título). "retenção" no YouTube = % que continuou vendo; no TikTok = % do vídeo assistido:
 {tab or 'nenhum'}
 

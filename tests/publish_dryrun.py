@@ -31,6 +31,7 @@ for _stream in (sys.stdout, sys.stderr):
 from fabrica import paths  # noqa: E402
 
 TMP = Path(tempfile.mkdtemp(prefix="fab_dry_"))
+REAL_DB = paths.DB_PATH
 paths.DB_PATH = TMP / "teste.db"
 
 from fabrica import hashtags as _hashtags  # noqa: E402  memoria de hashtags/CTA isolada (o teste nao conta como post)
@@ -80,6 +81,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--so-selftest", action="store_true")
     ap.add_argument("--redes", default="youtube,tiktok")
+    ap.add_argument("--clip", help="id de um corte pronto: ensaia com o video e o texto dele")
     ap.add_argument("--video", default=str(paths.ROOT / "work" / "amostras" / "v2" / "v2_full.mp4"))
     a = ap.parse_args()
     redes = [r.strip() for r in a.redes.split(",") if r.strip()]
@@ -121,6 +123,13 @@ def main() -> int:
                         hook="", description="Teste automático de envio. Este rascunho é apagado em seguida.",
                         hashtags=["cortes", "podcast"])
         clip = RenderedClip(plan=plan, path=str(video), duration=plan.end, layout="full")
+        if a.clip:
+            import sqlite3
+
+            real = sqlite3.connect(f"file:{REAL_DB.as_posix()}?mode=ro", uri=True)
+            row = real.execute("SELECT rendered FROM clips WHERE id=?", (a.clip,)).fetchone()
+            clip = RenderedClip.from_dict(json.loads(row[0]))
+            video = Path(clip.path_for(redes[0]))
         say(f"dry run com {video.name} ({plan.end:.1f}s) em {redes}...")
         eventos: list[str] = []
 

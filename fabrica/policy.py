@@ -70,7 +70,7 @@ def daily_limit(platform: str, cfg: Config) -> int:
 
         q = (estrategia.state().get("quantidade") or {}).get(platform)
         if q:       # decidido com numeros reais (8+ posts maduros), um passo por vez, dentro do teto
-            return max(1, min(int(q), int((cfg.get("estrategia.teto", {"youtube": 3, "tiktok": 6}) or {}).get(platform, base))))
+            return max(1, min(int(q), int((cfg.get("estrategia.teto", {"youtube": 3, "tiktok": 6, "instagram": 3}) or {}).get(platform, base))))
     if not cfg.get("publicacao.aquecimento.ativo", True):
         return base
     age = account_age_days(platform, cfg)
@@ -148,6 +148,8 @@ DEFAULT_SLOTS = {
                 "dom": ["18:30-19:30", "10:30-12:00", "22:00-23:30", "14:00-15:00"]},
     "tiktok": {"padrao": ["20:00-21:45", "10:30-12:00", "14:00-15:30", "22:50-23:50", "17:10-18:10", "08:00-09:15"],
                "sab": ["21:30-23:30", "18:30-20:00", "10:30-12:00", "14:00-15:30", "16:40-17:00", "08:00-09:15"]},
+    # sem pesquisa propria: almoco e fim de tarde, longe dos horarios das outras redes; o auditor reordena com numeros reais
+    "instagram": {"padrao": ["18:15-19:45", "12:05-13:20", "21:50-22:50", "08:30-09:40"]},
 }
 
 
