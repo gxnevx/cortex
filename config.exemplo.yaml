@@ -161,9 +161,9 @@ cerebro:
   # e o Claude (modelo leve) so para escolher os cortes, ate o teto diario. Acabou o teto: Ollama.
   estrategia: economica           # economica | qualidade (Claude em tudo, gasta mais cota)
   claude_modelo: haiku            # haiku = o modelo mais leve e barato do Claude (vazio = padrao da conta)
-  produzir_so_com_claude: true    # sem o Claude (teto do dia) so produz se faltar corte para hoje
+  produzir_so_com_claude: true    # sem o Claude (teto do dia) espera a cota liberar
   claude_max_caracteres: 60000    # video longo: manda so as melhores regioes
-  claude_max_chamadas_dia: 40     # teto de chamadas do Claude por dia (0 = nunca usar o Claude)
+  claude_max_chamadas_dia: 60     # teto de chamadas do Claude por dia (0 = nunca usar o Claude)
   ollama_modelo: qwen3:4b-instruct   # para usar: ollama pull qwen3:4b-instruct (2,5 GB)
   ollama_url: http://127.0.0.1:11434
   timeout_s: 300
