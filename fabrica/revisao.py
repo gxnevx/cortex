@@ -63,6 +63,22 @@ def regras(clip: Any, fala: str) -> str | None:
     return None
 
 
+def folha_imagens(clip: Any) -> Path | None:
+    """O quadro em que cada imagem ilustrativa aparece."""
+    ms = [m for m in (clip.plan.imagens or []) if m.get("t") is not None and m.get("arquivo")]
+    if not ms:
+        return None
+    out = paths.STATE / f"revisao_img_{clip.plan.id[:60]}.jpg"
+    sel = "+".join(f"between(t,{m['t'] + 0.6:.2f},{m['t'] + 0.62 + 1 / 30:.2f})" for m in ms)
+    try:
+        subprocess.run([tools.ffmpeg(), "-v", "error", "-y", "-i", clip.path, "-vf", f"select='{sel}',scale=250:-2,tile={len(ms)}x1:padding=6", "-frames:v", "1",
+                        "-fps_mode", "vfr", "-q:v", "4", str(out)], capture_output=True, timeout=180, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return out if out.exists() else None
+    except Exception as e:
+        _log.warning("imagens da revisao: %s", e)
+        return None
+
+
 def folha(clip: Any, n: int = 8) -> Path | None:
     """8 quadros do video pronto, em ordem, numa imagem so."""
     out = paths.STATE / f"revisao_{clip.plan.id[:60]}.jpg"
@@ -81,7 +97,10 @@ def _prompt(clip: Any, fala: str) -> str:
     p = clip.plan
     parte = f"\nEste é a Parte {p.part} de {p.parts_total} de uma série: quem vê já viu a anterior; pode terminar em suspense se não for a última." if p.part else ""
     gancho = f'\nO vídeo abre repetindo a frase mais forte ("{p.teaser_text}"), isso é proposital.' if p.teaser_text else ""
-    return f"""Última conferência antes de publicar este corte. A imagem tem 8 quadros do vídeo pronto, em ordem (esquerda para a direita, de cima para baixo).
+    il = [m for m in (p.imagens or []) if m.get("t") is not None and m.get("artigo")]
+    ilus = ("\nA segunda imagem mostra as ilustrações que aparecem por 1,5 s quando a pessoa cita o nome: " + ", ".join(f"'{m['palavra']}' ({m['artigo']})" for m in il)
+            + ". Se alguma não tem relação com o que é dito, imagem_ok é no máximo 3. Cobrir o rosto por 1,5 s com a ilustração NÃO é defeito.") if il else ""
+    return f"""Última conferência antes de publicar este corte. A imagem tem 8 quadros do vídeo pronto, em ordem (esquerda para a direita, de cima para baixo).{ilus}
 
 Título do post: {p.title}
 Texto fixo na tela: {p.hook}
@@ -115,8 +134,9 @@ def perguntar(clip: Any, fala: str, cfg: Any) -> dict | None:
     img = folha(clip)
     if img is None:
         return None
+    img2 = folha_imagens(clip)
     try:
-        res = extract_json(b._run(_prompt(clip, fala), SYSTEM, images=[img]))
+        res = extract_json(b._run(_prompt(clip, fala), SYSTEM, images=[img] + ([img2] if img2 else [])))
         if isinstance(res, list):
             res = next((x for x in res if isinstance(x, dict)), None)
         return res if isinstance(res, dict) and "nota" in res else None
@@ -125,6 +145,8 @@ def perguntar(clip: Any, fala: str, cfg: Any) -> dict | None:
         return None
     finally:
         img.unlink(missing_ok=True)
+        if img2:
+            img2.unlink(missing_ok=True)
 
 
 def faltas(d: dict) -> list[str]:

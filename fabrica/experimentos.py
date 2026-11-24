@@ -33,6 +33,7 @@ TESTES: dict[str, dict] = {
     "longo": {"pergunta": "TikTok: versão longa (61 s ou mais) ou curta?", "A": "curta", "B": "longa", "redes": ["tiktok"]},
     "layout": {"pergunta": "Fundo desfocado ou tela cheia?", "A": "fundo desfocado", "B": "tela cheia"},
     "cta": {"pergunta": "Pedir comentário no texto do post ou não?", "A": "pede comentário", "B": "não pede"},
+    "imagens": {"pergunta": "Imagens do assunto com música de fundo ou corte simples?", "A": "simples", "B": "com imagens e música"},
     "emoji": {"pergunta": "Título com emoji ou sem emoji?", "A": "com emoji", "B": "sem emoji"},
 }
 

@@ -448,12 +448,15 @@ def build_post_text(plan: ClipPlan, platform: str, cfg: Any, video_title: str | 
     if (getattr(plan, "exp", None) or {}).get("cta") == "B":     # sorteado para sair sem pedido de comentario
         call = ""
 
+    from ..ilustra import credito
+
+    img = strip_emojis(credito(getattr(plan, "imagens", None) or []))
     if platform == "youtube":
         title = post_title(plan, cfg, YT_TITLE_MAX, emojis, lang)
         hook = _hook_line(plan, title, cfg, emojis, st)
         context = _context(plan, title, cfg, emojis, lang, YT_CONTEXT_MAX, one_line=False, st=st)
         hook, call = ai_polish(plan, platform, cfg, title, hook, context, call)
-        parts = [hook, context, call, source, footer]
+        parts = [hook, context, call, source, img, footer]
         body = "\n\n".join(p for p in parts if p)
         room = YT_DESC_MAX - len(tag_line) - 2
         body = _cut(body, room) if len(body) > room else body
@@ -466,7 +469,7 @@ def build_post_text(plan: ClipPlan, platform: str, cfg: Any, video_title: str | 
     if cfg.get("publicacao.tiktok_contexto", True):
         context = _context(plan, title, cfg, emojis, lang, TT_CONTEXT_MAX, one_line=True, st=st)
     context, call = ai_polish(plan, platform, cfg, title, context, context, call)
-    lines = [title, context, call, source]
+    lines = [title, context, call, source, img]
     if footer and cfg.get("publicacao.tiktok_rodape", False):
         lines.append(footer)
     head = "\n".join(p for p in lines if p)

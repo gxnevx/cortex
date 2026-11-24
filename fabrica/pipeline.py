@@ -645,6 +645,8 @@ def _sortear(plans: list[ClipPlan], cfg: Config) -> None:
             p.layout = "blur" if e["layout"] == "A" else "full"
         if p.part:
             e.pop("cta")        # serie sempre chama para a proxima parte
+        if len(p.imagens or []) < 2 or p.tipo in ("reacao", "tutorial"):
+            e.pop("imagens")    # nada para ilustrar
         if e["emoji"] == "B":
             t = _EMOJI_RE.sub("", p.title).strip()
             if len(t) >= 12:
@@ -919,6 +921,13 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
                     with rep.working(f"Editando '{p.title[:40]}' ({fmt_duration(p.duration)})..."):
                         rc = _render(Path(f), ls, le, p, captions, cfg, out,
                                      platforms=["youtube"] if tem_longa else None)
+                    if p.imagens:       # estilo com imagens e musica (so no lado B do teste)
+                        from . import editor, ilustra
+
+                        with rep.working("Vendo se dá para ilustrar..."):
+                            ilustra.no_corte(rc, p, editor.LAST_CAPTIONS, cfg, tem_longa)
+                    else:
+                        p.exp.pop("imagens", None)
                     if tem_longa:
                         rc = _add_long_version(rc, Path(f), s_abs, e_abs, gs, p, full, captions, cfg, out, rep)
                     if rc.layout in ("react", "split"):

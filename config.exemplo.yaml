@@ -194,6 +194,7 @@ corte:
 
 edicao:
   separar_webcam: true            # video com webcam + tela: tela no meio e webcam grande embaixo
+  musica_volume_db: -23           # estilo com imagens: volume da musica de fundo (abaixa mais quando ha voz)
   zooms: false                    # zoom que vai e volta nas falas (o dono nao gosta)
   # split -> video em cima + fundo (gameplay/ASMR) embaixo | blur -> fundo desfocado
   # full  -> tela cheia (rosto/podcast) | auto -> escolhe pelo conteudo

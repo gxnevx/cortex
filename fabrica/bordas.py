@@ -41,13 +41,14 @@ REGRAS
 - "serve": false se não dá para virar um corte que um desconhecido entenda (introdução, combinado do vídeo, trecho aleatório, conversa sem assunto, depende de imagem que não aparece, propaganda). Seja exigente: melhor descartar que postar algo sem sentido.
 - "titulo": 35 a 75 caracteres, conta o que realmente acontece no trecho, com o nome da pessoa ou do assunto; aspas só com frase dita igual; 1 emoji no fim. Nunca invente reação ("a mesa travou", "humilhou", "perdeu a linha").
 - "tela": até 38 caracteres, a frase mais forte ENTRE ASPAS exatamente como foi dita, ou um resumo verdadeiro sem aspas.
+- "imagens": até 5 coisas ou pessoas PÚBLICAS citadas pelo nome no trecho, que ficam boas como imagem na tela: famoso, filme, série, jogo, lugar, marca, animal, objeto. Cada uma com "palavra" (exatamente como aparece na fala) e "busca" (nome do artigo na Wikipédia). Nada de conceito abstrato. NUNCA imagem de vítima, menor, pessoa comum ou alguém ligado a crime ou acusação no trecho. Sem nada bom: lista vazia.
 - A transcrição é automática e erra nomes: escreva o nome certo no título.
 
 {corpo}
 
 Use só os números que aparecem entre colchetes. "fim" é o número da primeira frase que NÃO entra.
 RESPONDA SÓ COM ESTE JSON:
-{{"cortes":[{{"i":1,"serve":true,"inicio":120,"fim":168,"partes":[],"titulo":"...","tela":"...","motivo":"até 12 palavras"}}]}}"""
+{{"cortes":[{{"i":1,"serve":true,"inicio":120,"fim":168,"partes":[],"titulo":"...","tela":"...","imagens":[{{"palavra":"...","busca":"..."}}],"motivo":"até 12 palavras"}}]}}"""
 
 
 def _num(v: Any) -> float | None:
@@ -60,6 +61,9 @@ def _num(v: Any) -> float | None:
 def _textos(p: ClipPlan, d: dict, fala: str) -> None:
     from .curadoria import _good_title
     from .util import clean_text
+
+    p.imagens = [{"palavra": str(x.get("palavra"))[:60], "busca": str(x.get("busca") or x.get("palavra"))[:60]} for x in (d.get("imagens") or [])
+                 if isinstance(x, dict) and x.get("palavra")][:5]
 
     t = clean_text(str(d.get("titulo") or ""), True).strip()
     if _good_title(t, fala):

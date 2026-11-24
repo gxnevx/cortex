@@ -155,6 +155,7 @@ class ClipPlan:
     idioma_origem: str | None = None  # "en", "es"... quando o corte foi traduzido (LEGENDADO)
     fala: str = ""                    # o que e dito no corte (o editor-chefe le antes de postar)
     exp: dict = field(default_factory=dict)   # lado sorteado em cada teste A/B (experimentos.py)
+    imagens: list[dict] = field(default_factory=list)   # o que ilustrar (palavra dita + busca); depois de editar, as usadas com credito
     titulo_alt: str = ""              # o outro titulo (com aspas x direto), para o teste A/B
     tipo: str = ""                    # fala | reacao | curiosidade | tutorial | noticia (decide o estilo do titulo)
     context: str = ""                 # linha de contexto (ate ~60 caracteres) para o cartao de abertura
