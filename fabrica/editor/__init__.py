@@ -257,6 +257,14 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
 
             _react.only_bottom_faces(track)
         timings["rosto_s"] = round(time.time() - t0, 2)
+    # duas pessoas longe uma da outra: o recorte de tela cheia corta quem fala. Vai para a faixa no meio, com todo mundo
+    if track is not None and not stack and layout is None and not layouts.is_vertical(info):
+        ar = (info.get("width") or 1920) / max(1, info.get("height") or 1080)
+        if lay == "full" and faces.gente_fora(track, (layouts.W / layouts.H) / ar) >= float(g("edicao.gente_fora_max", 0.25)):
+            _log.info("enquadramento: mais de uma pessoa em cena, tela cheia virou faixa no meio")
+            lay = "blur"
+        if lay == "blur" and not info.get("blur_ar") and faces.gente_fora(track, min(1.0, layouts.BLUR_AR / ar)) >= 0.12:
+            info["blur_ar"] = 1.78
     cam_cuts = [time_map(s.t0) if time_map else s.t0 for s in (track.shots[1:] if track else [])]
     pieces = None
     if teaser is not None:

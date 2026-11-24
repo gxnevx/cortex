@@ -82,6 +82,9 @@ def _textos(p: ClipPlan, d: dict, fala: str) -> None:
     tela = clean_text(str(d.get("tela") or ""), True).strip()
     if 4 <= len(tela) <= 46 and not honesto.falsas(tela, fala):
         p.hook = tela.upper() if '"' in tela else tela
+    from .brain.base import mask_profanity
+
+    p.hook, p.title = mask_profanity(p.hook), mask_profanity(p.title)      # palavrao escrito derruba o alcance; o audio fica
 
 
 def aplicar(plans: list[ClipPlan], decisoes: dict[int, dict], itens: list[tuple[int, ClipPlan]], t: Transcript, dmin: float, dmax: float,
@@ -230,8 +233,8 @@ Para cada corte, escolha a PRIMEIRA e a ÚLTIMA frase (números) e dê a nota.
 - Duração entre a primeira e a última: de {dmin:.0f} a {dmax:.0f} s (o segundo está entre colchetes). Parte de série: de 22 a {dmax:.0f} s; a parte 1 tem que abrir o assunto e a última tem que fechar.
 - "serve": false se nenhuma combinação dá um corte que faz sentido sozinho.
 - "nota": 0 a 100, chance de segurar um desconhecido até o fim. 80+ = frase forte, treta, piada boa, revelação, história com desfecho, curiosidade completa. 65 = interessante. 50 = morno, técnico ou de nicho. Comentário de jornal sobre votação, economia ou processo, ou conversa que só o torcedor de um time entende, sem frase de impacto: no máximo 50.
-- "titulo": 35 a 75 caracteres, conta o que realmente acontece, com o nome da pessoa ou do assunto; aspas só com frase dita igual; 1 emoji no fim; sem reação inventada.
-- "tela": até 38 caracteres, a frase mais forte ENTRE ASPAS igual à fala, de dentro do corte escolhido.
+- "titulo": 35 a 75 caracteres, conta o que realmente acontece, com o nome da pessoa ou do assunto; aspas só com frase dita igual; 1 emoji no fim; sem reação inventada. A transcrição não diz quem fala: com mais de uma pessoa na conversa, só ponha o nome em quem contou se a fala deixar claro; na dúvida, conte o fato sem nome.
+- "tela": até 38 caracteres, a frase mais forte ENTRE ASPAS igual à fala, de dentro do corte escolhido, sem palavrão.
 - "imagens": até 5 pessoas públicas, filmes, séries, jogos, lugares, marcas ou objetos citados pelo nome dentro do corte, boas como imagem na tela: "palavra" (igual à fala) e "busca" (artigo da Wikipédia). Nunca vítima, menor, pessoa comum ou alguém ligado a crime ou acusação no trecho. Sem nada: lista vazia.
 
 {corpo}
@@ -255,7 +258,12 @@ def aplicar_fino(itens: list[tuple[int, ClipPlan, list]], dec: dict[int, dict], 
         a, b = _num(d.get("primeira")), _num(d.get("ultima"))
         if a is None or b is None or not 0 <= a <= b < len(fr):
             continue
-        t0, t1 = max(0.0, fr[int(a)][0] - 0.12), fr[int(b)][1] + 0.3
+        a, b = int(a), int(b)
+        # respiro nas pontas, sem pegar a palavra da frase vizinha
+        antes = fr[a - 1][1] + 0.02 if a > 0 else 0.0
+        depois = fr[b + 1][0] - 0.04 if b + 1 < len(fr) else fr[b][1] + 0.3
+        t0 = max(0.0, min(fr[a][0], max(fr[a][0] - 0.12, antes)))
+        t1 = max(fr[b][1], min(fr[b][1] + 0.3, depois))
         minimo = 22.0 if p.part else dmin - 4
         if not minimo <= t1 - t0 <= dmax + 1.5:
             fora[p.id] = f"não coube em {dmin:.0f} a {dmax:.0f} s fazendo sentido ({t1 - t0:.0f} s)"
@@ -268,7 +276,7 @@ def aplicar_fino(itens: list[tuple[int, ClipPlan, list]], dec: dict[int, dict], 
         if p.teaser_start is not None and not (p.start <= p.teaser_start and (p.teaser_end or 0) <= p.end):
             p.teaser_start = p.teaser_end = None
             p.teaser_text = ""
-        fala = " ".join(x[2] for x in fr[int(a):int(b) + 1])
+        fala = " ".join(x[2] for x in fr[a:b + 1])
         base = p.title
         _textos(p, d, fala)
         if p.part:      # a parte continua com o titulo da serie

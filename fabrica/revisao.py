@@ -21,7 +21,7 @@ STATE = paths.STATE / "revisoes.json"
 SYSTEM = ("Você é o revisor final de um canal brasileiro de cortes. O dono odeia vídeo aleatório, sem sentido, e título que não bate. "
           "Use a escala inteira e seja justo: conversa de podcast é solta por natureza, e isso não é defeito. Responda SOMENTE com JSON válido.")
 # nota minima de cada item (0 a 10) e da chance geral (0 a 100)
-MINIMOS = {"entende_sozinho": 6, "comeca_bem": 5, "termina_bem": 5, "titulo_verdadeiro": 6, "imagem_ok": 5, "nota": 58}
+MINIMOS = {"entende_sozinho": 6, "comeca_bem": 5, "termina_bem": 5, "titulo_verdadeiro": 6, "imagem_ok": 5, "nota": 55}
 _espera = [0.0]
 
 

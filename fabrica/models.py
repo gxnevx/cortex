@@ -96,9 +96,14 @@ class Transcript:
         for s in self.segments:
             if s.end <= start or s.start >= end:
                 continue
+            # palavra cortada na borda so entra se a maior parte dela esta dentro
             words = [Word(max(w.start, start) - off, min(w.end, end) - off, w.text)
-                     for w in s.words if w.end > start and w.start < end]
-            segs.append(Segment(max(s.start, start) - off, min(s.end, end) - off, s.text, words))
+                     for w in s.words if w.end > start and w.start < end and start <= (w.start + w.end) / 2 <= end]
+            if s.words and not words:
+                continue
+            # o texto tem que ser so o que se ouve no trecho (sem sobra da frase que ficou de fora)
+            text = s.text if len(words) == len(s.words) else " ".join(w.text.strip() for w in words)
+            segs.append(Segment(max(s.start, start) - off, min(s.end, end) - off, text, words))
         return Transcript(segs, self.language, self.source)
 
     def text_with_timestamps(self, max_chars: int | None = None, every_s: float = 0.0) -> str:

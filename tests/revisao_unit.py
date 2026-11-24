@@ -204,6 +204,10 @@ for w in txt:
 wide = Transcript([Segment(0, x, " ".join(txt), ws)], "pt", "x")
 fr = bordas.frases(wide, 1000.0)
 check("quebra em frases inteiras", [f[2].split()[0] for f in fr] == ["sobra", "O", "Ele", "O", "A", "Todo", "Vamos"], fr)
+tr = Transcript([Segment(0, 6, "um dois tres quatro cinco seis", [Word(i, i + 0.9, w) for i, w in enumerate("um dois tres quatro cinco seis".split())])], "pt", "x")
+check("a fala do corte e so o que se ouve nele", tr.slice(1.9, 4.2).text == "tres quatro", tr.slice(1.9, 4.2).text)
+check("palavra pega pela beirada nao entra", [w.text for w in tr.slice(0.8, 3.3).words()] == ["dois", "tres"], [w.text for w in tr.slice(0.8, 3.3).words()])
+check("sem tempo por palavra: texto inteiro", Transcript([Segment(0, 6, "a b c", [])], "pt", "x").slice(1, 2).text == "a b c")
 semp = Transcript([Segment(0, 60, "x", [Word(i * 1.0, i + 0.5, "rima") for i in range(50)])], "pt", "x")
 check("rap sem pontuacao tambem quebra", len(bordas.frases(semp, 0)) >= 3)
 
@@ -218,7 +222,7 @@ def um(d, **kw):
 
 bom = {"serve": True, "primeira": 1, "ultima": 5, "nota": 80, "titulo": "Fulano contou como correu atrás do ladrão 😳", "tela": '"o ladrao caiu da moto"', "motivo": "boa"}
 q, f = um(bom)
-check("comeca e termina em frase inteira", f == {} and abs(q.start - 1003.88) < 0.01 and abs(q.end - (1000 + fr[5][1] - 1000 + 0.3)) < 0.01, (q.start, q.end, f))
+check("comeca e termina em frase inteira, sem pegar a vizinha", f == {} and fr[0][1] < q.start <= fr[1][0] and fr[5][1] <= q.end < fr[6][0], (q.start, q.end, f, fr[0], fr[1], fr[5], fr[6]))
 check("nota e textos guardados", q.editor["nota"] == 80 and q.hook == '"O LADRAO CAIU DA MOTO"' and "Fulano" in q.title, (q.editor, q.hook, q.title))
 check("nota baixa nem edita", "nota 50" in um({**bom, "nota": 50})[1].get("p1", ""))
 check("nao serve: nem edita", um({**bom, "serve": False})[1] != {})
@@ -258,6 +262,19 @@ for w, h in ((1920, 1080), (1280, 720), (1440, 1080)):
     check(f"video {w}x{h} no meio exato", abs((y + fh / 2) - 960) <= 1 and abs((x + fw / 2) - 540) <= 1, (x, y, fw, fh))
 b = layouts.blur_video_box({"width": 1920, "height": 1080, "blur_ar": 1.78})
 check("telejornal: quadro inteiro e no meio", b[2] == 1080 and abs(b[3] - 607) <= 2 and abs(b[1] + b[3] / 2 - 960) <= 1, b)
+from fabrica.editor import faces  # noqa: E402
+
+um_rosto = faces.FaceTrack([faces.Shot(0, 10, cx=0.5, cy=0.4, fh=0.3)], 1920, 1080)
+dois = faces.FaceTrack([faces.Shot(0, 4, cx=0.25, cy=0.4, fh=0.3, others=[(0.6, 0.2, 0.75, 0.5)]), faces.Shot(4, 10, cx=0.5, cy=0.4, fh=0.3)], 1920, 1080)
+perto = faces.FaceTrack([faces.Shot(0, 10, cx=0.45, cy=0.4, fh=0.2, others=[(0.50, 0.3, 0.58, 0.5)])], 1920, 1080)
+plateia = faces.FaceTrack([faces.Shot(0, 10, cx=0.3, cy=0.4, fh=0.4, others=[(0.8, 0.5, 0.83, 0.6)])], 1920, 1080)
+g = lambda tr: round(faces.gente_fora(tr, 0.316), 2)
+check("enquadramento: quem fica de fora conta", (g(um_rosto), g(dois), g(perto), g(plateia), g(None)) == (0.0, 0.4, 0.0, 0.0, 0.0), (g(um_rosto), g(dois), g(perto), g(plateia)))
+check("faixa larga cabe todo mundo", faces.gente_fora(dois, 0.99) == 0.0)
+q = plano(1000, 1030)
+bordas._textos(q, {"titulo": "Cara mandou o palhaço se foder no meio da festa 🤡", "tela": '"vai tomar no cu, porra"'}, "ele falou vai tomar no cu, porra e saiu e mandou o palhaço se foder no meio da festa")
+check("palavrao mascarado na tela e no titulo", "CU" not in q.hook.split() and "*" in q.hook and "foder" not in q.title and "*" in q.title, (q.hook, q.title))
+check("frase mascarada ainda confere com a fala", bordas.honesto.falsas(q.hook, "vai tomar no cu porra") == [], q.hook)
 check("react no meio", abs((react.SCREEN_TOP + react.SEAM + react.CAM_H) / 2 - 960) <= 2, (react.SCREEN_TOP, react.SEAM + react.CAM_H))
 
 print("\n" + ("TUDO OK" if not fails else "FALHAS: " + ", ".join(fails)))

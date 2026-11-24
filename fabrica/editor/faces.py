@@ -318,6 +318,24 @@ def _fill_gaps(shots: list[Shot]) -> None:
                 # plano curto sem deteccao: herda so o envelope (as deteccoes sao de outro trecho)
 
 
+def gente_fora(track: FaceTrack | None, largura: float) -> float:
+    """Fracao do tempo em que alguem importante fica cortado num recorte com essa largura (fracao da fonte)
+    centrado no rosto escolhido. Serve para nao enquadrar quem ouve e cortar quem fala."""
+    total = fora = 0.0
+    for s in (track.shots if track else []):
+        d = max(0.0, s.t1 - s.t0)
+        total += d
+        if s.cx is None or not s.others:
+            continue
+        x0 = min(max(0.0, s.cx - largura / 2), max(0.0, 1.0 - largura))
+        x1 = x0 + largura
+        for bx0, by0, bx1, by1 in s.others:
+            if by1 - by0 >= 0.45 * max(0.05, s.fh) and (bx0 < x0 - 0.01 or bx1 > x1 + 0.01):
+                fora += d
+                break
+    return fora / total if total else 0.0
+
+
 def face_envelope(dets: list[Det]) -> tuple[float, float, float, float]:
     """Envelope robusto (p10/p90) das caixas do rosto no plano, da linha do cabelo ao queixo + margem."""
     def pct(xs, q):

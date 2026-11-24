@@ -97,7 +97,7 @@ def stable_pick(seed: str, options: list[tuple[str, float]]) -> str:
 
 # palavroes: mascara a vogal do meio na legenda ("P*RRA"); o audio fica
 _PROFANITY = ["caralho", "porra", "merda", "foda", "fodase", "foda-se", "foder", "fodido", "fodida", "puta",
-              "puto", "putaria", "buceta", "cacete", "arrombado", "arrombada", "bosta", "viado", "piroca"]
+              "cu", "puto", "putaria", "buceta", "cacete", "arrombado", "arrombada", "bosta", "viado", "piroca"]
 
 
 def mask_profanity(word: str) -> str:

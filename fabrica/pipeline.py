@@ -959,7 +959,7 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
                         p.exp.pop("imagens", None)
                     if tem_longa:
                         rc = _add_long_version(rc, Path(f), s_abs, e_abs, gs, p, full, captions, cfg, out, rep)
-                    if rc.layout in ("react", "split"):
+                    if rc.layout in ("react", "split") or rc.layout != p.layout:     # nao saiu como o teste pediu
                         p.exp.pop("layout", None)
                     db.save_rendered(rc)
                     rendered.append(rc)
