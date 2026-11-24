@@ -491,7 +491,7 @@ class Planner:
         lay = self.lay
         blur_opts = [(None, 0.0)]
         if lay == "blur":
-            blur_opts = [(900, 0.0), (940, 0.3), (980, 0.7), (1020, 1.1)]
+            blur_opts = [(_layouts.BLUR_CENTER_Y, 0.0), (930, 8.0), (900, 12.0)]     # so sai do meio se o titulo ou a legenda nao couberem
         sizes = [("normal", 0.0), ("compacto", 4.0), ("mini", 7.0)] if self.make_title else [(None, 0.0)]
         if lay == "full":
             tslots = [("topo", 0.0), ("topo_alto", 1.0), ("acima_legenda", 5.0)]
@@ -614,11 +614,11 @@ class Planner:
             self._add_timed(sc, fallback_ctx[0], fallback_ctx[1])
             sc.notes.append("sem plano 100% livre: menor sobreposicao")
         if sc is None:   # nada coube: tudo no padrao, sem reenquadrar
-            fr = self._framing_for(None if lay != "blur" else 860)
+            fr = self._framing_for(None if lay != "blur" else _layouts.BLUR_CENTER_Y)
             card = self._title("normal") if self.make_title else None
             cap_rect = self.cap.rect(self.cap.default_y, self.cap.lines)
             items, bar = (self._title_items(card) if card is not None else ([], None))
-            sc = Scene(fr, card, "topo", bar, self.cap.default_y, self.cap.lines, 860 if lay == "blur" else None,
+            sc = Scene(fr, card, "topo", bar, self.cap.default_y, self.cap.lines, _layouts.BLUR_CENTER_Y if lay == "blur" else None,
                        items=list(items) + [Item("legenda", cap_rect)])
             sc.notes.append("sem plano valido")
         sc.notes.append(f"{evaluated}/{len(combos)} combinacoes em {_time.time() - t_start:.1f}s")

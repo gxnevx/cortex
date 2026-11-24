@@ -23,7 +23,7 @@ W, H = 1080, 1920
 CAPTION_Y = {
     ("split", "centro"): 1290,    # sobre o fundo (a emenda fica com o titulo)
     ("split", "baixo"): 1420,
-    ("blur", "centro"): 1310,
+    ("blur", "centro"): 1410,
     ("blur", "baixo"): 1420,
     ("full", "centro"): 1300,     # abaixo do queixo no recorte 9:16 de podcast
     ("full", "baixo"): 1420,

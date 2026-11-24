@@ -160,7 +160,7 @@ cerebro:
   claude_modelo: haiku            # haiku = o modelo mais leve e barato do Claude (vazio = padrao da conta)
   produzir_so_com_claude: true    # sem o Claude (teto do dia) so produz se faltar corte para hoje
   claude_max_caracteres: 60000    # video longo: manda so as melhores regioes
-  claude_max_chamadas_dia: 25     # teto de chamadas do Claude por dia (0 = nunca usar o Claude)
+  claude_max_chamadas_dia: 40     # teto de chamadas do Claude por dia (0 = nunca usar o Claude)
   ollama_modelo: qwen3:4b-instruct   # para usar: ollama pull qwen3:4b-instruct (2,5 GB)
   ollama_url: http://127.0.0.1:11434
   timeout_s: 300
@@ -184,6 +184,7 @@ corte:
   # Pesquisa: Shorts de 21-40 s rendem 1,2x; 41-59 s rendem 0,8x. E acima de 60 s com reivindicacao e bloqueado.
   duracao_min_s: 28               # menos que isso fica sem contexto
   duracao_max_s: 58
+  conferir_bordas: true           # o Claude le em volta e acerta onde o corte comeca e termina
   permitir_series: true           # "Parte 1, Parte 2..." quando o assunto rende
   duracao_parte_s: 52
   serie_min_s: 70                 # historia com mais que isso vira Parte 1, 2, 3

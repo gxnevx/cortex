@@ -831,6 +831,13 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
                     p.score = max(0.0, min(100.0, (p.score or 0) * w))
         except Exception as e:
             _log.debug("aprendizado indisponivel: %s", e)
+        if lang == "pt":        # comeco e fim conferidos lendo a fala em volta, antes de baixar e editar
+            from . import bordas
+
+            with rep.working("Conferindo começo e fim de cada corte..."):
+                plans = bordas.ajustar(plans, transcript, c, cfg)
+            if not plans:
+                raise RuntimeError("nenhum trecho faz sentido sozinho neste video")
         for p in plans:
             db.save_plan(p, run_id)
             rep.dim(f"nota {int(p.score):3d}  |  {fmt_duration(p.start)}-{fmt_duration(p.end)}  |  {p.title}")
@@ -886,6 +893,12 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
                     db.save_plan(p, run_id)
                 except Exception as e:
                     _log.warning("refinamento do gancho falhou: %s", e)
+                if (p.idioma_origem or "pt")[:2] == "pt":
+                    from . import honesto
+
+                    for m in honesto.arruma_plano(p, p.fala):
+                        _log.info("texto corrigido: %s", m)
+                    db.save_plan(p, run_id)
                 # corte estrangeiro: legenda queimada em portugues (sem traducao, nao publica)
                 if (p.idioma_origem or "pt")[:2] != "pt":
                     try:
@@ -1243,11 +1256,18 @@ MAX_TENTATIVAS = 3
 
 
 def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Reporter,
-                  only: list[str] | None = None) -> tuple[list, list[str]]:
-    """Checa login de cada rede e publica. Devolve (resultados, acoes necessarias)."""
-    from . import exclusivas, publish
+                  only: list[str] | None = None, revisado_pelo_dono: bool = False) -> tuple[list, list[str]]:
+    """Revisa (revisao.py), checa login de cada rede e publica. Devolve (resultados, acoes necessarias)."""
+    from . import exclusivas, publish, revisao
 
     actions: list[str] = []
+    if not dry_run and not revisado_pelo_dono:      # nada sai sem revisao, venha de onde vier o pedido
+        n = len(clips)
+        clips, espera = revisao.filtrar(clips, cfg)
+        if len(clips) < n:
+            rep.warn(f"{n - len(clips)} corte(s) nao passaram na revisao" + (" ou esperam o Claude" if espera else ""))
+        if not clips:
+            return [], actions
     platforms = []
     if only is None:        # rede com cortes proprios so recebe quando pedida pelo nome
         only = exclusivas.conjunto(cfg)

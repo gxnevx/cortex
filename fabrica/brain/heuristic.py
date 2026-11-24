@@ -302,16 +302,8 @@ def _clean_name(name: str) -> str:
     return n if 2 <= len(n) <= 22 else ""
 
 
-POLEMIC_SUFFIX: dict[str, list[str]] = {
-    "polemica": ["o clima pesou ao vivo", "ninguém esperava essa resposta", "e o estúdio travou",
-                 "ele falou sem filtro"],
-    "palavrao": ["ele perdeu a paciência", "saiu do sério ao vivo", "ele não segurou"],
-    "risada": ["ninguém tankou KKKKKK", "o estúdio caiu na risada"],
-    "emocao": ["ninguém segurou o choro", "esse momento pegou todo mundo"],
-    "surpresa": ["a reação diz tudo", "ninguém tava pronto pra isso"],
-    "debate": ["o debate esquentou", "ele não deixou barato"],
-    "geral": ["presta atenção no final", "olha o que ele falou"],
-}
+# so pergunta: a heuristica nao ve o video, entao nao pode afirmar reacao nenhuma
+POLEMIC_SUFFIX: dict[str, list[str]] = {"geral": ["você concorda?", "tá certo ou errado?", "e você, o que acha?", "verdade ou exagero?"]}
 _TIPO_TO_KIND = {"palavrao": "palavrao", "insulto": "polemica", "acusacao": "polemica", "polemica": "polemica",
                  "emocao": "emocao", "risada": "risada", "surpresa": "surpresa"}
 

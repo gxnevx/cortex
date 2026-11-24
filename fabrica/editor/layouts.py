@@ -17,8 +17,8 @@ W, H = 1080, 1920
 HALF = H // 2
 VALID = ("split", "blur", "full")
 
-# no blur o video fica um pouco acima do centro; a legenda vai embaixo dele (y~1310)
-BLUR_CENTER_Y = 860
+# no blur o video fica no MEIO EXATO da tela (gosto do dono); a legenda vai embaixo dele
+BLUR_CENTER_Y = H // 2
 BLUR_MAX_H = 1000          # altura maxima do video no blur (deixa espaco p/ titulo e legenda)
 
 # Distribuicao do layout "auto" para fonte horizontal (escolha deterministica por corte).

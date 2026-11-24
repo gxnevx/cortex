@@ -586,6 +586,13 @@ class Autopilot:
                             self.state.set_pub(f"{len(r['aprovados'])} aprovado(s), {len(r['descartados'])} descartado(s)")
                             if r["aprovados"]:
                                 self.state.next_post = min(self.state.next_post, time.time() + 60)
+                if time.time() >= getattr(self, "_rev_ts", 0.0) and not andamento.read():     # adianta a revisao da fila
+                    from . import revisao
+
+                    self._rev_ts = time.time() + 600
+                    rv = revisao.adiantar(cfg)
+                    if rv["ok"] or rv["fora"]:
+                        _log.info("revisao adiantada: %s passaram, %s fora", rv["ok"], rv["fora"])
                 expired = expire_old(cfg)
                 if expired:
                     _log.info("%s corte(s) velhos sairam da fila", expired)
@@ -639,8 +646,7 @@ class Autopilot:
                                           0 if c.plan.id in self._hot and (c.plan.score or 0) >= 72 and not c.plan.part else 1))
                 else:
                     platforms = excl[:1]
-                    c0 = exclusivas.escolher(platforms[0], cfg, [c for c in queue(cfg) if c.plan.id not in self.state.tested_ids])
-                    q = [c0] if c0 is not None else []
+                    q = exclusivas.candidatos(platforms[0], cfg, [c for c in queue(cfg) if c.plan.id not in self.state.tested_ids])
                 if not q:
                     if excl and platforms == excl[:1]:      # sem sobra: a rede exclusiva espera, as outras seguem no horario delas
                         self.state.set_pub(f"{platforms[0]}: sem corte sobrando agora")
@@ -650,7 +656,19 @@ class Autopilot:
                         self.state.set_pub("fila vazia - esperando o produtor")
                         self.state.next_post = time.time() + 120
                     continue
-                clip = q[0]
+                from . import revisao
+
+                clip, espera = None, False
+                for c in q[:4]:     # so sai o que passou na revisao; o reprovado sai da fila e tenta o seguinte
+                    self.state.set_pub(f"revisando: {c.plan.title[:50]}")
+                    bons, espera = ([c], False) if self.dry_run else revisao.filtrar([c], cfg)
+                    if bons or espera:
+                        clip = bons[0] if bons else None
+                        break
+                if clip is None:
+                    self.state.set_pub("esperando o Claude para revisar (nada sai sem revisão)" if espera else "nenhum corte passou na revisão, tentando outros")
+                    self.state.next_post = time.time() + (1800 if espera else 60)
+                    continue
                 self.state.set_pub(f"publicando: {clip.plan.title[:50]}")
                 results, actions = publish_clips(cfg, [clip], self.dry_run, AutopilotReporter(self.state), only=platforms)
                 for a in actions:

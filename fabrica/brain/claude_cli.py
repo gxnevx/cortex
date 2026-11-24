@@ -148,7 +148,7 @@ class ClaudeBrain(LLMBrain):
             return False, f"Claude Code não respondeu ({str(e)[:120]})."
 
     # ----- chamada
-    def _run(self, prompt: str, system: str, timeout: float | None = None) -> str:
+    def _run(self, prompt: str, system: str, timeout: float | None = None, images: list | None = None) -> str:
         if not self.exe:
             raise BrainUnavailable("Claude Code não encontrado neste PC.")
         from .. import uso_ia
@@ -160,11 +160,17 @@ class ClaudeBrain(LLMBrain):
         timeout = timeout or self.timeout
         for attempt in range(2):
             args = build_args(self.exe, system, self.model, self.effort, minimal=self._minimal)
+            if images:      # imagens vao dentro da mensagem (stream-json); a resposta vem em linhas
+                from ..revisao import json_mensagem
+
+                i = args.index("--output-format")
+                args[i + 1] = "stream-json"
+                args += ["--input-format", "stream-json", "--verbose"]
             import time as _t
 
             t0 = _t.time()
             try:
-                proc = run_cmd(args, timeout=timeout, cwd=paths.STATE, input_text=prompt, env=clean_env())
+                proc = run_cmd(args, timeout=timeout, cwd=paths.STATE, input_text=json_mensagem(prompt, images) if images else prompt, env=clean_env())
             except subprocess.TimeoutExpired:
                 raise RuntimeError(f"Claude Code demorou mais de {int(timeout)} s") from None
             uso_ia.registrar("claude", "chamada", _t.time() - t0)

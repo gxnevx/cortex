@@ -80,17 +80,21 @@ def reserva(cfg: Any) -> int:
     return max([policy.effective_limit(p, cfg) for p in conjunto(cfg)] or [0])
 
 
-def escolher(rede: str, cfg: Any, fila: list, ja: dict[str, set[str]] | None = None, fontes: list[str] | None = None,
-             guardar: int | None = None) -> Any | None:
-    """O melhor corte da fila para esta rede, ou None (nada sobrando). ja/fontes: simulacao do cronograma."""
+def candidatos(rede: str, cfg: Any, fila: list, ja: dict[str, set[str]] | None = None, fontes: list[str] | None = None,
+             guardar: int | None = None) -> list:
+    """Cortes da fila que servem para esta rede, do melhor para o pior (vazio = nada sobrando). ja/fontes: simulacao do cronograma."""
     real = ja is None
     ja = {c.plan.id: postados(c.plan.id) for c in fila} if ja is None else ja
     livres = [c for c in fila if not ja.get(c.plan.id)]
     guardar = reserva(cfg) if guardar is None else guardar
     if len(livres) <= guardar:
-        return None
+        return []
     ok = [c for c in livres if not c.plan.part and (not real or db.failed_attempts(c.plan.id, rede) < 3)]
-    if not ok:
-        return None
     rec = _fontes_recentes(rede) if fontes is None else fontes
-    return max(ok, key=lambda c: (nota(c, rec), c.plan.id))
+    return sorted(ok, key=lambda c: (nota(c, rec), c.plan.id), reverse=True)
+
+
+def escolher(rede: str, cfg: Any, fila: list, ja: dict[str, set[str]] | None = None, fontes: list[str] | None = None,
+             guardar: int | None = None) -> Any | None:
+    """O melhor, ou None."""
+    return next(iter(candidatos(rede, cfg, fila, ja, fontes, guardar)), None)

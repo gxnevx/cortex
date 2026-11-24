@@ -26,7 +26,7 @@ def horarios(rede: str, cfg: Any, dia: date) -> list[float]:
 
 def montar(cfg: Any, dias: int = 4, fila: list | None = None) -> list[dict]:
     """[{ts, rede, titulo, parte, clip_id, feito, url}] em ordem de horario."""
-    from . import autopilot
+    from . import autopilot, revisao
     from .publish import guard
 
     out: list[dict] = []
@@ -58,5 +58,6 @@ def montar(cfg: Any, dias: int = 4, fila: list | None = None) -> list[dict]:
         if c is not None:
             ja[c.plan.id].add(p)
         out.append({"ts": t, "rede": p, "titulo": c.plan.title if c else "", "clip_id": c.plan.id if c else None, "feito": False, "url": None,
-                    "parte": f"{c.plan.part}/{c.plan.parts_total}" if c and c.plan.part else ""})
+                    "parte": f"{c.plan.part}/{c.plan.parts_total}" if c and c.plan.part else "",
+                    "revisado": bool(c and (revisao.estado(c) or {}).get("ok"))})
     return sorted(out, key=lambda x: x["ts"])

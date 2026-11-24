@@ -2,8 +2,9 @@
 
 1. Regras fixas (duracao, titulo generico, arquivo, fala).
 2. O Claude le a fala de cada corte, da nota comparando um com o outro, barra o que nao pode ir ao ar e melhora o
-   titulo se precisar. Passa quem fica acima da nota minima.
-   Sem Claude: so passa quem tem nota alta dos sinais do publico.
+   titulo se precisar. Passa quem fica acima da nota minima, faz sentido sozinho e tem titulo verdadeiro.
+   Sem Claude: ninguem passa, todos esperam (sinal do publico nao diz se o corte faz sentido).
+3. Antes de sair, cada corte ainda passa pela revisao final com as imagens (revisao.py).
 Partes de uma mesma serie entram ou saem juntas. Tudo fica registrado e aparece em "Todos os cortes".
 """
 from __future__ import annotations
@@ -28,14 +29,12 @@ def _plain(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", "".join(c for c in t if not unicodedata.combining(c))).strip()
 
 
-_retry = [0.0]      # sem o Claude (teto do dia), os sensiveis esperam e sao julgados mais tarde
+_retry = [0.0]      # sem o Claude (teto do dia), todos esperam e sao julgados mais tarde
 
 
 def pending(cfg: Any) -> list[RenderedClip]:
     """Cortes prontos que ninguem julgou ainda (os que o dono pediu para ver antes ficam com ele)."""
-    if time.time() < _retry[0]:
-        return [c for c in _pending() if not (c.plan.category in ("politica", "noticias", "polemica") or c.plan.tipo == "noticia")]
-    return _pending()
+    return [] if time.time() < _retry[0] else _pending()
 
 
 def _pending() -> list[RenderedClip]:
@@ -74,6 +73,11 @@ def _rules(c: RenderedClip, fala: str, cfg: Any) -> str | None:
         return "título genérico"
     if len(fala.split()) < (6 if p.tipo == "reacao" else 25):
         return "quase não tem fala"
+    from . import honesto
+
+    f = honesto.falsas(p.hook, fala)        # o texto na tela ja esta queimado no video: nao da para trocar
+    if f:
+        return f'texto na tela cita frase que não está na fala: "{f[0][:50]}"'
     return None
 
 
@@ -92,6 +96,10 @@ Como o espectador vê: título grande na tela o tempo todo, etiqueta com o nome 
 Para cada corte devolva:
 - "nota": 0 a 100, chance de segurar quem está rolando o feed, COMPARANDO os cortes entre si e usando a escala toda. Pesa a favor: frase forte, treta, piada, revelação, história, curiosidade completa, reação, assunto em que todo mundo tem opinião. Pesa contra: enrolação, assunto difícil de entender mesmo com o título, sem nenhum momento marcante.
 - "fatal": true só se não pode ir ao ar: propaganda; a maior parte é só trecho de filme, série, jogo de futebol, TV ou música de terceiros, sem ninguém reagindo ou comentando (bloqueio por direitos autorais; react em que a pessoa aparece reagindo e opinando pode); menor de idade exposto; ódio contra grupo; vítima real de crime violento tratada com deboche, sensualização ou exposição da vida íntima; o título mente sobre o que é dito; o título ou o texto na tela afirma como fato uma acusação que na fala é de outra pessoa (o certo é dizer quem acusa); acusa pessoa real e identificável de crime sem ser caso público (caso julgado, noticiado ou contado por jornalista é público); ou impossível de entender. Senão false.
+- "sozinho": false se um desconhecido não entende do que se trata sem o vídeo original: introdução, vinheta ou combinado do vídeo, trecho aleatório, conversa sem assunto, piada que depende de algo que não aparece. Senão true.
+- "inicio": false se começa no meio de uma história já andando sem dizer de quem ou do que se fala, ou com sobra de outro assunto. (Parte 2 em diante pode continuar a anterior.)
+- "fim": false se corta no meio da frase ou antes do desfecho. (Parte que não é a última pode parar em suspense.)
+- "titulo_ok": false se o título ou o texto na tela promete o que não acontece ou afirma reação que não está na fala ("a mesa travou", "humilhou", "perdeu a linha").
 - "motivo": até 12 palavras.
 - "titulo": só se o título atual estiver fraco ou errado. Português do Brasil, 35 a 75 caracteres, 1 emoji no fim. Se usar aspas, copie a frase exatamente como está na fala. Curiosidade usa o nome real da coisa; tutorial usa título direto. Senão "".
 Em react, título e gancho têm que usar a frase ou cena marcante, não uma fala aleatória do filme. Em games, sem raiva, briga, susto, risada forte, curiosidade explicada ou polêmica, a nota é no máximo 40.
@@ -101,7 +109,7 @@ CORTES
 {body}
 
 RESPONDA SÓ COM ESTE JSON:
-{{"decisoes":[{{"i":1,"nota":80,"fatal":false,"motivo":"...","titulo":""}}]}}"""
+{{"decisoes":[{{"i":1,"nota":80,"fatal":false,"sozinho":true,"inicio":true,"fim":true,"titulo_ok":true,"motivo":"...","titulo":""}}]}}"""
 
 
 def _ask_claude(items: list[tuple[RenderedClip, str]], cfg: Any) -> dict[int, dict] | None:
@@ -130,11 +138,11 @@ def _good_title(t: str, fala: str) -> bool:
     from .brain.prompts import is_generic
 
     t = (t or "").strip()
-    if not 15 <= len(t) <= 95 or is_generic(t):
+    from . import honesto
+
+    if not 15 <= len(t) <= 95 or is_generic(t) or honesto.limpa_titulo(t) != t:
         return False
-    quotes = re.findall(r"[\"“”]([^\"“”]{4,})[\"“”]", t)
-    f = _plain(fala)
-    return all(_plain(q) in f for q in quotes)
+    return not honesto.falsas(t, fala)
 
 
 def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
@@ -158,18 +166,16 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
 
     minimum = float(auditor.get("regua") or cfg.get("curadoria.nota_minima", 68))
     skip: set[str] = set()
+    duros: set[str] = set()     # nao faz sentido, titulo falso ou proibido: nem a serie salva
     for k in range(0, len(judged), 8):
         lote = judged[k:k + 8]
         dec = _ask_claude(lote, cfg)
         for i, (c, fala) in enumerate(lote, 1):
             d = (dec or {}).get(i)
-            if dec is None and (c.plan.category in ("politica", "noticias", "polemica") or c.plan.tipo == "noticia"):
-                skip.add(c.plan.id)     # acusacao ou noticia sobre gente de verdade: so com o Claude lendo
-                _retry[0] = time.time() + 3600
-                continue
-            if d is None:
-                ok = c.plan.score >= minimum + (4 if dec is None else 0)
-                verdict[c.plan.id] = (ok, "nota dos sinais do público", c.plan.score, "")
+            if d is None:       # ninguem leu: ninguem posta
+                skip.add(c.plan.id)
+                if dec is None:
+                    _retry[0] = time.time() + 1800
                 continue
             try:
                 nota = float(d.get("nota", c.plan.score))
@@ -178,9 +184,20 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
             t = str(d.get("titulo") or "").strip()
             fatal = d.get("fatal") in (True, "true", "True", 1)
             final = 0.65 * nota + 0.35 * c.plan.score   # editor-chefe pesa mais que o sinal do publico
-            # so troca o titulo se o atual e generico ou cita o que nao foi dito
-            troca = t if _good_title(t, fala) and not _good_title(c.plan.title, fala) else ""
-            verdict[c.plan.id] = (not fatal and final >= minimum - 6, str(d.get("motivo") or "")[:120], nota, troca)
+            from . import honesto
+
+            nao = [n for n in ("sozinho", "inicio", "fim") if d.get(n) in (False, "false", "False", 0)]
+            titulo_ok = d.get("titulo_ok") not in (False, "false", "False", 0) and honesto.limpa_titulo(c.plan.title) == c.plan.title
+            # troca o titulo se o atual e generico, inventa reacao ou cita o que nao foi dito
+            limpo = honesto.limpa_titulo(c.plan.title)
+            troca = t if _good_title(t, fala) and (not titulo_ok or not _good_title(c.plan.title, fala)) else ""
+            if not troca and limpo != c.plan.title and _good_title(limpo, fala):
+                troca = limpo
+            ruim = fatal or bool(nao) or (not titulo_ok and not troca)
+            if ruim:
+                duros.add(c.plan.id)
+            motivo = str(d.get("motivo") or "")[:120] + (f" ({', '.join(nao)})" if nao else "") + (" (título não bate)" if not titulo_ok and not troca else "")
+            verdict[c.plan.id] = (not ruim and final >= minimum, motivo, nota, troca)
     clips = [c for c in clips if c.plan.id not in skip]
     # serie: todas as partes ou nenhuma (vale a media das notas, a nao ser que alguma parte nao possa ir ao ar)
     series: dict[str, list[RenderedClip]] = {}
@@ -189,7 +206,7 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
             series.setdefault(f"{c.plan.source_id}|{c.plan.series}", []).append(c)
     for parts in series.values():
         media = sum(0.65 * verdict[c.plan.id][2] + 0.35 * c.plan.score for c in parts) / len(parts)
-        if media >= minimum - 6 and any(verdict[c.plan.id][0] for c in parts):
+        if media >= minimum and any(verdict[c.plan.id][0] for c in parts) and not any(c.plan.id in duros for c in parts):
             for c in parts:
                 v = verdict[c.plan.id]
                 verdict[c.plan.id] = (True, v[1], v[2], v[3])

@@ -130,7 +130,7 @@ def review(cfg: Config, only_ids: set[str] | None = None, dry_run: bool = False,
             if not is_test:
                 for c in chosen:
                     db.set_clip_status(c.plan.id, "aprovado")
-            res, actions = publish_clips(cfg, chosen, is_test, rep)
+            res, actions = publish_clips(cfg, chosen, is_test, rep, revisado_pelo_dono=True)
             results.extend(res)
             for a in actions:
                 ui.warn(a)

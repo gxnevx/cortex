@@ -221,7 +221,7 @@ A.STATE.unlink(missing_ok=True)
 # ------------------------------------------------------------------ cota do Claude e manutencao
 uso_ia.hoje = lambda motor: 20
 c25 = Config({"cerebro": {"claude_max_chamadas_dia": 25}})
-check("escolher cortes para antes, sobra para julgar e analisar", not uso_ia.pode_claude(c25, "clips") and uso_ia.pode_claude(c25, "curadoria")
+check("escolher cortes para antes, sobra para julgar, revisar e analisar", not uso_ia.pode_claude(c25, "clips") and uso_ia.pode_claude(c25, "revisao")
       and uso_ia.pode_claude(c25, "analise"))
 import sqlite3  # noqa: E402
 

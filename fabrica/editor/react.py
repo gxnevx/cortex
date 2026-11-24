@@ -19,12 +19,12 @@ from . import ffmpeg as ff
 _log = get_log(__name__)
 
 W, H = 1080, 1920
-SEAM = 925                       # topo da webcam
-SCREEN_TOP = 110                       # topo da tela
-SCREEN_MAX_H = 520                       # a tela termina em 630; a faixa 630-925 e so do titulo
-TITLE_Y = 768                       # centro da faixa do titulo
+SEAM = 993                       # topo da webcam
+SCREEN_TOP = 178                       # topo da tela
+SCREEN_MAX_H = 520                       # a tela termina em 698; a faixa 698-993 e so do titulo
+TITLE_Y = 836                       # centro da faixa do titulo
 CAM_H = 750                       # webcam de SEAM ate SEAM+CAM_H; abaixo fica a interface da rede
-CAPTION_Y = 520                       # legenda no rodape da tela, como legenda de filme (nao cobre a pessoa)
+CAPTION_Y = 588                       # legenda no rodape da tela, como legenda de filme (nao cobre a pessoa)
 N_FRAMES = 28
 
 

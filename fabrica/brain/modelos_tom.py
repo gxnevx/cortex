@@ -101,10 +101,15 @@ def _ok(req: str | None, text: str) -> bool:
     return req is None or bool(re.search(req, text))
 
 
+# sem apoio na fala so vale pergunta: afirmar "travou", "humilhou", "perdeu a linha" sem saber e inventar
+PERGUNTAS = ["você concorda?", "tá certo ou errado?", "e você, o que acha?", "verdade ou exagero?"]
+
+
 def _pool(table: dict, kind: str, clip_text: str) -> tuple[list[str], list[str]]:
     g = KIND_GROUP.get(kind, "geral")
     items = table.get(g, []) + (table.get("geral", []) if g != "geral" else [])
-    return ([t for t, r in items if r is not None and _ok(r, clip_text)], [t for t, r in items if r is None])
+    gen = [t for t, r in items if r is None and t.rstrip().endswith("?")]
+    return ([t for t, r in items if r is not None and _ok(r, clip_text)], gen or ["Você concorda com isso?"])
 
 
 def titles_for(kind: str, clip_text: str, intensity: int = 2) -> list[str]:
@@ -119,20 +124,16 @@ def titles_for(kind: str, clip_text: str, intensity: int = 2) -> list[str]:
 
 def hooks_for(clip_text: str, intensity: int = 2) -> list[str]:
     spec = [h for h, r in MALICIOUS_HOOKS if r is not None and _ok(r, clip_text)]
-    gen = [h for h, r in MALICIOUS_HOOKS if r is None]
+    gen = [h for h, r in MALICIOUS_HOOKS if r is None and h.endswith("?")]
     if intensity >= 3:
         spec += [h for h, r in AGGRESSIVE_HOOKS if r is not None and _ok(r, clip_text)] * 2
-        gen = gen[: len(gen) // 2] + [h for h, r in AGGRESSIVE_HOOKS if r is None] * 2
+        gen += [h for h, r in AGGRESSIVE_HOOKS if r is None and h.endswith("?")] * 2
     return spec * 3 + gen
 
 
 def suffixes_for(kind: str | None, intensity: int = 2) -> list[str]:
-    direct = kind in ("polemica", "palavrao")
-    if intensity >= 4:
-        return RAGEBAIT_SUFFIX + (AGGRESSIVE_SUFFIX if direct else MALICIOUS_SUFFIX)
-    if intensity == 3:
-        return AGGRESSIVE_SUFFIX if direct else MALICIOUS_SUFFIX + AGGRESSIVE_SUFFIX[:2]
-    return MALICIOUS_SUFFIX_DIRECT if direct else MALICIOUS_SUFFIX
+    """Final do titulo com citacao: so pergunta, nunca uma reacao que ninguem viu."""
+    return PERGUNTAS + (RAGEBAIT_SUFFIX if intensity >= 4 else [])
 
 
 def emojis_for(intensity: int) -> list[str]:
@@ -151,8 +152,8 @@ def prompt_examples(intensity: int) -> str:
           'bastidores \U0001F440", "Ninguém esperava que ela fosse admitir isso ao vivo", "O silêncio dele disse tudo", '
           '"A pergunta era inocente. A resposta não"')
     if intensity >= 3:
-        ex += ', "Ele PERDEU A LINHA ao vivo \U0001F525", "HUMILHOU sem dó nessa resposta", "Você concorda com ISSO?"'
+        ex += ', "Você concorda com ISSO?", "Tá certo ou errado?"'
     if intensity >= 4:
-        ex += ', "\\"Vai tomar no c*\\" e a mesa travou \U0001F480 se discordar, comenta"'
+        ex += ', "\\"Vai tomar no c*\\" \U0001F480 se discordar, comenta"'
     return ("- Exemplos de estilo (adapte ao trecho; cada ideia como festa, bastidores, silêncio, admitir precisa "
-            f"estar na fala): {ex}.")
+            f"estar na fala): {ex}. NUNCA invente reação (a mesa travou, humilhou, perdeu a linha) que não dá para ver no trecho.")

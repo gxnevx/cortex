@@ -21,7 +21,7 @@ from fabrica import paths  # noqa: E402
 TMP = Path(tempfile.mkdtemp(prefix="cortex_ig_"))
 paths.DB_PATH = TMP / "t.db"
 paths.STATE = TMP
-from fabrica import autopilot, cronograma, db, exclusivas, metrics, numeros, policy, storage  # noqa: E402
+from fabrica import autopilot, cronograma, db, exclusivas, metrics, numeros, policy, revisao, storage  # noqa: E402
 from fabrica.config import Config  # noqa: E402
 from fabrica.models import ClipPlan, PostResult, RenderedClip  # noqa: E402
 from fabrica.publish import captions, guard, instagram  # noqa: E402
@@ -30,6 +30,7 @@ import fabrica.publish as publish  # noqa: E402
 
 guard._state_dir = lambda: TMP
 storage.release_published = lambda *a, **k: "mantido"
+revisao.filtrar = lambda clips, cfg: (clips, False)     # a revisao tem o teste dela (revisao_unit.py)
 fails: list[str] = []
 
 
