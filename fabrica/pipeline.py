@@ -1078,6 +1078,13 @@ def discover(cfg: Config, opts: RunOptions, brain, rep: Reporter, summary: dict,
     return cands
 
 
+def _cota(cfg: Config) -> bool:
+    """Da para comecar mais um video e ainda julgar e revisar o que sair dele?"""
+    from . import uso_ia
+
+    return not cfg.get("cerebro.produzir_so_com_claude", True) or uso_ia.pode_claude(cfg, "clips")
+
+
 # =============================================================== rodada
 def run(cfg: Config, opts: RunOptions, rep: Reporter | None = None) -> dict:
     from . import andamento
@@ -1148,6 +1155,9 @@ def run(cfg: Config, opts: RunOptions, rep: Reporter | None = None) -> dict:
                     break
                 if fails >= int(cfg.get("execucao.max_falhas_rodada", 4)) or time.time() - t0 > max_h * 3600:
                     rep.warn("Rodada encerrada: muitas falhas seguidas ou tempo demais. Tento de novo na proxima.")
+                    break
+                if opts.trigger != "manual" and brain.name == "claude" and not _cota(cfg):
+                    rep.info("Cota do Claude desta parte do dia acabou: guardo o resto para mais tarde.")
                     break
                 cinfo = {"id": c.id, "title": c.title, "channel": c.channel, "platform": c.platform, "url": c.url,
                          "views": c.views, "duration": c.duration, "score": c.score, "reasons": c.reasons,

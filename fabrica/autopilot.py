@@ -282,7 +282,7 @@ class Autopilot:
         self.no_publish = no_publish
         self.state = State()
         self.stop = threading.Event()
-        self._fast_day = ["", 0]
+        self._fast_day = ["", 0, 0]
         self._hot: set[str] = set()               # cortes da via rapida: saem primeiro no PROXIMO horario bom
         self.loghandler = LiveLogHandler()
         self._lock_file = paths.STATE / "autopiloto.lock"
@@ -378,17 +378,25 @@ class Autopilot:
 
         day = datetime.now().strftime("%Y%m%d")
         if self._fast_day[0] != day:
-            self._fast_day = [day, 0]
+            self._fast_day = [day, 0, 0]
         return (len(queue(cfg)) < target_queue(cfg) and self._fast_day[1] < int(cfg.get("busca.via_rapida.max_por_dia", 4))
+                and self._fast_day[2] < int(cfg.get("busca.via_rapida.max_consultas_dia", 6))
                 and (uso_ia.pode_claude(cfg, "clips") or not cfg.get("cerebro.produzir_so_com_claude", True)))
 
     def _run_fast_lane(self, cfg: Config) -> bool:
         """Processa a via rapida, se houver. Devolve True se rodou algo."""
+        from . import escolha
         from .pipeline import RunOptions, run
 
         with self.fast_lock:
             self.fast_lane.sort(key=lambda c: -(c.score or 0))      # so o mais forte; o resto esfria
-            batch, self.fast_lane = self.fast_lane[:1], []
+            achados, self.fast_lane = self.fast_lane, []
+        self._fast_day[2] += 1
+        try:
+            batch = escolha.rapida(achados, cfg)[:1]
+        except Exception as e:
+            _log.warning("via rapida: %s", e)
+            batch = []
         if not batch:
             return False
         self._fast_day[1] += 1
@@ -468,11 +476,13 @@ class Autopilot:
                 newest = max((self._created(c) for c in qlist), default=0.0)
                 stale = capacity(cfg) > 0 and (now - newest) > force_h and (now - last_run) > force_h
                 need = q < target or stale
+                sem_cota = False
                 from . import uso_ia
 
-                # sem Claude (teto do dia) os cortes saem fracos e quase todos sao descartados: so produz se faltar para hoje
+                # sem Claude nada passa pela revisao: espera a cota liberar (parte do dia ou dia seguinte)
                 if need and cfg.get("cerebro.produzir_so_com_claude", True) and not uso_ia.pode_claude(cfg, "clips"):
-                    need = q < max(1, capacity(cfg))
+                    need = False
+                    sem_cota = True
                 if due and need and q < max_q and not self._wait_user(cfg, q):
                     if storage.free_gb() < float(cfg.get("armazenamento.espaco_minimo_livre_gb", 2)):
                         self.state.set_prod("disco quase cheio: limpando e arquivando no OneDrive...")
@@ -523,6 +533,8 @@ class Autopilot:
                 else:
                     if not due:
                         msg = "esperando a proxima rodada"
+                    elif sem_cota:
+                        msg = "cota do Claude desta parte do dia acabou: produzo quando liberar"
                     elif q >= max_q or not need:
                         msg = f"fila cheia ({q}/{target} cortes) - esperando o publicador"
                     elif self.state.user_busy:

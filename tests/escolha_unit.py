@@ -1,0 +1,140 @@
+"""Escolha dos videos pelo Claude, cota por parte do dia e idade por assunto. Sem internet e sem chamar a IA.
+
+Roda:  .venv\\Scripts\\python.exe tests\\escolha_unit.py
+"""
+from __future__ import annotations
+
+import json
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+from fabrica import paths  # noqa: E402
+
+paths.STATE = Path(tempfile.mkdtemp(prefix="cortex_es_"))
+from fabrica import brain, escolha, uso_ia  # noqa: E402
+from fabrica.config import Config  # noqa: E402
+from fabrica.discovery import candidates  # noqa: E402
+from fabrica.models import Candidate  # noqa: E402
+
+uso_ia._FILE = paths.STATE / "uso_ia.json"
+fails: list[str] = []
+
+
+def check(name: str, cond: bool, extra: object = "") -> None:
+    print(("ok    " if cond else "FALHA ") + name + (f"  [{extra}]" if extra and not cond else ""))
+    if not cond:
+        fails.append(name)
+
+
+class Raw:
+    def __init__(self, cat: str | None):
+        self.category, self.topics = cat, {}
+
+
+def cand(i: int, titulo: str, canal: str, score: float, cat: str | None = None):
+    c = Candidate(id=f"youtube:v{i}", platform="youtube", url="", title=titulo, channel=canal, channel_url=None, duration=3600.0, views=50000,
+                  upload_ts=time.time() - 7200, is_live=False, was_live=False, thumbnail=None, description="", topic=None, extra={})
+    c.score = score
+    return c, Raw(cat)
+
+
+class Falso:
+    name = "claude"
+    resposta: object = {}
+    pedidos: list = []
+
+    def _run(self, p, s, **k):
+        Falso.pedidos.append(p)
+        if isinstance(Falso.resposta, Exception):
+            raise Falso.resposta
+        return json.dumps(Falso.resposta)
+
+
+class SemClaude:
+    name = "ollama"
+
+
+cfg = Config({"cerebro": {"claude_max_chamadas_dia": 40}, "busca": {"janela_horas": 48, "janela_horas_nicho": {"podcast": 120, "humor": 120, "viral": 100}}})
+escolha.historico_canais = lambda: {"Canal 3": (2, 1), "Canal 4": (0, 5), "Canal 5": (0, 2)}
+pre = [cand(i, f"Conversa numero {i}", f"Canal {i}", 90 - i, "podcast") for i in range(20)] + [cand(50 + i, f"Votação {i}", f"Jornal {i}", 99, "politica") for i in range(20)]
+pre.sort(key=lambda x: -x[0].score)
+li = escolha.lista(pre)
+check("lista: no maximo 6 de politica", sum(r.category == "politica" for _, r in li) == 6, [r.category for _, r in li])
+mesmo = [cand(i, f"t {i}", "Igual", 50, "humor") for i in range(6)]
+check("lista: no maximo 2 por canal", len(escolha.lista(mesmo)) == 2)
+
+gta = [cand(i, f"GTA 6 momento {i}", f"C{i}", 99, "games") for i in range(30)]
+casa = [cand(100 + i, f"Papo {i}", f"P{i}", 20, "podcast") for i in range(4)]
+for _, r in casa:
+    r.big_channel = True
+li = escolha.lista(gta + casa)
+check("lista: um assunto nao toma tudo, e canal acompanhado entra mesmo com numero menor", sum(r.category == "games" for _, r in li) == 5 and sum(r.category == "podcast" for _, r in li) == 4,
+      [c.title for c, _ in li])
+
+brain.get_brain = lambda *a, **k: Falso()
+Falso.resposta = {"videos": [{"n": 12, "nota": 70, "motivo": "boa"}, {"n": 10, "nota": 88, "motivo": "otima"}, {"n": 10, "nota": 90}, {"n": 1, "nota": 40},
+                             {"n": 999, "nota": 90}, {"n": "x", "nota": 90}, {"n": 11, "nota": 61}]}
+out = escolha.escolher(pre, cfg)
+check("escolhidos em ordem de nota, sem repetir, sem numero errado, sem nota baixa", [c.extra["ia_nota"] for c, _ in out] == [88, 70, 61], [c.extra for c, _ in out])
+p = Falso.pedidos[-1]
+check("conta para o Claude o que cada canal ja rendeu", "Canal 3 (2 de 3)" in p and "Canal 4 (0 de 5)" in p and "Canal 5 (0" not in p, p[:600])
+c = out[0][0]
+c.score = 60
+check("nota final pesa mais a escolha", abs(escolha.nota_final(c) - (0.35 * 60 + 0.65 * 88)) < 0.1)
+check("sem escolha, nota dos numeros", escolha.nota_final(cand(1, "a", "b", 33)[0]) == 33)
+Falso.resposta = RuntimeError("caiu")
+check("sem resposta: segue como antes", escolha.escolher(pre, cfg) is None)
+Falso.resposta = {"videos": [{"n": 1, "nota": 90}]}
+check("so 1 escolhido: segue como antes", escolha.escolher(pre, cfg) is None)
+brain.get_brain = lambda *a, **k: SemClaude()
+check("sem Claude: segue como antes", escolha.escolher(pre, cfg) is None)
+
+# ------------------------------------------------------------------ via rapida
+brain.get_brain = lambda *a, **k: Falso()
+Falso.resposta = {"videos": [{"n": 1, "nota": 82}, {"n": 2, "nota": 60}]}
+rap = [cand(1, "Câmara vota ajuste fiscal no senado", "Jornal", 90)[0], cand(2, "Humorista conta a pior noite da vida", "Canal A", 80)[0], cand(3, "Streamer surta", "Canal B", 70)[0]]
+rap[0].extra["categoria_canal"] = "politica"
+r = escolha.rapida(rap, cfg)
+check("via rapida: sem jornal e so o que tem nota alta", [x.id for x in r] == ["youtube:v2"], [x.id for x in r])
+n = len(Falso.pedidos)
+check("via rapida so com politica: nem chama o Claude", escolha.rapida(rap[:1], cfg) == [] and len(Falso.pedidos) == n)
+brain.get_brain = lambda *a, **k: SemClaude()
+check("via rapida sem Claude: espera", escolha.rapida(rap, cfg) == [])
+
+# ------------------------------------------------------------------ cota por parte do dia
+def usar(n: int) -> None:
+    uso_ia._FILE.write_text(json.dumps({"dia": uso_ia.date.today().isoformat(), "hoje": {"claude": {"chamadas": n, "segundos": 0, "tarefas": {}}}, "total": {}}), encoding="utf-8")
+
+
+check("cota cresce ao longo do dia", [uso_ia.liberado(cfg, h) for h in (3, 9, 15, 20)] == [20, 24, 28, 40], [uso_ia.liberado(cfg, h) for h in (3, 9, 15, 20)])
+real = uso_ia.liberado
+uso_ia.liberado = lambda c, hora=None: 16
+usar(16)
+check("de madrugada para de produzir", not uso_ia.pode_claude(cfg, "clips") and not uso_ia.pode_claude(cfg, "escolha"))
+check("mas julga e revisa o que ja tem", all(uso_ia.pode_claude(cfg, t) for t in ("bordas", "fino", "curadoria", "revisao", "analise")))
+usar(15)
+check("antes do limite, produz", uso_ia.pode_claude(cfg, "clips"))
+uso_ia.liberado = lambda c, hora=None: 40
+usar(28)
+check("guarda cota para julgar no fim do dia", not uso_ia.pode_claude(cfg, "clips") and uso_ia.pode_claude(cfg, "fino") and uso_ia.pode_claude(cfg, "revisao"))
+usar(39)
+check("ultima chamada e da analise", not uso_ia.pode_claude(cfg, "revisao") and uso_ia.pode_claude(cfg, "analise"))
+usar(40)
+check("teto do dia vale para tudo", not uso_ia.pode_claude(cfg, "analise"))
+uso_ia.liberado = real
+
+# ------------------------------------------------------------------ idade do video por assunto
+check("noticia 48 h, podcast e humor mais", (candidates.janela_h(cfg, "noticias"), candidates.janela_h(cfg, "podcast"), candidates.janela_h(cfg, "entretenimento")) == (48, 120, 120))
+check("viral da semana", candidates.janela_h(cfg, None, True) == 100 and candidates.janela_h(cfg, None) == 48)
+
+print("\n" + ("TUDO OK" if not fails else "FALHAS: " + ", ".join(fails)))
+sys.exit(1 if fails else 0)

@@ -96,6 +96,9 @@ busca:
   # Temas que interessam. Dica da pesquisa: conta nova cresce mais rapido com 1-2 nichos fixos.
   temas: [politica, polemica, games, humor, entretenimento, podcast, noticias, celebridades]
   janela_horas: 48                # idade maxima do video-fonte
+  # podcast, humor e games rendem por mais dias; noticia fica nas 48 h
+  janela_horas_nicho: {podcast: 120, humor: 120, games: 96, celebridades: 96, viral: 120}
+  escolha_ia: true                # o Claude escolhe os videos antes de baixar (1 chamada por rodada)
   duracao_min_s: 90
   duracao_max_s: 21600            # 6h (lives longas: so baixamos os trechos)
   views_minimas: 5000

@@ -281,6 +281,15 @@ def _viral_queries(cfg, trends: list[Trend] | None) -> list[tuple[str, str]]:
     return out[: int(cfg.get("busca.virais.max_consultas", 10))]
 
 
+def janela_h(cfg, categoria: str | None, viral: bool = False) -> float:
+    """Idade maxima do video: noticia envelhece rapido; podcast, humor e games rendem por mais dias (busca.janela_horas_nicho)."""
+    base = float(cfg.get("busca.janela_horas", 48))
+    por = cfg.get("busca.janela_horas_nicho", {}) or {}
+    if viral:
+        return max(base, float(por.get("viral", base)))
+    return max(base, float(por.get(nichos.map_cat(categoria) or "", base)))
+
+
 def _tag(c: Candidate, r: "_Raw", topics: list) -> None:
     """extra["idioma"] (pt, en, es...), extra["estrangeiro"] e extra["categoria"] (nicho) em todo candidato."""
     ex = c.extra = dict(c.extra or {})
@@ -417,7 +426,7 @@ def find_candidates(cfg, trends: list[Trend] | None = None, keywords: list[str] 
                 if it.get("upcoming"):
                     continue
                 age = it.get("age_s")
-                if age is not None and age > window_h * 3600:
+                if age is not None and age > janela_h(cfg, cat or ("podcast" if mon else None)) * 3600:
                     continue
                 it["platform"] = "youtube"
                 topic, m = _best_match(f"{it.get('title', '')}", topics)
@@ -468,6 +477,11 @@ def find_candidates(cfg, trends: list[Trend] | None = None, keywords: list[str] 
     def drop(why: str):
         dropped[why] = dropped.get(why, 0) + 1
 
+    def idade_max(r: _Raw) -> float:
+        canal = any(o not in ("busca", "viral") for o in r.origins)
+        return max(janela_h(cfg, r.category or ("podcast" if r.monitored else None)) if canal else window_h,
+                   janela_h(cfg, None, True) if "viral" in r.origins else 0.0)
+
     for r in raws:
         d = r.data
         c = _cand_from_raw(r)
@@ -481,7 +495,7 @@ def find_candidates(cfg, trends: list[Trend] | None = None, keywords: list[str] 
         if c.is_live and not include_live:
             drop("ao vivo")
             continue
-        if c.upload_ts and now - c.upload_ts > window_h * 3600 + (c.duration or 0) * (1 if c.was_live else 0):
+        if c.upload_ts and now - c.upload_ts > idade_max(r) * 3600 + (c.duration or 0) * (1 if c.was_live else 0):
             drop("antigo")
             continue
         if c.duration is not None:
@@ -544,7 +558,12 @@ def find_candidates(cfg, trends: list[Trend] | None = None, keywords: list[str] 
     per_ch: dict[str, int] = {}
     shortlist: list[tuple[Candidate, _Raw]] = []
     n_enrich = int(cfg.get("busca.max_enriquecer", max(limit * 2, limit + 8)))
-    for c, r in pre:
+    escolhidos = None
+    if not keyword_mode:
+        from .. import escolha
+
+        escolhidos = escolha.escolher(pre, cfg)
+    for c, r in (escolhidos or pre):
         key = norm(c.channel) or c.channel_url or c.id
         if per_ch.get(key, 0) >= max_per_channel + 1:
             continue
@@ -613,7 +632,7 @@ def find_candidates(cfg, trends: list[Trend] | None = None, keywords: list[str] 
             if c.duration is not None and not is_clip and (c.duration < dmin or c.duration > dmax):
                 drop("duracao")
                 continue
-            if c.upload_ts and now - c.upload_ts > window_h * 3600 + ((c.duration or 0) if c.was_live else 0):
+            if c.upload_ts and now - c.upload_ts > idade_max(r) * 3600 + ((c.duration or 0) if c.was_live else 0):
                 drop("antigo")
                 continue
             if c.platform == "youtube" and c.views is not None and c.views < vmin:
@@ -640,6 +659,9 @@ def find_candidates(cfg, trends: list[Trend] | None = None, keywords: list[str] 
             continue
         final.append(c)
 
+    if escolhidos:
+        for c in final:
+            c.score = escolha.nota_final(c)
     final.sort(key=lambda c: -c.score)
     # saturacao: os poucos melhores passam por uma busca "Hoje" (8+ canais cortando = nota x0.7 e 2o/3o momento)
     try:
@@ -650,6 +672,7 @@ def find_candidates(cfg, trends: list[Trend] | None = None, keywords: list[str] 
                 r = next((rr for cc, rr in enriched if cc is c), None)
                 if r is not None and (c.extra or {}).get("saturacao", {}).get("pular_melhor_momento"):
                     scoring.score_candidate(c, **ctx(r, c))
+                    c.score = escolha.nota_final(c) if escolhidos else c.score
             final.sort(key=lambda c: -c.score)
         _log.info("saturacao: %d saturado(s) entre os melhores (%.1fs)", n_sat, time.time() - t2)
     except Exception as e:  # noqa: BLE001

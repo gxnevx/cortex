@@ -21,7 +21,7 @@ STATE = paths.STATE / "revisoes.json"
 SYSTEM = ("Você é o revisor final de um canal brasileiro de cortes. O dono odeia vídeo aleatório, sem sentido, e título que não bate. "
           "Use a escala inteira e seja justo: conversa de podcast é solta por natureza, e isso não é defeito. Responda SOMENTE com JSON válido.")
 # nota minima de cada item (0 a 10) e da chance geral (0 a 100)
-MINIMOS = {"entende_sozinho": 6, "comeca_bem": 5, "termina_bem": 5, "titulo_verdadeiro": 6, "imagem_ok": 4, "nota": 55}
+MINIMOS = {"entende_sozinho": 6, "comeca_bem": 5, "termina_bem": 5, "titulo_verdadeiro": 6, "imagem_ok": 5, "nota": 58}
 _espera = [0.0]
 
 
@@ -111,10 +111,10 @@ Fala completa (transcrição automática, pode ter erro de palavra e não diz qu
 Dê nota de 0 a 10 em cada item, pensando em alguém que nunca viu esse canal nem o vídeo original:
 - entende_sozinho: dá para saber do que se trata e por que assistir? 9 = claro desde o começo. 6 = um pouco solto, mas dá para seguir o assunto. 2 = introdução do vídeo, vinheta, combinado, trecho aleatório, assunto pela metade ou que depende de algo que não aparece.
 - comeca_bem: 9 = a primeira frase já prende ou abre o assunto. 5 = começa meio solto, mas o assunto fica claro em poucos segundos. 2 = começa no meio de uma história sem dizer de quem ou do que se fala, ou com sobra de outro assunto.
-- termina_bem: 9 = fecha com desfecho, resposta ou frase forte. 5 = fecha a ideia sem impacto. 2 = corta no meio da frase ou antes do desfecho.
+- termina_bem: 9 = fecha com desfecho, resposta ou frase forte. 5 = fecha a ideia sem impacto. 2 = a última frase fica incompleta ou corta antes do desfecho.
 - titulo_verdadeiro: 9 = título e texto na tela contam o que acontece. 5 = exagera um pouco. 2 = promete o que não acontece ou afirma reação, treta ou acusação que não está no trecho.
-- imagem_ok: 9 = pessoa principal bem enquadrada. 5 = dá para ver bem, com algum detalhe ruim. 2 = pessoa principal cortada, texto em cima do rosto, tela quebrada, ou mais da metade dos quadros sem mostrar o assunto.
-- nota: 0 a 100, chance de um desconhecido assistir até o fim.
+- imagem_ok: 9 = pessoa principal bem enquadrada. 5 = dá para ver bem, com algum detalhe ruim. 3 = boa parte do quadro é propaganda, QR code, pedido de PIX ou superchat, tabela ou texto do canal de origem. 2 = pessoa principal cortada, texto em cima do rosto, tela quebrada, ou mais da metade dos quadros sem mostrar o assunto.
+- nota: 0 a 100, chance de um desconhecido assistir até o fim. Assunto que só um grupo pequeno entende (um time, um processo, bolsa de valores): no máximo 50.
 - motivo: até 15 palavras, dizendo o principal problema ou qualidade.
 
 Como é o visual do canal, e NÃO é defeito: vídeo numa faixa no meio da tela com fundo desfocado (claro ou escuro) em cima e embaixo, título grande fixo, marca do canal, legenda de 1 a 3 palavras por vez, cortes rápidos entre câmeras, clarão na abertura e etiqueta com o nome do programa no começo.

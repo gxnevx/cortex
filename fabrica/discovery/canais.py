@@ -52,6 +52,10 @@ YOUTUBE: list[tuple[str, str, tuple[str, ...]]] = [
     # humor / entretenimento
     ("@felipeneto", "entretenimento", ("videos",)),
     ("@portadosfundos", "humor", ("videos",)),
+    ("@DiogoDefante", "humor", ("videos",)),
+    ("@DiaTV", "entretenimento", ("videos",)),
+    ("@AchismosTV", "humor", ("videos",)),
+    ("@cauemoura", "humor", ("videos",)),
     ("@TheNoite", "humor", ("videos",)),
     ("@ProgramadoRatinho", "entretenimento", ("videos",)),
     ("@Rezendeevil", "entretenimento", ("videos",)),

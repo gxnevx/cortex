@@ -226,10 +226,10 @@ def prompt_fino(titulo: str, canal: str, itens: list[tuple[int, ClipPlan, list]]
 Para cada corte, escolha a PRIMEIRA e a ÚLTIMA frase (números) e dê a nota.
 
 - Começo: uma frase que abre o assunto ou prende na hora, entendível por quem nunca viu o vídeo. Nunca sobra de outro assunto, cumprimento, vinheta, "então", "e aí" no meio de uma história, nem pronome sem dono ("ele", "ela", "isso") que não se resolve em poucos segundos.
-- Fim: a frase que fecha a ideia, a resposta, a piada ou o desfecho. Nunca no meio da frase, nunca com chamada para o intervalo, agradecimento ou começo de outro assunto.
+- Fim: a frase que fecha a ideia, a resposta, a piada ou o desfecho. Se a frase continua na seguinte, inclua a seguinte ou pare antes. Nunca no meio da frase, nunca com chamada para o intervalo, agradecimento ou começo de outro assunto.
 - Duração entre a primeira e a última: de {dmin:.0f} a {dmax:.0f} s (o segundo está entre colchetes). Parte de série: de 22 a {dmax:.0f} s; a parte 1 tem que abrir o assunto e a última tem que fechar.
 - "serve": false se nenhuma combinação dá um corte que faz sentido sozinho.
-- "nota": 0 a 100, chance de segurar um desconhecido até o fim. 80+ = frase forte, treta, piada boa, revelação, história com desfecho, curiosidade completa. 65 = interessante. 50 = morno, técnico ou de nicho. Comentário de jornal sobre votação, economia ou processo, sem frase de impacto: no máximo 50.
+- "nota": 0 a 100, chance de segurar um desconhecido até o fim. 80+ = frase forte, treta, piada boa, revelação, história com desfecho, curiosidade completa. 65 = interessante. 50 = morno, técnico ou de nicho. Comentário de jornal sobre votação, economia ou processo, ou conversa que só o torcedor de um time entende, sem frase de impacto: no máximo 50.
 - "titulo": 35 a 75 caracteres, conta o que realmente acontece, com o nome da pessoa ou do assunto; aspas só com frase dita igual; 1 emoji no fim; sem reação inventada.
 - "tela": até 38 caracteres, a frase mais forte ENTRE ASPAS igual à fala, de dentro do corte escolhido.
 - "imagens": até 5 pessoas públicas, filmes, séries, jogos, lugares, marcas ou objetos citados pelo nome dentro do corte, boas como imagem na tela: "palavra" (igual à fala) e "busca" (artigo da Wikipédia). Nunca vítima, menor, pessoa comum ou alguém ligado a crime ou acusação no trecho. Sem nada: lista vazia.

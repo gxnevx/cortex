@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import date
+from datetime import date, datetime
 
 from . import log, paths
 
@@ -53,12 +53,26 @@ def teto_claude(cfg) -> int:
     return int(cfg.get("cerebro.claude_max_chamadas_dia", 25)) if cfg is not None else 25
 
 
-RESERVA = {"clips": 14, "bordas": 12, "fino": 9, "curadoria": 8, "revisao": 1, "analise": 0}     # chamadas guardadas para o que vem depois
+RESERVA = {"escolha": 14, "clips": 12, "bordas": 10, "fino": 6, "curadoria": 5, "revisao": 1, "analise": 0}     # chamadas guardadas para o que vem depois
+# parte da cota do dia que a producao pode gastar ate aquela hora: sobra para cortar o que bombar de manha, a tarde e a noite
+LIBERA = ((7, 0.5), (12, 0.6), (17, 0.7), (24, 1.0))
+PRODUCAO = ("escolha", "clips")
+
+
+def liberado(cfg, hora: int | None = None) -> int:
+    """Quantas chamadas a producao ja pode ter gasto a esta hora."""
+    h = datetime.now().hour if hora is None else hora
+    return int(teto_claude(cfg) * next(f for ate, f in LIBERA if h < ate))
 
 
 def pode_claude(cfg, tarefa: str | None = None) -> bool:
     """Ainda ha cota do Claude hoje para esta tarefa? Escolher cortes para antes, para sobrar para julgar e analisar."""
-    return hoje("claude") < teto_claude(cfg) - (RESERVA.get(tarefa or "", 0) if teto_claude(cfg) >= 12 else 0)
+    usadas, teto = hoje("claude"), teto_claude(cfg)
+    if teto < 12:
+        return usadas < teto
+    if tarefa in PRODUCAO and usadas >= liberado(cfg):
+        return False
+    return usadas < teto - RESERVA.get(tarefa or "", 0)
 
 
 def resumo(cfg=None) -> str:
