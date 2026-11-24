@@ -218,14 +218,14 @@ class ClaudeBrain(LLMBrain):
     def _focus(self, video: Candidate, transcript: Transcript, cfg, lim: int) -> str:
         """Texto das regioes mais quentes, com contexto em volta, na ordem do video."""
         try:
-            wins = sorted(self._heuristic().candidate_windows(video, transcript, cfg, max_clips=24), key=lambda w: -w["score"])
+            wins = sorted(self._heuristic().candidate_windows(video, transcript, cfg, max_clips=36), key=lambda w: -w["score"])
         except Exception as e:
             logger.debug("foco: %s", safe_text(e))
             return ""
         spans: list[list[float]] = []
         total = 0
         for w in wins:
-            a, b = max(0.0, w["start"] - 100), w["end"] + 120
+            a, b = max(0.0, w["start"] - 60), w["end"] + 80       # menos contexto = mais momentos no mesmo tamanho (o fino recua se precisar)
             size = len(transcript.slice(a, b, rebase=False).text_with_timestamps())
             if total + size > lim:
                 continue

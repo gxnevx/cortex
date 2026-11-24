@@ -230,6 +230,14 @@ def foreign_block(video: Candidate) -> str:
             "entende sem contexto local (reação, treta, susto, risada, lance de jogo).\n")
 
 
+def candidatos(minutos: float, limit: int) -> tuple[int, int] | None:
+    """Quantos candidatos pedir num video longo (None = a IA decide)."""
+    if minutos < 40 or limit < 4:
+        return None
+    alto = min(limit, 8 if minutos >= 90 else 6)
+    return max(3, alto - 3), alto
+
+
 def clips_prompt(video: Candidate, transcript_text: str, signals_text: str, cfg, limit: int,
                  chunk_note: str = "", auto: bool = True) -> str:
     dmin = int(cfg.get("corte.duracao_min_s", 20))
@@ -240,7 +248,14 @@ def clips_prompt(video: Candidate, transcript_text: str, signals_text: str, cfg,
     series_ok = bool(cfg.get("corte.permitir_series", True))
     ideal_lo = max(dmin, min(30, dmax - 15))
     ideal_hi = min(dmax, 55)
-    if auto:
+    minutos = float(getattr(video, "duration", 0) or 0) / 60
+    alvo = candidatos(minutos, limit)
+    if auto and alvo:
+        # video longo: cada chamada tem que render varios candidatos (outras etapas cortam os fracos)
+        qty = (f"De {alvo[0]} a {alvo[1]} candidatos, de partes DIFERENTES do vídeo. É uma pré-seleção: outra etapa confere cada um e descarta os fracos, então traga "
+               "também os que são só bons (pontuação honesta). Uma série conta como 1 candidato. Cada candidato precisa abrir e fechar o próprio assunto, com algo que "
+               "muita gente entende: nada de piada interna, conversa técnica ou nome que só fã conhece.")
+    elif auto:
         qty = (f"Você decide quantos cortes valem a pena (no máximo {limit}). Qualidade acima de quantidade: "
                "se só 1 trecho é bom, devolva 1.")
     else:

@@ -136,5 +136,15 @@ uso_ia.liberado = real
 check("noticia 48 h, podcast e humor mais", (candidates.janela_h(cfg, "noticias"), candidates.janela_h(cfg, "podcast"), candidates.janela_h(cfg, "entretenimento")) == (48, 120, 120))
 check("viral da semana", candidates.janela_h(cfg, None, True) == 100 and candidates.janela_h(cfg, None) == 48)
 
+# ------------------------------------------------------------------ video longo rende mais candidatos por chamada
+from fabrica.brain import prompts  # noqa: E402
+
+check("candidatos: curto a IA decide, longo pede varios", (prompts.candidatos(32, 5), prompts.candidatos(59, 6), prompts.candidatos(203, 10), prompts.candidatos(203, 3)) == (None, (3, 6), (5, 8), None),
+      (prompts.candidatos(32, 5), prompts.candidatos(59, 6), prompts.candidatos(203, 10)))
+longo, curto = cand(1, "Podcast", "C", 50)[0], cand(2, "Esquete", "C", 50)[0]
+longo.duration, curto.duration = 203 * 60, 12 * 60
+pl, pc = (prompts.clips_prompt(x, "[00:01] teste", "", Config({}), n) for x, n in ((longo, 10), (curto, 3)))
+check("pedido do video longo e do curto", "De 5 a 8 candidatos" in pl and "De 5 a 8" not in pc and "no máximo 3" in pc)
+
 print("\n" + ("TUDO OK" if not fails else "FALHAS: " + ", ".join(fails)))
 sys.exit(1 if fails else 0)
