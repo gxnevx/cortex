@@ -639,9 +639,14 @@ def _sortear(plans: list[ClipPlan], cfg: Config) -> None:
         else:
             e.pop("titulo")
         # layout: conversa na horizontal, sem indicacao forte de jogo
-        if p.category == "games" or p.layout == "split" or p.tipo == "reacao":
+        if p.category in ("politica", "noticias"):
+            e.pop("layout")     # bancada e telejornal: quadro inteiro, senao corta a tarja e enquadra quem so ouve
+            p.layout = "blur"
+        elif p.category == "games" or p.layout == "split" or p.tipo == "reacao":
             e.pop("layout")
         else:
+            if p.part:          # todas as partes da serie com o mesmo visual
+                e["layout"] = experimentos.lado(f"{p.source_id}|{p.series}", "layout")
             p.layout = "blur" if e["layout"] == "A" else "full"
         if p.part:
             e.pop("cta")        # serie sempre chama para a proxima parte
@@ -866,24 +871,48 @@ def process_candidate(c: Candidate, cfg: Config, brain, run_id: str, rep: Report
         with rep.working(f"Baixando {len(groups)} trecho(s) do video..."):
             files = download.download_sections(c, [(s, e) for s, e, _ in groups], cfg, workdir)
 
+        # 1) legenda boa de todos os cortes, com folga dos dois lados
+        largas: dict[str, tuple[Transcript, float]] = {}
         for (gs, _ge, gplans), f in zip(groups, files):
             for p in sorted(gplans, key=lambda p: p.start):
-                tem_longa = p.ext_start is not None
-                s_abs, e_abs = (p.ext_start, p.ext_end) if tem_longa else (p.start, p.end)
-                # legenda transcrita uma vez (faixa inteira); a versao curta e um recorte dela
-                full: Transcript | None = None
+                s_abs, e_abs = (p.ext_start, p.ext_end) if p.ext_start is not None else (p.start, p.end)
                 try:
                     with rep.working(f"Legendando '{p.title[:40]}'..."):
-                        # um pouco alem dos dois lados, para o corte comecar e terminar em frase inteira
                         wa, wb = max(gs, s_abs - pad + 0.5), min(_ge, e_abs + pad - 0.5)
                         wide = _transcribe_clip(Path(f), cfg, wa - gs, wb - gs, c, p)
                         if wide and wide.segments:
-                            s_abs, e_abs = snap_sentences(p, wide, wa, s_abs, e_abs, tem_longa, cfg)
-                            full = wide.slice(s_abs - wa, e_abs - wa)
+                            largas[p.id] = (wide, wa)
                 except memoria.LowMemory:
                     raise
                 except Exception as e:
                     _log.warning("Whisper no corte falhou (%s); usando transcricao original", e)
+        # 2) comeco e fim por frase inteira e nota, antes de gastar edicao
+        ajustados: set[str] = set()
+        if lang == "pt" and largas:
+            from . import bordas
+
+            ordem = [p for p in plans if p.id in largas]
+            itens = [(n, p, bordas.frases(*largas[p.id])) for n, p in enumerate(ordem, 1)]
+            with rep.working("Escolhendo a frase de começo e de fim..."):
+                fora = bordas.fino(itens, c, cfg)
+            for pid, motivo in fora.items():
+                db.conn().execute("UPDATE clips SET curador=? WHERE id=?", (f"descartado antes de editar: {motivo}", pid))
+                db.set_clip_status(pid, "rejeitado")
+            ajustados = {p.id for p in ordem if p.editor and p.id not in fora}
+            groups = [(a, b, [p for p in g if p.id not in fora]) for a, b, g in groups]
+            if not any(g for _, _, g in groups):
+                raise RuntimeError("nenhum corte bom o bastante para editar neste video")
+
+        for (gs, _ge, gplans), f in zip(groups, files):
+            for p in sorted(gplans, key=lambda p: p.start):
+                tem_longa = p.ext_start is not None
+                s_abs, e_abs = (p.ext_start, p.ext_end) if tem_longa else (p.start, p.end)
+                full: Transcript | None = None
+                if p.id in largas:
+                    wide, wa = largas[p.id]
+                    if p.id not in ajustados:
+                        s_abs, e_abs = snap_sentences(p, wide, wa, s_abs, e_abs, tem_longa, cfg)
+                    full = wide.slice(s_abs - wa, e_abs - wa)
                 if not full or not full.segments:
                     full = transcript.slice(s_abs, e_abs)
                 off = p.start - s_abs

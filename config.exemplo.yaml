@@ -108,7 +108,7 @@ busca:
     nota_minima: 85               # regua mais alta que a dos videos em portugues
     exige_claude: true            # so com o Claude escolhendo (a IA local erra muito em outra lingua)
   # Mescla de nichos por rodada (a IA respeita e o aprendizado ajusta com o tempo)
-  mix_nichos: {politica: 0.3, games: 0.35, humor: 0.35}
+  mix_nichos: {podcast: 0.35, humor: 0.3, games: 0.2, politica: 0.15}
   # Games e virais: reacao forte (rage quit, surto, briga) ou curiosidade completa (easter egg, segredo)
   virais:
     ativo: true
@@ -184,6 +184,8 @@ corte:
   # Pesquisa: Shorts de 21-40 s rendem 1,2x; 41-59 s rendem 0,8x. E acima de 60 s com reivindicacao e bloqueado.
   duracao_min_s: 28               # menos que isso fica sem contexto
   duracao_max_s: 58
+  margem_frase_s: 16              # folga transcrita dos dois lados, para achar a frase certa de comeco e de fim
+  nota_para_editar: 62            # abaixo disso nem edita
   conferir_bordas: true           # o Claude le em volta e acerta onde o corte comeca e termina
   permitir_series: true           # "Parte 1, Parte 2..." quando o assunto rende
   duracao_parte_s: 52
@@ -233,7 +235,7 @@ publicacao:
   # Versao longa so no TikTok (>= 1 min, monetizavel nas Recompensas para Criadores). YouTube segue curto:
   # Short acima de 60 s com reivindicacao de direitos e bloqueado no mundo todo.
   tiktok_longo:
-    ativo: true
+    ativo: false                  # o TikTok recebe o mesmo corte revisado (a versao longa nao passava por revisao)
     proporcao: 0.6                # 60% dos cortes ganham versao longa (suba para 0.8+ perto de 10 mil seguidores)
     min_s: 61
     max_s: 90

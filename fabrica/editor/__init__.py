@@ -162,7 +162,10 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
         raise ValueError(f"trecho curto demais ({dur:.2f}s)")
 
     g = (lambda k, d: cfg.get(k, d)) if cfg is not None else (lambda k, d: d)
-    if layout is None and g("edicao.separar_webcam", True):
+    serio = str(getattr(plan, "category", "") or "") in ("politica", "noticias")
+    if serio:
+        info["blur_ar"] = 1.78      # quadro inteiro: a tarja do programa nao pode aparecer cortada
+    if layout is None and g("edicao.separar_webcam", True) and not serio:
         from . import react
 
         comp = None

@@ -79,7 +79,17 @@ def select_mix(cands: list, limit: int, mix: dict | None = None) -> list:
             chosen.append(c)
             used.add(i)
             count[k] = count.get(k, 0) + 1
+    serio = ("politica", "noticias")
+    teto = quota.get("politica", 1)
     for i, c in enumerate(cands):
+        if len(chosen) >= limit:
+            break
+        k = (c.extra or {}).get("categoria") or "outros"
+        if i not in used and not (k in serio and sum(count.get(x, 0) for x in serio) >= teto):
+            chosen.append(c)
+            used.add(i)
+            count[k] = count.get(k, 0) + 1
+    for i, c in enumerate(cands):       # so se faltou: melhor politica do que nada
         if len(chosen) >= limit:
             break
         if i not in used:

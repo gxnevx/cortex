@@ -192,12 +192,72 @@ r = ap([plano(100, 130, 1, score=60), plano(140, 175, 2, score=90)], {1: {"serve
 check("um em cima do outro: fica o de nota maior", [x.id for x in r] == ["p2"], [x.id for x in r])
 check("sem resposta: fica como veio", [(x.start, x.end) for x in ap([plano(100, 130)], {})] == [(100, 130)])
 
+# ------------------------------------------------------------------ ajuste fino por frase
+from fabrica.models import Word  # noqa: E402
+
+txt = ("sobra de outro assunto. O Fulano contou que foi assaltado ontem. Ele correu atras do ladrao. O ladrao caiu da moto. A policia chegou na hora. "
+       "Todo mundo aplaudiu. Vamos para o intervalo agora.").split()
+ws, x = [], 0.0
+for w in txt:
+    ws.append(Word(x, x + 0.9, w))
+    x += 1.0
+wide = Transcript([Segment(0, x, " ".join(txt), ws)], "pt", "x")
+fr = bordas.frases(wide, 1000.0)
+check("quebra em frases inteiras", [f[2].split()[0] for f in fr] == ["sobra", "O", "Ele", "O", "A", "Todo", "Vamos"], fr)
+semp = Transcript([Segment(0, 60, "x", [Word(i * 1.0, i + 0.5, "rima") for i in range(50)])], "pt", "x")
+check("rap sem pontuacao tambem quebra", len(bordas.frases(semp, 0)) >= 3)
+
+
+def um(d, **kw):
+    q = plano(1000, 1030)
+    q.teaser_start, q.teaser_end = None, None
+    for k, v in kw.items():
+        setattr(q, k, v)
+    return q, bordas.aplicar_fino([(1, q, fr)], {1: d}, 24, 58, 62)
+
+
+bom = {"serve": True, "primeira": 1, "ultima": 5, "nota": 80, "titulo": "Fulano contou como correu atrás do ladrão 😳", "tela": '"o ladrao caiu da moto"', "motivo": "boa"}
+q, f = um(bom)
+check("comeca e termina em frase inteira", f == {} and abs(q.start - 1003.88) < 0.01 and abs(q.end - (1000 + fr[5][1] - 1000 + 0.3)) < 0.01, (q.start, q.end, f))
+check("nota e textos guardados", q.editor["nota"] == 80 and q.hook == '"O LADRAO CAIU DA MOTO"' and "Fulano" in q.title, (q.editor, q.hook, q.title))
+check("nota baixa nem edita", "nota 50" in um({**bom, "nota": 50})[1].get("p1", ""))
+check("nao serve: nem edita", um({**bom, "serve": False})[1] != {})
+check("curto demais: nem edita", um({**bom, "primeira": 3, "ultima": 3})[1] != {})
+check("numero absurdo: fica como estava", um({**bom, "ultima": 99})[1] == {})
+check("sem resposta: fica como estava", bordas.aplicar_fino([(1, plano(1000, 1030), fr)], {}, 24, 58, 62) == {})
+pts = [plano(1000, 1030, k) for k in (1, 2)]
+for k, y in enumerate(pts, 1):
+    y.part, y.parts_total, y.series = k, 2, "h"
+f = bordas.aplicar_fino([(1, pts[0], fr), (2, pts[1], fr)], {1: bom, 2: {**bom, "serve": False}}, 24, 58, 62)
+check("serie: cai uma, caem todas", set(f) == {"p1", "p2"}, f)
+check("texto na tela nunca corta palavra", bordas.curto('Lula não chama de "ajuste", vai chamar de plano de desenvolvimento') == "Lula não chama de ajuste, vai chamar" or
+      bordas.curto('Lula não chama de "ajuste", vai chamar de plano de desenvolvimento').split()[-1] in ("chamar", "ajuste"), bordas.curto('Lula não chama de "ajuste", vai chamar de plano de desenvolvimento'))
+curadoria._ask_claude = lambda items, c: (_ for _ in ()).throw(AssertionError("nao devia chamar o Claude"))
+z = clip(90, nota=75)
+z.plan.editor = {"nota": 80, "motivo": "boa"}
+check("editor-chefe usa a nota ja dada, sem nova chamada", curadoria.curate(cfg, [z])["aprovados"] != [])
+z = clip(91, nota=60)
+z.plan.editor = {"nota": 63, "motivo": "morno"}
+check("nota ja dada baixa: descarta", curadoria.curate(cfg, [z])["descartados"] != [])
+from fabrica.discovery import nichos  # noqa: E402
+
+
+class C:
+    def __init__(self, cat, s):
+        self.extra, self.score = {"categoria": cat}, s
+
+
+sel = nichos.select_mix([C("politica", 99), C("noticias", 98), C("politica", 97), C("podcast", 60), C("humor", 59), C("games", 58)], 4, {"podcast": 0.35, "humor": 0.3, "games": 0.2, "politica": 0.15})
+check("no maximo 1 de politica ou noticia por rodada", sum(s.extra["categoria"] in ("politica", "noticias") for s in sel) == 1, [s.extra for s in sel])
+
 # ------------------------------------------------------------------ meio da tela
 from fabrica.editor import layouts, react  # noqa: E402
 
 for w, h in ((1920, 1080), (1280, 720), (1440, 1080)):
     x, y, fw, fh = layouts.blur_video_box({"width": w, "height": h})
     check(f"video {w}x{h} no meio exato", abs((y + fh / 2) - 960) <= 1 and abs((x + fw / 2) - 540) <= 1, (x, y, fw, fh))
+b = layouts.blur_video_box({"width": 1920, "height": 1080, "blur_ar": 1.78})
+check("telejornal: quadro inteiro e no meio", b[2] == 1080 and abs(b[3] - 607) <= 2 and abs(b[1] + b[3] / 2 - 960) <= 1, b)
 check("react no meio", abs((react.SCREEN_TOP + react.SEAM + react.CAM_H) / 2 - 960) <= 2, (react.SCREEN_TOP, react.SEAM + react.CAM_H))
 
 print("\n" + ("TUDO OK" if not fails else "FALHAS: " + ", ".join(fails)))

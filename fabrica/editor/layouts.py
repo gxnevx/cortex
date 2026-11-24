@@ -172,7 +172,7 @@ def geometry(layout: str, info: dict, cfg=None) -> Geo:
     sw, sh = int(info.get("width") or 1920), int(info.get("height") or 1080)
     if layout == "blur":
         bx, by, fw, fh = blur_video_box(info)
-        return Geo(layout, sw, sh, blur_crop_w(sw, sh), sh, 0, fw, fh, bx, by)
+        return Geo(layout, sw, sh, blur_crop_w(sw, sh, info.get("blur_ar")), sh, 0, fw, fh, bx, by)
     th = split_seam(cfg) if layout == "split" else H
     cw, ch, y0 = _crop_box(sw, sh, W, th)
     return Geo(layout, sw, sh, cw, ch, y0, W, th, 0, 0)
@@ -385,16 +385,17 @@ def video_graph(layout: str, info: dict, fps: int = 30, main: str = "0:v", bg: s
 BLUR_AR = 1.40     # proporcao do video no blur: 16:9 perde um pouco das laterais e ocupa 40% da tela (era 32%)
 
 
-def blur_crop_w(sw: int, sh: int) -> int:
+def blur_crop_w(sw: int, sh: int, ar: float | None = None) -> int:
     """Largura da fonte usada no blur."""
-    return min(sw, int(round(sh * BLUR_AR / 2)) * 2) if sw / max(1, sh) > BLUR_AR else sw
+    ar = float(ar or BLUR_AR)
+    return min(sw, int(round(sh * ar / 2)) * 2) if sw / max(1, sh) > ar else sw
 
 
 def blur_video_box(info: dict, center_y: int | None = None) -> tuple[int, int, int, int]:
     """(x, y, w, h) do video principal no layout blur (para posicionar legenda/titulo).
     center_y: centro vertical do video (o safezone desce um pouco para caber marca + titulo)."""
     sw, sh = int(info.get("width") or 1920), int(info.get("height") or 1080)
-    sw = blur_crop_w(sw, sh)
+    sw = blur_crop_w(sw, sh, info.get("blur_ar"))
     fw, fh = W, round(W * sh / sw / 2) * 2
     if fh > BLUR_MAX_H:
         fh = BLUR_MAX_H

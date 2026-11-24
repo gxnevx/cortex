@@ -53,7 +53,7 @@ def teto_claude(cfg) -> int:
     return int(cfg.get("cerebro.claude_max_chamadas_dia", 25)) if cfg is not None else 25
 
 
-RESERVA = {"clips": 16, "bordas": 12, "curadoria": 8, "revisao": 1, "analise": 0}     # chamadas guardadas para o que vem depois
+RESERVA = {"clips": 14, "bordas": 12, "fino": 9, "curadoria": 8, "revisao": 1, "analise": 0}     # chamadas guardadas para o que vem depois
 
 
 def pode_claude(cfg, tarefa: str | None = None) -> bool:

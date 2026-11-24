@@ -151,6 +151,9 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
     out: dict = {"aprovados": [], "descartados": []}
     if not clips:
         return out
+    from . import auditor
+
+    minimum = float(auditor.get("regua") or cfg.get("curadoria.nota_minima", 68))
     judged: list[tuple[RenderedClip, str]] = []
     verdict: dict[str, tuple[bool, str, float, str]] = {}   # id -> (postar, motivo, nota, titulo)
     for c in clips:
@@ -160,11 +163,12 @@ def curate(cfg: Any, clips: list[RenderedClip] | None = None) -> dict:
         why = _rules(c, fala, cfg)
         if why:
             verdict[c.plan.id] = (False, why, c.plan.score, "")
+        elif c.plan.editor:     # ja foi julgado lendo frase por frase, antes de editar
+            nota = float(c.plan.editor.get("nota") or 0)
+            final = 0.65 * nota + 0.35 * float(c.plan.score or 0)
+            verdict[c.plan.id] = (final >= minimum, str(c.plan.editor.get("motivo") or ""), nota, "")
         else:
             judged.append((c, fala))
-    from . import auditor
-
-    minimum = float(auditor.get("regua") or cfg.get("curadoria.nota_minima", 68))
     skip: set[str] = set()
     duros: set[str] = set()     # nao faz sentido, titulo falso ou proibido: nem a serie salva
     for k in range(0, len(judged), 8):
