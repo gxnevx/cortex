@@ -142,12 +142,12 @@ def can_post(platform: str, cfg: Config) -> tuple[bool, str]:
 # YouTube: 22h-24h 1,73x | 10h-12h 1,36x | 20h-22h 1,28x | 18h-20h 0,78x | 8h-10h 0,69x
 # TikTok:  20h-22h 2,25x | 10h-12h 1,34x | 14h-16h 1,20x | 18h-20h 0,91x | 6h-8h 0,72x
 DEFAULT_SLOTS = {
-    "youtube": {"padrao": ["22:00-23:30", "10:30-12:00", "20:00-21:30", "12:30-14:00"],
-                "qua": ["22:00-23:30", "12:00-14:00", "10:00-11:30"],
-                "sab": ["16:00-17:30", "10:30-12:00", "12:30-14:00"],
-                "dom": ["18:30-20:30", "10:30-12:00", "22:00-23:30"]},
-    "tiktok": {"padrao": ["20:00-21:45", "10:30-12:00", "14:00-15:30", "22:30-23:45"],
-               "sab": ["21:30-23:30", "18:30-20:00", "10:30-12:00", "14:00-15:30"]},
+    "youtube": {"padrao": ["22:00-23:30", "10:00-11:15", "13:30-14:30", "16:30-18:00", "20:00-21:00"],
+                "qua": ["22:00-23:30", "13:15-14:15", "10:00-10:50", "16:30-18:00"],
+                "sab": ["16:30-17:45", "12:30-13:45", "20:00-21:30", "10:30-12:00"],
+                "dom": ["18:30-19:30", "10:30-12:00", "22:00-23:30", "14:00-15:00"]},
+    "tiktok": {"padrao": ["20:00-21:45", "10:30-12:00", "14:00-15:30", "22:50-23:50", "17:10-18:10", "08:00-09:15"],
+               "sab": ["21:30-23:30", "18:30-20:00", "10:30-12:00", "14:00-15:30", "16:40-17:00", "08:00-09:15"]},
 }
 
 
@@ -238,6 +238,11 @@ def plan_steps(platform: str, cfg: Config) -> list[tuple[date, int]]:
     """Quantos posts por dia, e a partir de quando: [(hoje, 0), (26/11, 1), ...]."""
     base = int((cfg.get("publicacao.max_posts_por_dia", {}) or {}).get(platform, 4))
     age = account_age_days(platform, cfg)
+    if cfg.get("estrategia.decide_quantidade", True):
+        from . import estrategia
+
+        if (estrategia.state().get("quantidade") or {}).get(platform):
+            return [(date.today(), daily_limit(platform, cfg))]
     if not cfg.get("publicacao.aquecimento.ativo", True) or age is None:
         return [(date.today(), base)]
     steps = [(date.today(), daily_limit(platform, cfg))]

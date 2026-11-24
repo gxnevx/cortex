@@ -74,9 +74,15 @@ def _interval(cfg: Any, dry_run: bool) -> tuple[float, float]:
 
 def _daily_limit(cfg: Any, platform: str) -> int:
     lim = cfg.get("publicacao.max_posts_por_dia", {}) or {}
-    if isinstance(lim, dict):
-        return int(lim.get(platform, 10) or 0)
-    return int(lim or 0)
+    n = int(lim.get(platform, 10) or 0) if isinstance(lim, dict) else int(lim or 0)
+    if not n:
+        return n
+    try:        # o auditor pode ter decidido mais, sempre dentro de estrategia.teto
+        from .. import policy
+
+        return max(n, int(policy.daily_limit(platform, cfg)))
+    except Exception:
+        return n
 
 
 def _policy_ok(platform: str, cfg: Any) -> tuple[bool, str]:
