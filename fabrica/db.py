@@ -73,6 +73,8 @@ def _j(obj: Any) -> str:
 
 # ------------------------------------------------------------------ runs
 def start_run(run_id: str, trigger: str, search_mode: str, keywords: list[str] | None, publish_mode: str) -> None:
+    # so existe uma rodada por vez (RunLock): o que ficou "rodando" foi interrompido (reinicio, queda)
+    conn().execute("UPDATE runs SET status='interrompida', finished=? WHERE status='rodando' AND id<>?", (time.time(), run_id))
     conn().execute(
         "INSERT OR REPLACE INTO runs (id, started, trigger, search_mode, keywords, publish_mode, status) VALUES (?,?,?,?,?,?,?)",
         (run_id, time.time(), trigger, search_mode, _j(keywords or []), publish_mode, "rodando"),

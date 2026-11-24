@@ -264,6 +264,7 @@ O QUE É UM BOM CORTE
 - A transcrição é automática e erra nomes: no título, gancho e teaser escreva o nome certo (ex.: "a mim, meus ex" num vídeo dos X-Men é "A mim, meus X-Men!"). Use o título do vídeo e os comentários para descobrir.
 - Nunca inclua despedida ("vou ficando por aqui", "se inscreve no canal").
 - Evite: propaganda/patrocínio, pedido de inscrição, silêncio, música, trechos sem contexto, fala arrastada.
+- Nunca: trecho que ensina ou mostra como fazer coisa perigosa que alguém pode imitar em casa (fogo, álcool, arma, droga, remédio, desafio que machuca).
 - Os cortes NÃO podem se sobrepor.
 {series}
 

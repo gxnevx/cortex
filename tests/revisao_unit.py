@@ -122,6 +122,12 @@ revisao._espera[0] = 0
 check("regra: final inventado", not revisao.garantir(clip(61, '"Quem trai uma vez trai sempre" e a mesa TRAVOU'), cfg)["ok"])
 check("regra: curto demais", not revisao.garantir(clip(62, dur=12), cfg)["ok"])
 
+for ruim in ("ensina a fazer fogo com álcool", True):
+    resp["v"] = {**tudo, "proibido": ruim}
+    r = revisao.garantir(clip(70 + len(pedidos)), cfg)
+    check(f"revisao reprova o proibido ({ruim})", not r["ok"] and "proibido" in r["motivo"], r)
+for livre in ("", "false", "Não", None, False):
+    check(f"proibido vazio passa ({livre!r})", revisao.faltas({**tudo, "proibido": livre}) == [])
 check("item sem nota conta como falta", "nota" in revisao.faltas({k: 9 for k in revisao.MINIMOS if k != "nota"})[0])
 
 # portao unico: publish_clips nunca manda o que nao passou

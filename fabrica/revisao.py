@@ -112,15 +112,16 @@ Dê nota de 0 a 10 em cada item, pensando em alguém que nunca viu esse canal ne
 - entende_sozinho: dá para saber do que se trata e por que assistir? 9 = claro desde o começo. 6 = um pouco solto, mas dá para seguir o assunto. 2 = introdução do vídeo, vinheta, combinado, trecho aleatório, assunto pela metade ou que depende de algo que não aparece.
 - comeca_bem: 9 = a primeira frase já prende ou abre o assunto. 5 = começa meio solto, mas o assunto fica claro em poucos segundos. 2 = começa no meio de uma história sem dizer de quem ou do que se fala, ou com sobra de outro assunto.
 - termina_bem: 9 = fecha com desfecho, resposta ou frase forte. 5 = fecha a ideia sem impacto. 2 = a última frase fica incompleta ou corta antes do desfecho.
-- titulo_verdadeiro: 9 = título e texto na tela contam o que acontece. 5 = exagera um pouco. 2 = promete o que não acontece ou afirma reação, treta ou acusação que não está no trecho.
+- titulo_verdadeiro: 9 = título e texto na tela contam o que acontece. 5 = exagera um pouco. 2 = promete o que não acontece, afirma reação, treta ou acusação que não está no trecho, ou diz que a pessoa fez algo que ela só assistiu e comentou.
 - imagem_ok: 9 = pessoa principal bem enquadrada. 5 = dá para ver bem, com algum detalhe ruim. 3 = boa parte do quadro é propaganda, QR code, pedido de PIX ou superchat, tabela ou texto do canal de origem. 2 = pessoa principal cortada, texto em cima do rosto, tela quebrada, ou mais da metade dos quadros sem mostrar o assunto.
 - nota: 0 a 100, chance de um desconhecido assistir até o fim. Assunto que só um grupo pequeno entende (um time, um processo, bolsa de valores): no máximo 50.
+- proibido: "" se pode ir ao ar. Senão, o motivo em até 8 palavras: ensina ou mostra como fazer coisa perigosa que alguém pode imitar em casa (fogo, álcool, arma, droga, remédio, desafio que machuca), mesmo em tom de crítica ou piada, quando o passo a passo aparece; acusa pessoa real e identificável de crime sem ser caso público; expõe menor de idade; ódio contra grupo; propaganda.
 - motivo: até 15 palavras, dizendo o principal problema ou qualidade.
 
 Como é o visual do canal, e NÃO é defeito: vídeo numa faixa no meio da tela com fundo desfocado (claro ou escuro) em cima e embaixo, título grande fixo, marca do canal, legenda de 1 a 3 palavras por vez, cortes rápidos entre câmeras, clarão na abertura e etiqueta com o nome do programa no começo.
 
 RESPONDA SÓ COM ESTE JSON:
-{{"entende_sozinho":0,"comeca_bem":0,"termina_bem":0,"titulo_verdadeiro":0,"imagem_ok":0,"nota":0,"motivo":"..."}}"""
+{{"entende_sozinho":0,"comeca_bem":0,"termina_bem":0,"titulo_verdadeiro":0,"imagem_ok":0,"nota":0,"proibido":"","motivo":"..."}}"""
 
 
 def perguntar(clip: Any, fala: str, cfg: Any) -> dict | None:
@@ -159,6 +160,9 @@ def faltas(d: dict) -> list[str]:
             v = -1.0
         if v < minimo:
             out.append(f"{k} {v:.0f}")
+    pr = d.get("proibido")
+    if pr is True or (isinstance(pr, str) and pr.strip().lower() not in ("", "false", "não", "nao", "nenhum", "nada", "null", "none", "...")):
+        out.append("proibido: " + (pr.strip()[:80] if isinstance(pr, str) else "sim"))
     return out
 
 

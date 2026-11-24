@@ -109,7 +109,7 @@ def prompt(itens: list[tuple[Any, Any]], quantos: int) -> str:
 Público: brasileiros de 16 a 35 anos no YouTube Shorts, TikTok e Instagram. Assuntos do canal: podcast, humor, famosos, streamers, games, curiosidades e polêmica.{h}
 
 RENDE BEM: entrevista ou podcast com gente conhecida contando história com desfecho, confissão, briga, opinião que divide; humorista; streamer perdendo a cabeça ou reagindo a algo que todo mundo conhece; curiosidade ou revelação completa; assunto em alta explicado por alguém com opinião forte.
-RENDE MAL (nota abaixo de 50): jornal, votação, sessão, economia e bolsa, análise técnica, pós-jogo ou debate sobre um time só, gameplay sem reação, campeonato, música ou batalha de rima, muita gente falando junto, vídeo que depende da imagem, propaganda, aula, culto, coletânea, crime com vítima.
+RENDE MAL (nota abaixo de 50): jornal, votação, sessão, economia e bolsa, análise técnica, pós-jogo ou debate sobre um time só, gameplay sem reação, campeonato, música ou batalha de rima, muita gente falando junto, vídeo que depende da imagem, propaganda, aula, culto, coletânea, crime com vítima, coisa perigosa ensinada passo a passo (life hack com fogo, desafio que machuca).
 Política: no máximo 1, e só com frase de impacto ou briga.
 Só vídeo falado em português: canal gringo (Joe Rogan, MrBeast e parecidos) fica de fora, mesmo com título traduzido.
 Prefira nome conhecido e assunto que muita gente entende. Vídeo que está bombando agora ganha pontos, mas não salva assunto fraco.
