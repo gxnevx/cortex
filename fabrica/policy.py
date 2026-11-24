@@ -138,6 +138,9 @@ def can_post(platform: str, cfg: Config) -> tuple[bool, str]:
     return True, "ok"
 
 
+# Folga depois do fim da janela: PC que acordou um pouco tarde (tampa fechada) ainda posta nela.
+FOLGA_S = 20 * 60
+
 # Melhores janelas por rede, em ordem de PRIORIDADE (docs/ideias/benchmark_canais.md, horario de Brasilia):
 # YouTube: 22h-24h 1,73x | 10h-12h 1,36x | 20h-22h 1,28x | 18h-20h 0,78x | 8h-10h 0,69x
 # TikTok:  20h-22h 2,25x | 10h-12h 1,34x | 14h-16h 1,20x | 18h-20h 0,91x | 6h-8h 0,72x
@@ -187,7 +190,7 @@ def _slot_times(platform: str, cfg: Config, day: date) -> list[tuple[float, floa
 
 
 def slots_today(platform: str, cfg: Config) -> list[tuple[float, float]]:
-    """Horarios de post que ainda valem hoje (em ordem). Janela perdida (PC desligado) e trocada pela proxima boa."""
+    """Horarios de post que ainda valem hoje (em ordem). Janela perdida ha mais de FOLGA_S (PC desligado) e trocada pela proxima boa."""
     now = time.time()
     limit = effective_limit(platform, cfg)
     left = limit - db.posts_today(platform)
@@ -196,7 +199,7 @@ def slots_today(platform: str, cfg: Config) -> list[tuple[float, float]]:
     last, gap = last_post_ts(platform) or 0.0, min_interval_s(platform, cfg)
     allw = _slot_times(platform, cfg, date.today())
     ok = [(max(t, last + gap), end) for t, end in allw]
-    ok = [(t, end) for t, end in ok if t <= end and end > now and last < t]
+    ok = [(t, end) for t, end in ok if t <= end and end + FOLGA_S >= now and last < t]
     chosen: list[tuple[float, float]] = []
     for t, end in ok:                     # prioridade, respeitando o intervalo entre os escolhidos
         if len(chosen) < left and all(abs(t - c) >= gap for c, _ in chosen):
@@ -206,7 +209,7 @@ def slots_today(platform: str, cfg: Config) -> list[tuple[float, float]]:
 
 def slot_due(platform: str, cfg: Config) -> bool:
     """Esta na hora de postar nesta rede?"""
-    return any(t <= time.time() <= end + 1200 for t, end in slots_today(platform, cfg))
+    return any(t <= time.time() <= end + FOLGA_S for t, end in slots_today(platform, cfg))
 
 
 def next_slot(platform: str, cfg: Config) -> float:

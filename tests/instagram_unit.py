@@ -162,5 +162,40 @@ check("confirmacao em 3 idiomas", all(instagram.SUCCESS_RE.search(t) for t in
 check("aviso antes do envio nao e confirmacao", not instagram.SUCCESS_RE.search("O teu reel vai ser partilhado com os teus seguidores"))
 check("limite da rede", bool(instagram.RATE_RE.search("Tenta novamente mais tarde") and instagram.RATE_RE.search("Ação bloqueada")))
 
+# ------------------------------------------------------------------ PC que acorda tarde: folga de 20 min depois da janela (caso real de 24/11)
+from datetime import date, datetime  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+
+def em(hm: str) -> float:
+    h, m = hm.split(":")
+    d = date.today()
+    return datetime(d.year, d.month, d.day, int(h), int(m)).timestamp()
+
+
+guarda = (policy._slot_times, policy.last_post_ts, policy.time, policy.db.posts_today, policy.effective_limit, cronograma.time)
+policy._slot_times = lambda p, c, d: [(em(x), em(y)) for x, y in (("20:15", "21:45"), ("10:46", "12:00"), ("14:47", "15:30"), ("23:17", "23:50"), ("17:20", "18:10"))]
+policy.effective_limit = lambda p, c: 3
+
+
+def agora(hm: str, ultimo: str, feitos: int) -> tuple[bool, list[str]]:
+    policy.time = cronograma.time = SimpleNamespace(time=lambda: em(hm))
+    policy.last_post_ts = lambda p: em(ultimo)
+    policy.db.posts_today = lambda p: feitos
+    return policy.slot_due("tiktok", cfg), [datetime.fromtimestamp(x).strftime("%H:%M") for x in cronograma.horarios("tiktok", cfg, date.today())]
+
+
+try:
+    for hm, feitos, quer in (("14:30", 1, (False, ["14:47", "20:15"])), ("15:10", 1, (True, ["15:10", "20:15"])),
+                             ("15:41", 1, (True, ["15:41", "20:15"])), ("15:51", 1, (False, ["20:15", "23:17"]))):
+        r = agora(hm, "10:47", feitos)
+        check(f"folga: as {hm} com o horario das 14:47 pendente", r == quer, r)
+    r = agora("15:43", "15:42", 2)
+    check("folga: postou atrasado, nao posta de novo na mesma janela", r == (False, ["20:15"]), r)
+    r = agora("15:43", "15:42", 3)
+    check("folga: limite do dia continua valendo", r == (False, []), r)
+finally:
+    policy._slot_times, policy.last_post_ts, policy.time, policy.db.posts_today, policy.effective_limit, cronograma.time = guarda
+
 print("\n" + ("TUDO OK" if not fails else "FALHAS: " + ", ".join(fails)))
 sys.exit(1 if fails else 0)
