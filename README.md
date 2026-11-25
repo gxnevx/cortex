@@ -74,6 +74,7 @@ Com a API conectada, o YouTube recebe os vídeos pelo caminho autorizado do Goog
 | `cortex revisar` | revisa, aprova e publica de uma vez |
 | `cortex login youtube`, `tiktok`, `instagram`, `youtube-api` ou `claude` | logins |
 | `cortex cronograma` | o que sai em cada rede e quando |
+| `cortex ranking [ver/agora/placar]` | ranking de 5 clipes do público em ordem de views (feito sozinho, no máximo 1 por dia) |
 | `cortex testar-publicacao` | confere a página de upload sem publicar |
 | `cortex agendar` / `desagendar` / `agenda` | modo agendado (2 a 4 vezes por dia) em vez do 24/7 |
 | `cortex status` | diagnóstico completo |

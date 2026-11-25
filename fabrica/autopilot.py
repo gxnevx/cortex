@@ -257,7 +257,9 @@ def expire_old(cfg: Config) -> int:
     """Assunto velho nao viraliza: cortes nao publicados depois de X horas saem da fila."""
     hours = float(cfg.get("autopiloto.validade_horas", 36))
     limit = time.time() - hours * 3600
-    n = 0
+    from . import ranking
+
+    n = ranking.vencer()
     for r in db.conn().execute("SELECT id, created FROM clips WHERE status='renderizado'").fetchall():
         if (r["created"] or time.time()) < limit:
             if db.conn().execute("SELECT 1 FROM posts WHERE clip_id=? AND ok=1 AND dry_run=0", (r["id"],)).fetchone() \
@@ -466,6 +468,17 @@ class Autopilot:
                         continue
                 qlist = queue(cfg)
                 q = len(qlist)
+                from . import ranking
+
+                # o ranking do dia (no maximo 1), com o PC ocioso
+                if (capacity(cfg) > 0 and ranking.na_hora(cfg) and storage.free_gb() >= float(cfg.get("armazenamento.espaco_minimo_livre_gb", 2))
+                        and not self._wait_user(cfg, 1)):
+                    self.state.set_prod("ranking do dia")
+                    res = ranking.rodar(cfg, AutopilotReporter(self.state))
+                    free_memory()
+                    self.state.last_cycle = f"{datetime.now():%H:%M} | ranking | {res.get('tema') or res.get('motivo', '')}"
+                    self.state.set_prod(f"ranking pronto: {res['titulo'][:60]}" if res.get("ok") else f"sem ranking agora: {res.get('motivo', '')[:80]}")
+                    continue
                 max_q = int(cfg.get("autopiloto.fila_maxima", 12))
                 target = target_queue(cfg)          # proporcional ao que da para postar (x estoque)
                 every = float(cfg.get("autopiloto.intervalo_producao_min", 90)) * 60

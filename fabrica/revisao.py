@@ -52,7 +52,7 @@ def regras(clip: Any, fala: str) -> str | None:
         return "o arquivo do vídeo sumiu"
     if not (20 if p.part else 25) <= float(clip.duration or 0) <= 95:
         return f"duração fora do normal ({clip.duration:.0f} s)"
-    if len(fala.split()) < 8:
+    if len(fala.split()) < 8 and p.tipo != "ranking":
         return "quase não tem fala"
     for nome, t in (("título", p.title), ("texto na tela", p.hook)):
         f = honesto.falsas(t, fala)
@@ -80,12 +80,17 @@ def folha_imagens(clip: Any) -> Path | None:
 
 
 def folha(clip: Any, n: int = 8) -> Path | None:
-    """8 quadros do video pronto, em ordem, numa imagem so."""
+    """8 quadros do video pronto, em ordem, numa imagem so (ranking: 2 de cada momento)."""
     out = paths.STATE / f"revisao_{clip.plan.id[:60]}.jpg"
     d = max(1.0, float(clip.duration or 30))
+    if clip.plan.tipo == "ranking" and clip.plan.itens:
+        ts = [x["t0"] + f * (x["t1"] - x["t0"]) for x in clip.plan.itens for f in (0.3, 0.8)]
+        sel = "+".join(f"between(t,{t:.2f},{t + 0.02 + 1 / 30:.2f})" for t in ts)
+        vf = f"select='{sel}',select='isnan(prev_selected_t)+gt(t-prev_selected_t,0.5)',scale=300:-2,tile=5x{(len(ts) + 4) // 5}:padding=6"
+    else:
+        vf = f"fps={n}/{d:.2f},scale=250:-2,tile=4x{(n + 3) // 4}:padding=6"
     try:
-        subprocess.run([tools.ffmpeg(), "-v", "error", "-y", "-i", clip.path, "-vf",
-                        f"fps={n}/{d:.2f},scale=250:-2,tile=4x{(n + 3) // 4}:padding=6", "-frames:v", "1", "-q:v", "4", str(out)],
+        subprocess.run([tools.ffmpeg(), "-v", "error", "-y", "-i", clip.path, "-vf", vf, "-frames:v", "1", "-fps_mode", "vfr", "-q:v", "4", str(out)],
                        capture_output=True, timeout=180, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         return out if out.exists() else None
     except Exception as e:
@@ -93,8 +98,38 @@ def folha(clip: Any, n: int = 8) -> Path | None:
         return None
 
 
+def _prompt_ranking(clip: Any) -> str:
+    p = clip.plan
+    itens = "\n".join(f"- aparece de {x['t0']:.0f} a {x['t1']:.0f} s: {x['pos']}º lugar, {x['nome']} ({x['quem']}, {x['views']} views). Fala: \"{x['fala'][:250] or '(sem fala)'}\""
+                      for x in p.itens)
+    return f"""Última conferência antes de publicar este RANKING: 5 momentos curtos de lives, do público, um depois do outro. A imagem tem 10 quadros do vídeo pronto, 2 de cada momento, na ordem em que aparecem.
+
+Título do post: {p.title}
+Título fixo na tela: {p.hook}
+Duração: {clip.duration:.0f} s
+Momentos (transcrição automática, pode ter erro de palavra):
+{itens}
+
+Dê nota de 0 a 10 em cada item, pensando em alguém que nunca viu esse canal:
+- entende_sozinho: dá para entender a graça da maioria dos momentos sem conhecer a live? 9 = todos claros. 6 = um ou dois soltos. 2 = quase tudo sem sentido.
+- comeca_bem: o primeiro momento prende? 9 = sim, na hora. 5 = demora um pouco. 2 = parado.
+- termina_bem: o último (1º lugar) tem desfecho? 9 = fecha forte. 5 = fecha sem impacto. 2 = corta antes de acontecer.
+- titulo_verdadeiro: o título fala a verdade e cada nome da lista bate com o momento? 9 = tudo bate. 5 = um nome exagera. 2 = nome ou título inventa.
+- imagem_ok: 9 = dá para ver bem o que acontece. 5 = um momento escuro ou poluído. 2 = quase nada visível, ou propaganda, QR code ou pedido de dinheiro em destaque.
+- nota: 0 a 100, chance de um desconhecido assistir até o fim.
+- proibido: "" se pode ir ao ar. Senão, o motivo em até 8 palavras: nudez, sexo ou insinuação sexual explícita, drogas, aposta, propaganda, ódio, humilhação de pessoa comum, criança, violência real, dado pessoal. Violência normal de jogo e palavrão solto NÃO são proibidos.
+- motivo: até 15 palavras, dizendo o principal problema ou qualidade.
+
+Como é o visual, e NÃO é defeito: título em cima, lista de 1 a 5 que vai sendo preenchida (o atual em amarelo, os outros vazios até aparecerem), vídeo numa faixa no meio com fundo desfocado, webcam pequena da pessoa, chat ou texto do jogo na imagem, duas legendas às vezes.
+
+RESPONDA SÓ COM ESTE JSON:
+{{"entende_sozinho":0,"comeca_bem":0,"termina_bem":0,"titulo_verdadeiro":0,"imagem_ok":0,"nota":0,"proibido":"","motivo":"..."}}"""
+
+
 def _prompt(clip: Any, fala: str) -> str:
     p = clip.plan
+    if p.tipo == "ranking" and p.itens:
+        return _prompt_ranking(clip)
     parte = f"\nEste é a Parte {p.part} de {p.parts_total} de uma série: quem vê já viu a anterior; pode terminar em suspense se não for a última." if p.part else ""
     gancho = f'\nO vídeo abre repetindo a frase mais forte ("{p.teaser_text}"), isso é proposital.' if p.teaser_text else ""
     il = [m for m in (p.imagens or []) if m.get("t") is not None and m.get("artigo")]

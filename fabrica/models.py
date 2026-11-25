@@ -163,7 +163,8 @@ class ClipPlan:
     editor: dict = field(default_factory=dict)    # nota do editor-chefe dada ANTES de editar (bordas.fino)
     imagens: list[dict] = field(default_factory=list)   # o que ilustrar (palavra dita + busca); depois de editar, as usadas com credito
     titulo_alt: str = ""              # o outro titulo (com aspas x direto), para o teste A/B
-    tipo: str = ""                    # fala | reacao | curiosidade | tutorial | noticia (decide o estilo do titulo)
+    tipo: str = ""                    # fala | reacao | curiosidade | tutorial | noticia (decide o estilo do titulo) | ranking
+    itens: list[dict] = field(default_factory=list)     # ranking: os momentos, na ordem em que aparecem (pos, nome, quem, views, t0, t1, fala)
     context: str = ""                 # linha de contexto (ate ~60 caracteres) para o cartao de abertura
     # Versao estendida para o TikTok (>= 61 s, monetizavel nas Recompensas). Linha do tempo ORIGINAL,
     # contem [start, end]. None = o TikTok recebe a mesma versao curta do YouTube.

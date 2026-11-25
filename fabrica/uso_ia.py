@@ -53,7 +53,7 @@ def teto_claude(cfg) -> int:
     return int(cfg.get("cerebro.claude_max_chamadas_dia", 25)) if cfg is not None else 25
 
 
-RESERVA = {"escolha": 14, "clips": 12, "bordas": 10, "fino": 6, "curadoria": 5, "revisao": 1, "analise": 0}     # chamadas guardadas para o que vem depois
+RESERVA = {"escolha": 14, "clips": 12, "bordas": 10, "fino": 6, "curadoria": 5, "ranking": 4, "revisao": 1, "analise": 0}     # chamadas guardadas para o que vem depois
 # parte da cota do dia que a producao pode gastar ate aquela hora: sobra para cortar o que bombar de manha, a tarde e a noite
 LIBERA = ((7, 0.5), (12, 0.6), (17, 0.7), (24, 1.0))
 PRODUCAO = ("escolha", "clips")

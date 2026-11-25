@@ -1490,7 +1490,7 @@ def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Re
 
 
 def publish_order(clips: list[RenderedClip]) -> list[RenderedClip]:
-    """Melhores primeiro, mas series sempre em ordem (Parte 1 antes da Parte 2)."""
+    """Ranking do dia na frente, depois os melhores; series sempre em ordem (Parte 1 antes da Parte 2)."""
     def group_key(c: RenderedClip) -> str:
         p = c.plan
         return f"{p.source_id}|{p.series}" if p.part else p.id
@@ -1499,7 +1499,7 @@ def publish_order(clips: list[RenderedClip]) -> list[RenderedClip]:
     for c in clips:
         k = group_key(c)
         best[k] = max(best.get(k, 0.0), c.plan.score or 0.0)
-    return sorted(clips, key=lambda c: (-best[group_key(c)], group_key(c), c.plan.part or 0))
+    return sorted(clips, key=lambda c: (c.plan.tipo != "ranking", -best[group_key(c)], group_key(c), c.plan.part or 0))
 
 
 def _publish(cfg: Config, clips: list[RenderedClip], opts: RunOptions, rep: Reporter, summary: dict) -> None:

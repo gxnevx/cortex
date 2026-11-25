@@ -448,6 +448,12 @@ def build_post_text(plan: ClipPlan, platform: str, cfg: Any, video_title: str | 
     if (getattr(plan, "exp", None) or {}).get("cta") == "B":     # sorteado para sair sem pedido de comentario
         call = ""
 
+    rank = getattr(plan, "tipo", "") == "ranking"
+    if rank:        # a pergunta do ranking e a lista de verdade, sem retoque da IA
+        from .. import ranking
+
+        call = ranking.PERGUNTAS[sum(map(ord, plan.id + platform)) % len(ranking.PERGUNTAS)]
+
     from ..ilustra import credito
 
     img = strip_emojis(credito(getattr(plan, "imagens", None) or []))
@@ -455,7 +461,7 @@ def build_post_text(plan: ClipPlan, platform: str, cfg: Any, video_title: str | 
         title = post_title(plan, cfg, YT_TITLE_MAX, emojis, lang)
         hook = _hook_line(plan, title, cfg, emojis, st)
         context = _context(plan, title, cfg, emojis, lang, YT_CONTEXT_MAX, one_line=False, st=st)
-        hook, call = ai_polish(plan, platform, cfg, title, hook, context, call)
+        hook, call = ("", call) if rank else ai_polish(plan, platform, cfg, title, hook, context, call)
         parts = [hook, context, call, source, img, footer]
         body = "\n\n".join(p for p in parts if p)
         room = YT_DESC_MAX - len(tag_line) - 2
@@ -468,7 +474,8 @@ def build_post_text(plan: ClipPlan, platform: str, cfg: Any, video_title: str | 
     context = ""
     if cfg.get("publicacao.tiktok_contexto", True):
         context = _context(plan, title, cfg, emojis, lang, TT_CONTEXT_MAX, one_line=True, st=st)
-    context, call = ai_polish(plan, platform, cfg, title, context, context, call)
+    if not rank:
+        context, call = ai_polish(plan, platform, cfg, title, context, context, call)
     lines = [title, context, call, source, img]
     if footer and cfg.get("publicacao.tiktok_rodape", False):
         lines.append(footer)

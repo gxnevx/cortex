@@ -466,6 +466,34 @@ def open_report() -> int:
     return 0
 
 
+# =========================================================== ranking
+def do_ranking(cfg: Config, acao: str) -> int:
+    from . import ranking
+
+    if acao == "agora":
+        ui.banner()
+        r = ranking.rodar(cfg, ui.Reporter(), trigger="manual")
+        (ui.ok(f"Na fila: {r['titulo']}") if r["ok"] else ui.warn(f"Não saiu ranking: {r['motivo']}"))
+        return 0 if r["ok"] else 1
+    if acao == "placar":
+        p = ranking.placar()
+        for rede, x in p.items():
+            ui.info(f"{rede}: ranking {x['views']:.0f} views ({x['n']} posts) | corte normal {x['normal']:.0f} ({x['n_normal']} posts)")
+        if not p:
+            ui.info("Ainda não há ranking postado com números.")
+        return 0
+    with ui.console.status(" Procurando os clipes da semana...", spinner="line"):
+        ts = ranking.temas(cfg)
+    ui.info(f"aprovados e guardados: {len(ranking._mem().get('bons') or [])}")
+    for t in ts[:5]:
+        ui.info(f"{t['tema']}: {len(t['clipes'])} clipes para olhar")
+        for c in t["clipes"][:6]:
+            ui.dim(f"{c['views']:>7} views  {c['nome']}: {c['titulo'][:60]}")
+    if not ts:
+        ui.warn("Nenhum assunto com clipes suficientes agora.")
+    return 0
+
+
 # =========================================================== piloto
 def do_autopilot(dry_run: bool = False, no_publish: bool = False, headless: bool = False) -> int:
     from .autopilot import Autopilot
@@ -527,6 +555,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("metricas", help="views dos posts, saude das contas e aprendizado")
     cr = sub.add_parser("cronograma", help="o que sai em cada rede e quando")
     cr.add_argument("--dias", type=int, default=4)
+    rk = sub.add_parser("ranking", help="ranking de clipes da semana (feito sozinho, no maximo 1 por dia)")
+    rk.add_argument("acao", nargs="?", default="ver", choices=["ver", "agora", "placar"], help="ver = assuntos de hoje | agora = faz um | placar = ranking x corte normal")
     an = sub.add_parser("analise", help="numeros, nota das contas, testes A/B e a leitura do analista")
     an.add_argument("--agora", action="store_true", help="le os numeros e analisa agora")
     rt = sub.add_parser("retomar", help="tira uma conta da pausa de seguranca")
@@ -635,6 +665,8 @@ def main(argv: list[str] | None = None) -> int:
             show_history()
         elif args.cmd == "cronograma":
             show_schedule(cfg, args.dias)
+        elif args.cmd == "ranking":
+            return do_ranking(cfg, args.acao)
         elif args.cmd == "analise":
             show_analysis(cfg, rodar=args.agora)
         elif args.cmd == "metricas":

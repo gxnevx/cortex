@@ -299,6 +299,18 @@ curadoria:
   duracao_min_s: 25
 
 # ---------------------------------------------------------------------
+# RANKING: 5 clipes do publico (Twitch e Kick) sobre o mesmo assunto, em ordem de views. No maximo 1 por dia.
+# ---------------------------------------------------------------------
+ranking:
+  ativo: true
+  hora: 8                         # a partir desta hora tenta o ranking do dia
+  tentativas_dia: 2               # sem 5 clipes bons, tenta de novo mais tarde
+  views_min: 400                  # clipe com menos views nao entra
+  nota_minima: 60                 # nota do Claude para cada clipe (depois o pedaco exato ainda e conferido)
+  consultas: 2                    # no maximo X chamadas do Claude por tentativa (os aprovados ficam guardados)
+  jogos: ["Grand Theft Auto VI", "Minecraft", "IRL"]   # sempre olha estes, alem dos jogos em alta na Twitch
+
+# ---------------------------------------------------------------------
 # ESTRATEGISTA: nota das contas, testes A/B e decisoes com numeros reais
 # ---------------------------------------------------------------------
 experimentos:
