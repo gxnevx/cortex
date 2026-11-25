@@ -233,6 +233,7 @@ edicao:
 publicacao:
   plataformas: [youtube, tiktok]   # + instagram para postar Reels
   redes_exclusivas: [instagram]   # recebe cortes diferentes dos que saem nas outras redes
+  repetir_sem_exclusivo: true     # faltou corte so dele: o Instagram repete um avulso que ja saiu nas outras
   # tiktok_modo: auto = publica sozinho | semi = preenche tudo e VOCE clica em Publicar
   tiktok_modo: auto
   # Versao longa so no TikTok (>= 1 min, monetizavel nas Recompensas para Criadores). YouTube segue curto:

@@ -32,7 +32,8 @@ def montar(cfg: Any, dias: int = 4, fila: list | None = None) -> list[dict]:
         out.append({"ts": r["ts"], "rede": r["platform"], "titulo": r["title"] or "", "parte": "", "clip_id": r["clip_id"], "feito": True, "url": r["url"]})
 
     fila = autopilot.queue(cfg) if fila is None else fila
-    ja = {c.plan.id: set(exclusivas.postados(c.plan.id)) for c in fila}
+    com_guardados = [*fila, *exclusivas.guardados(cfg)]
+    ja = {c.plan.id: set(exclusivas.postados(c.plan.id)) for c in com_guardados}
     plats = list(cfg.get("publicacao.plataformas", ["youtube", "tiktok"]) or [])
     excl = exclusivas.redes(cfg)
     fontes = {p: exclusivas._fontes_recentes(p) for p in excl}
@@ -50,15 +51,16 @@ def montar(cfg: Any, dias: int = 4, fila: list | None = None) -> list[dict]:
         if p in excl:
             d = dia_de(t)
             restam = max([sum(1 for x, q in ev if q == o and x > t and dia_de(x) == d) for o in outras] or [0])
-            c = exclusivas.escolher(p, cfg, fila, ja=ja, fontes=fontes[p], guardar=exclusivas.reserva(p, cfg, restam, feitos.get((p, d), 0)))
+            c = exclusivas.escolher(p, cfg, com_guardados, ja=ja, fontes=fontes[p], restam=restam, feitos=feitos.get((p, d), 0))
             if c is not None:
                 feitos[(p, d)] = feitos.get((p, d), 0) + 1
                 fontes[p] = [c.plan.source_id, *fontes[p]][:2]
         else:
-            c = next((x for x in fila if p not in ja[x.plan.id] and not any(e in ja[x.plan.id] for e in excl)), None)
+            c = next((x for x in fila if p not in ja[x.plan.id] and not exclusivas.e_de_exclusiva(x.plan.id, cfg, ja[x.plan.id])), None)
+        repete = bool(c is not None and p in excl and ja[c.plan.id])
         if c is not None:
             ja[c.plan.id].add(p)
-        out.append({"ts": t, "rede": p, "titulo": c.plan.title if c else "", "clip_id": c.plan.id if c else None, "feito": False, "url": None,
+        out.append({"ts": t, "rede": p, "titulo": c.plan.title if c else "", "clip_id": c.plan.id if c else None, "feito": False, "url": None, "repete": repete,
                     "parte": f"{c.plan.part}/{c.plan.parts_total}" if c and c.plan.part else "",
                     "revisado": bool(c and (revisao.estado(c) or {}).get("ok"))})
     return sorted(out, key=lambda x: x["ts"])

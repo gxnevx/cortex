@@ -148,6 +148,97 @@ resposta.update(ok=True, error="INCERTO: cliquei")
 pipeline.publish_clips(cfg, [fila[1]], False, Rep(), only=["instagram"])
 check("sem confirmacao: sai da fila e nao vai para as outras", status.get("c2") == "publicado" and exclusivas.e_de_exclusiva("c2", cfg))
 
+# ------------------------------------------------------------------ sem corte so dele: repete um avulso que ja saiu nas outras
+db.conn().execute("DELETE FROM posts")
+resposta.update(ok=True, error=None)
+mandou.clear()
+status.clear()
+rep_cfg = Config({**cfg.data, "publicacao": {**cfg.data["publicacao"], "repetir_sem_exclusivo": True}})
+pode0, policy.can_post = policy.can_post, (lambda p, c: (True, "ok"))        # varios posts seguidos: o intervalo tem o teste dele
+soltou: list = []
+solta0, storage.release_published = storage.release_published, (lambda i, p, c: soltou.append(i) or "manter")
+
+
+def poe(x: RenderedClip, st: str) -> RenderedClip:
+    """Corte no banco de teste, com os arquivos das duas versoes."""
+    Path(x.variants["tiktok"]).write_bytes(b"x")
+    db.save_plan(x.plan, "run")
+    db.save_rendered(x)
+    db.conn().execute("UPDATE clips SET status=? WHERE id=?", (st, x.plan.id))
+    db.conn().commit()
+    return x
+
+
+r1, r2 = poe(clip(61, 75, "humor"), "aprovado"), poe(clip(62, 90, "humor", part=1), "aprovado")
+for x in (r1, r2):
+    db.save_post(PostResult(x.plan.id, "youtube", True, url="u", ts=time.time() - 3600))
+check("sem autorizacao nao repete", exclusivas.candidatos("instagram", cfg, [r1, r2]) == [])
+check("repete o avulso, nunca a parte de serie", [x.plan.id for x in exclusivas.candidatos("instagram", rep_cfg, [r1, r2])] == ["c61"])
+novo = poe(clip(63, 60, "humor"), "aprovado")
+check("corte so dele vem antes do repetido", [x.plan.id for x in exclusivas.candidatos("instagram", rep_cfg, [r1, novo], guardar=0)] == ["c63", "c61"])
+check("com o que repetir, nao tira das outras", exclusivas.reserva("instagram", rep_cfg, 1, 0, True) == 1
+      and [x.plan.id for x in exclusivas.candidatos("instagram", rep_cfg, [r1, novo], guardar=1)] == ["c61"])
+sem = r1.variants["tiktok"]
+r1.variants["tiktok"] = str(TMP / "sumiu.mp4")
+check("sem o arquivo com o @ certo nao repete", exclusivas.candidatos("instagram", rep_cfg, [r1]) == [])
+r1.variants["tiktok"] = sem
+
+# YouTube ja foi, TikTok esperando: o Instagram repete e o TikTok continua podendo receber
+pipeline.publish_clips(rep_cfg, [r1], False, Rep(), only=["instagram"])
+check("repetiu no Instagram", mandou == [("c61", "instagram")] and not status and not soltou, (mandou, status, soltou))
+check("repetido nao vira exclusivo: o TikTok ainda recebe", not exclusivas.e_de_exclusiva("c61", rep_cfg))
+check("nao repete duas vezes", exclusivas.candidatos("instagram", rep_cfg, [r1]) == [])
+mandou.clear()
+pipeline.publish_clips(rep_cfg, [r1], False, Rep(), only=["tiktok"])
+check("TikTok depois: termina e libera o arquivo", mandou == [("c61", "tiktok")] and status.get("c61") == "publicado" and soltou == ["c61"], (mandou, status, soltou))
+
+# terminou nas duas antes do Instagram: o arquivo espera, e sai do PC quando o Instagram usa
+soltou.clear()
+r4 = poe(clip(64, 75, "games"), "aprovado")
+pipeline.publish_clips(rep_cfg, [r4], False, Rep())
+check("terminou nas outras: o arquivo fica para o Instagram", status.get("c64") == "publicado" and soltou == [], (status, soltou))
+db.conn().execute("UPDATE clips SET status='publicado' WHERE id='c64'")
+check("guardado entra na escolha", [x.plan.id for x in exclusivas.guardados(rep_cfg)] == ["c64"]
+      and [x.plan.id for x in exclusivas.candidatos("instagram", rep_cfg, [])] == ["c64"], [x.plan.id for x in exclusivas.guardados(rep_cfg)])
+cr = [x for x in cronograma.montar(rep_cfg, 4, fila=[]) if x["rede"] == "instagram" and not x["feito"] and x["clip_id"]]
+check("cronograma mostra o repetido uma vez", [(x["clip_id"], x["repete"]) for x in cr] == [("c64", True)], cr)
+db.conn().execute("UPDATE posts SET ts=? WHERE clip_id='c64'", (time.time() - 5 * 86400,))
+check("velho demais nao repete nem prende arquivo", exclusivas.guardados(rep_cfg) == [] and not exclusivas.segurar(r4, rep_cfg))
+db.conn().execute("UPDATE posts SET ts=?, error='apagado pelo dono' WHERE clip_id='c64'", (time.time(),))
+check("apagado pelo dono nao repete", exclusivas.guardados(rep_cfg) == [])
+db.conn().execute("UPDATE posts SET error=NULL WHERE clip_id='c64'")
+# limpeza e nuvem nao levam o arquivo guardado (pastas de teste, nunca as de verdade)
+import os  # noqa: E402
+
+p0 = {k: getattr(paths, k) for k in ("TMP", "DOWNLOADS", "WORK", "RENDERS", "REPORTS")}
+for k in p0:
+    (TMP / "x" / k).mkdir(parents=True, exist_ok=True)
+    setattr(paths, k, TMP / "x" / k)
+paths.WORK = TMP / "x"
+g = clip(66, 75, "games")
+g.path, g.variants = str(paths.RENDERS / "g_youtube.mp4"), {"youtube": str(paths.RENDERS / "g_youtube.mp4"), "tiktok": str(paths.RENDERS / "g_tiktok.mp4")}
+Path(g.path).write_bytes(b"x")
+poe(g, "publicado")
+db.save_post(PostResult("c66", "youtube", True, url="u", ts=time.time()))
+velho = time.time() - 10 * 86400
+for f in paths.RENDERS.iterdir():
+    os.utime(f, (velho, velho))
+lim = Config({**rep_cfg.data, "armazenamento": {"onedrive": {"ativo": True, "pasta": str(TMP), "subpasta": "nuvem"}}})
+storage.cleanup(lim)
+check("limpeza e nuvem deixam o arquivo guardado", all(Path(x).exists() for x in g.all_files()))
+db.save_post(PostResult("c66", "instagram", True, url="u", ts=time.time()))
+storage.cleanup(lim)
+check("depois de usado, sai do PC (copia na nuvem)", not any(Path(x).exists() for x in g.all_files()) and any((TMP / "nuvem").rglob("g_youtube.mp4")))
+for k, x in p0.items():
+    setattr(paths, k, x)
+db.conn().execute("DELETE FROM posts WHERE clip_id='c66'")
+pipeline.publish_clips(rep_cfg, [r4], False, Rep(), only=["instagram"])
+check("repetiu o guardado: agora libera", soltou == ["c64"], soltou)
+mandou.clear()
+pipeline.publish_clips(rep_cfg, [clip(65)], False, Rep(), only=["instagram"])
+check("corte so do Instagram continua so dele", status.get("c65") == "publicado" and exclusivas.e_de_exclusiva("c65", rep_cfg))
+storage.release_published, policy.can_post = solta0, pode0
+
 # ------------------------------------------------------------------ pausa, numeros e links
 a = guard.pause_platform("instagram", "aviso", hours=168)
 b = guard.pause_platform("instagram", "outra", hours=24)

@@ -74,16 +74,20 @@ def cleanup(cfg: Config, aggressive: bool = False) -> dict:
                 freed += _rm(child)
 
     # 2) renders
+    from . import exclusivas
+
+    guardados = {c.plan.id for c in exclusivas.guardados(cfg)}      # ainda podem sair no Instagram: valem como fila
     status_by_path: dict[str, str] = {}
     for row in db.clip_rows(limit=5000):
         if row["render_path"]:
-            status_by_path[str(Path(row["render_path"]).resolve()).lower()] = row["status"]
+            st_row = "aprovado" if row["id"] in guardados else row["status"]
+            status_by_path[str(Path(row["render_path"]).resolve()).lower()] = st_row
             try:  # versoes por rede seguem o status do corte
                 import json as _json
 
                 for v in ((_json.loads(row["rendered"] or "{}") or {}).get("variants") or {}).values():
                     if v:
-                        status_by_path[str(Path(v).resolve()).lower()] = row["status"]
+                        status_by_path[str(Path(v).resolve()).lower()] = st_row
             except Exception:
                 pass
             if row["status"] == "renderizado" and (now - (row["created"] or now)) / 86400 > keep_days * 2:
@@ -227,8 +231,11 @@ def archive_to_onedrive(cfg: Config) -> dict:
     now = time.time()
     statuses = ("publicado",) if cfg.get("armazenamento.onedrive.arquivar", "publicados") == "publicados" \
         else ("publicado", "renderizado", "aprovado", "rejeitado")
+    from . import exclusivas
+
+    guardados = {c.plan.id for c in exclusivas.guardados(cfg)}
     for row in db.clip_rows(limit=5000):
-        if row["status"] not in statuses or not row["render_path"]:
+        if row["status"] not in statuses or not row["render_path"] or row["id"] in guardados:
             continue
         src = Path(row["render_path"])
         if not src.exists() or str(src).lower().startswith(str(root).lower()):

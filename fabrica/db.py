@@ -279,10 +279,10 @@ def already_posted(clip_id: str, platform: str) -> bool:
     return r is not None
 
 
-def has_uncertain_post(clip_id: str) -> bool:
-    """Algum envio deste corte ficou sem confirmacao (erro 'INCERTO: ...')?"""
-    return conn().execute("SELECT 1 FROM posts WHERE clip_id=? AND dry_run=0 AND error LIKE 'INCERTO%'",
-                          (clip_id,)).fetchone() is not None
+def has_uncertain_post(clip_id: str, platforms: list[str] | None = None) -> bool:
+    """Algum envio deste corte (nestas redes) ficou sem confirmacao (erro 'INCERTO: ...')?"""
+    rows = conn().execute("SELECT platform FROM posts WHERE clip_id=? AND dry_run=0 AND error LIKE 'INCERTO%'", (clip_id,)).fetchall()
+    return any(platforms is None or r["platform"] in platforms for r in rows)
 
 
 def failed_attempts(clip_id: str, platform: str) -> int:

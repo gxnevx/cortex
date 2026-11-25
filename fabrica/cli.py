@@ -359,6 +359,7 @@ def show_schedule(cfg: Config, dias: int = 4) -> None:
     for x in cronograma.montar(cfg, dias):
         d = datetime.fromtimestamp(x["ts"])
         st = "saiu" if x["feito"] else "a definir" if not x["clip_id"] else "revisado" if x.get("revisado") else "falta revisar"
+        st += ", repetido" if x.get("repete") else ""
         tit = ui.term(x["titulo"])[:58] + (f" (parte {x['parte']})" if x["parte"] else "")
         por_dia.setdefault(f"{sem[d.weekday()]} {d:%d/%m}", []).append(
             [f"{d:%H:%M}", estrategia.NOMES.get(x["rede"], x["rede"]), Text(tit or "(corte novo)"), st])

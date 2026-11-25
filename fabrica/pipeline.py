@@ -1436,7 +1436,8 @@ def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Re
         rs = [r for r in results if r.clip_id == clip.plan.id]
         if dry_run:
             continue
-        dele = [p for p in exclusivas.redes(cfg) if p in exclusivas.postados(clip.plan.id)]
+        so_dela = exclusivas.e_de_exclusiva(clip.plan.id, cfg)
+        dele = [p for p in exclusivas.redes(cfg) if p in exclusivas.postados(clip.plan.id)] if so_dela else []
         if dele:        # corte so dessa rede: acabou aqui (nao vai para as outras)
             db.set_clip_status(clip.plan.id, "publicado")
             if db.has_uncertain_post(clip.plan.id) or not all(db.already_posted(clip.plan.id, p) for p in dele):
@@ -1448,15 +1449,24 @@ def publish_clips(cfg: Config, clips: list[RenderedClip], dry_run: bool, rep: Re
                     _log.warning("liberar video publicado: %s", e)
             continue
         if any(p in exclusivas.redes(cfg) for p in platforms):
-            continue        # nao saiu na rede dele: volta para a fila
+            # nao saiu na rede dele: volta para a fila. Repetiu um que ja tinha terminado nas outras: agora libera o arquivo
+            if all_targets and all(db.already_posted(clip.plan.id, p) for p in all_targets) and not db.has_uncertain_post(clip.plan.id) \
+                    and any(r.ok for r in rs) and not exclusivas.segurar(clip, cfg):
+                try:
+                    storage.release_published(clip.plan.id, clip.path, cfg)
+                except Exception as e:
+                    _log.warning("liberar video publicado: %s", e)
+            continue
         # so e "publicado" quando saiu em TODAS as redes; senao continua na fila para a que faltou
         # INCERTO = cliquei em Publicar e nao vi a confirmacao: guarda o video ate o dono conferir
-        if any((r.error or "").startswith("INCERTO") for r in rs) or db.has_uncertain_post(clip.plan.id):
+        if any((r.error or "").startswith("INCERTO") for r in rs) or db.has_uncertain_post(clip.plan.id, all_targets):
             actions.append(f"Confira no app se '{clip.plan.title[:50]}' foi publicado (nao vi a confirmacao). "
                            "O video foi mantido no PC.")
             continue
         if all_targets and all(db.already_posted(clip.plan.id, p) for p in all_targets):
             db.set_clip_status(clip.plan.id, "publicado")
+            if exclusivas.segurar(clip, cfg):      # uma rede exclusiva ainda pode repetir: o arquivo espera no PC
+                continue
             try:
                 destino = storage.release_published(clip.plan.id, clip.path, cfg)
                 if destino in ("onedrive", "apagado"):
