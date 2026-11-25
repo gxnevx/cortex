@@ -172,6 +172,8 @@ check("abertura: pedaco vira a frase inteira", abre(fome, 14.3, 15.7) == "Com 5 
 longa = legenda((0, "começo qualquer do assunto."), (5, "engenharia é o seguinte, mano. É uma coisa que ninguém nunca entendeu direito desde o começo da faculdade"))
 check("abertura: nao leva o comeco da frase seguinte", abre(longa, 5.0, 6.8) == "engenharia é o seguinte, mano.", abre(longa, 5.0, 6.8))
 check("abertura: pedaco de frase longa nao abre", abre(longa, 8.0, 10.0) == "", abre(longa, 8.0, 10.0))
+corta = legenda((0, "começo do assunto aqui."), (5, "Peguei uma nova."), (6.1, "A nova ela vem..."), (9, "Não, pelo amor de Deus."))
+check("abertura: frase que fica no ar nao fecha", abre(corta, 5.0, 7.3) in ("", "Peguei uma nova."), abre(corta, 5.0, 7.3))
 cfg0 = Config({"edicao": {"cold_open": True}})
 pl0 = ClipPlan(id="fome", source_id="s", start=100, end=118, title="Aos 5 anos ficou sozinho em casa e passava fome", teaser_start=108.0, teaser_end=110.4,
                teaser_text="Ele é um pouco mais vagabundo", tipo="fala")

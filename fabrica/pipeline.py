@@ -650,7 +650,7 @@ def gancho_inteiro(captions: Transcript, a: float, b: float, max_s: float = 3.0)
     for g in grupos:
         pal = [w for st in g for w in st]
         dur = pal[-1].end - pal[0].start
-        if not 1.0 <= dur <= max_s + 0.2 or len(pal) < 3 or _plain(pal[0].text) in _SOLTA:
+        if not 1.0 <= dur <= max_s + 0.2 or len(pal) < 3 or _plain(pal[0].text) in _SOLTA or pal[-1].text.strip().endswith(("...", "…")):
             continue
         if sum(max(0.0, toca(st)) for st in g) < 0.5 * (b - a):
             continue        # outra frase: nao e a que a IA quis
