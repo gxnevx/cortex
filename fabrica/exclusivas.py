@@ -1,8 +1,8 @@
 """Redes com cortes so delas (publicacao.redes_exclusivas): o corte que sai nelas nao sai nas outras, e vice-versa.
 
 YouTube e TikTok formam o conjunto (o mesmo corte vai para os dois). O Instagram pega OUTROS cortes da fila: avulsos
-(sem Parte 1/2/3), mais curtos, de preferencia humor, games e reacao; politica e noticia por ultimo. So pega quando sobra
-corte para o conjunto.
+(sem Parte 1/2/3), mais curtos, de preferencia humor, games e reacao; politica e noticia por ultimo. So ficam guardados
+para o conjunto os cortes que ainda saem nele HOJE, e a rede exclusiva que esta zerada no dia passa na frente de um deles.
 """
 from __future__ import annotations
 
@@ -73,11 +73,14 @@ def _fontes_recentes(rede: str, n: int = 2) -> list[str]:
     return [x for x in out if x]
 
 
-def reserva(cfg: Any) -> int:
-    """Quantos cortes ainda sem post ficam guardados para YouTube e TikTok."""
+def reserva(rede: str, cfg: Any, restam: int | None = None, feitos: int | None = None) -> int:
+    """Quantos cortes ainda sem post ficam guardados para YouTube e TikTok: os horarios que faltam nelas hoje. Com a rede exclusiva
+    zerada no dia, um a menos (ela tambem precisa postar). restam/feitos: simulacao do cronograma."""
     from . import policy
 
-    return max([policy.effective_limit(p, cfg) for p in conjunto(cfg)] or [0])
+    restam = max([len(policy.slots_today(p, cfg)) for p in conjunto(cfg)] or [0]) if restam is None else restam
+    feitos = db.posts_today(rede) if feitos is None else feitos
+    return max(0, restam - (0 if feitos else 1))
 
 
 def candidatos(rede: str, cfg: Any, fila: list, ja: dict[str, set[str]] | None = None, fontes: list[str] | None = None,
@@ -86,7 +89,7 @@ def candidatos(rede: str, cfg: Any, fila: list, ja: dict[str, set[str]] | None =
     real = ja is None
     ja = {c.plan.id: postados(c.plan.id) for c in fila} if ja is None else ja
     livres = [c for c in fila if not ja.get(c.plan.id)]
-    guardar = reserva(cfg) if guardar is None else guardar
+    guardar = reserva(rede, cfg) if guardar is None else guardar
     if len(livres) <= guardar:
         return []
     ok = [c for c in livres if not c.plan.part and (not real or db.failed_attempts(c.plan.id, rede) < 3)]

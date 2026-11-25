@@ -36,7 +36,9 @@ def montar(cfg: Any, dias: int = 4, fila: list | None = None) -> list[dict]:
     plats = list(cfg.get("publicacao.plataformas", ["youtube", "tiktok"]) or [])
     excl = exclusivas.redes(cfg)
     fontes = {p: exclusivas._fontes_recentes(p) for p in excl}
-    guardar = exclusivas.reserva(cfg) if excl else 0
+    outras = exclusivas.conjunto(cfg)
+    dia_de = lambda x: datetime.fromtimestamp(x).date()  # noqa: E731
+    feitos = {(p, date.today()): db.posts_today(p) for p in excl}
     ev: list[tuple[float, str]] = []
     for k in range(max(1, dias)):
         dia = date.today() + timedelta(days=k)
@@ -46,8 +48,11 @@ def montar(cfg: Any, dias: int = 4, fila: list | None = None) -> list[dict]:
     for t, p in sorted(ev):
         c = None
         if p in excl:
-            c = exclusivas.escolher(p, cfg, fila, ja=ja, fontes=fontes[p], guardar=guardar)
+            d = dia_de(t)
+            restam = max([sum(1 for x, q in ev if q == o and x > t and dia_de(x) == d) for o in outras] or [0])
+            c = exclusivas.escolher(p, cfg, fila, ja=ja, fontes=fontes[p], guardar=exclusivas.reserva(p, cfg, restam, feitos.get((p, d), 0)))
             if c is not None:
+                feitos[(p, d)] = feitos.get((p, d), 0) + 1
                 fontes[p] = [c.plan.source_id, *fontes[p]][:2]
         else:
             c = next((x for x in fila if p not in ja[x.plan.id] and not any(e in ja[x.plan.id] for e in excl)), None)

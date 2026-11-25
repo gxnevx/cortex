@@ -69,7 +69,16 @@ fila = [clip(1, 82, "entretenimento", part=2), clip(2, 80, "politica"), clip(3, 
 vazio = {x.plan.id: set() for x in fila}
 e = exclusivas.escolher("instagram", cfg, fila, ja=vazio, fontes=[])
 check("pega avulso do jeito da rede, nunca parte de serie", e.plan.id == "c3", e and e.plan.id)
-check("nao pega quando so sobra o das outras redes", exclusivas.escolher("instagram", cfg, fila[:3], ja=vazio, fontes=[]) is None)
+check("nao pega quando so sobra o das outras redes", exclusivas.escolher("instagram", cfg, fila[:3], ja=vazio, fontes=[], guardar=3) is None)
+# a conta do que fica guardado: o que ainda sai hoje nas outras; zerado no dia, o Instagram passa na frente de um
+check("guarda so o que falta hoje nas outras", [exclusivas.reserva("instagram", cfg, r, f) for r, f in ((3, 1), (2, 0), (1, 1), (1, 0), (0, 0))] == [3, 1, 1, 0, 0])
+g0 = (policy.slots_today, db.posts_today)
+policy.slots_today, db.posts_today = (lambda p, c: [(0, 0)] * {"youtube": 2, "tiktok": 0}.get(p, 0)), (lambda p: 0)
+check("caso real de 25/11: 4 na fila, YouTube ainda posta 2", exclusivas.reserva("instagram", cfg) == 1
+      and exclusivas.escolher("instagram", cfg, fila[1:3], ja=vazio, fontes=[]).plan.id == "c3")
+db.posts_today = lambda p: 1
+check("ja postou hoje: nao tira o que as outras usam hoje", exclusivas.escolher("instagram", cfg, fila[1:3], ja=vazio, fontes=[]) is None)
+policy.slots_today, db.posts_today = g0
 ja = dict(vazio, c3={"youtube"})
 check("nao repete o que ja saiu em outra rede", exclusivas.escolher("instagram", cfg, fila, ja=ja, fontes=[]).plan.id != "c3")
 check("varia a fonte", exclusivas.nota(fila[2], ["s3"]) < exclusivas.nota(fila[2], []))
