@@ -217,12 +217,35 @@ def next_slot(platform: str, cfg: Config) -> float:
     s = slots_today(platform, cfg)
     if s:
         return max(s[0][0], time.time())
-    for k in range(1, 8):
-        day = date.today() + timedelta(days=k)
-        n = _limit_on(platform, cfg, day)
-        if n > 0:
-            return min(t for t, _ in _slot_times(platform, cfg, day)[:n])
+    for k in range(0 if pausa_saude(platform, cfg) else 1, 8):
+        prev = slots_on(platform, cfg, date.today() + timedelta(days=k))
+        if prev:
+            return prev[0]
     return 0.0
+
+
+def pausa_saude(platform: str, cfg: Config) -> float:
+    """Ate quando a rede fica parada por poucas views (epoch; 0 = nao esta em pausa)."""
+    h = health(platform, cfg)
+    return float(h.get("pausar_ate") or 0) if h.get("nivel") == "pausa" else 0.0
+
+
+def slots_on(platform: str, cfg: Config, day: date) -> list[float]:
+    """Previsao dos horarios de um dia (em ordem): nada dentro da pausa da conta e menos posts enquanto durar a atencao."""
+    h, pausa = health(platform, cfg), pausa_saude(platform, cfg)
+    n, gap, last = _limit_on(platform, cfg, day), min_interval_s(platform, cfg), last_post_ts(platform) or 0.0
+    piso = max(pausa, last + gap if last else 0.0)
+    times = [max(t, piso) for t, end in _slot_times(platform, cfg, day) if end >= piso]
+    if n > 0 and times and min(times) < float(h.get("atencao_ate") or 0):
+        n = max(1, int(n * float(cfg.get("metricas.saude.fator_atencao", 0.5))))
+    if day == date.today():
+        n -= db.posts_today(platform)
+        times = [t for t in times if t > time.time()]
+    out: list[float] = []
+    for t in times:                       # prioridade, respeitando o intervalo entre os escolhidos
+        if len(out) < n and all(abs(t - c) >= gap for c in out):
+            out.append(t)
+    return sorted(out)
 
 
 def _limit_on(platform: str, cfg: Config, day: date) -> int:

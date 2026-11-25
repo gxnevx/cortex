@@ -15,13 +15,9 @@ from . import db, exclusivas, policy
 def horarios(rede: str, cfg: Any, dia: date) -> list[float]:
     """Horarios de post desta rede num dia (hoje: so os que ainda faltam)."""
     if dia == date.today():
-        return [max(t, time.time()) for t, _ in policy.slots_today(rede, cfg)]
-    n, gap = policy._limit_on(rede, cfg, dia), policy.min_interval_s(rede, cfg)
-    out: list[float] = []
-    for t, _ in policy._slot_times(rede, cfg, dia):
-        if len(out) < n and all(abs(t - c) >= gap for c in out):
-            out.append(t)
-    return sorted(out)
+        hoje = [max(t, time.time()) for t, _ in policy.slots_today(rede, cfg)]
+        return hoje or (policy.slots_on(rede, cfg, dia) if policy.pausa_saude(rede, cfg) else [])
+    return policy.slots_on(rede, cfg, dia)
 
 
 def montar(cfg: Any, dias: int = 4, fila: list | None = None) -> list[dict]:

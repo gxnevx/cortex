@@ -831,6 +831,13 @@ def _set_attention(ps: dict, cfg: Any, motivo: str) -> bool:
     return False
 
 
+def _quase_zero_em(ps: dict) -> float:
+    """Quando a ultima pausa por poucas views comecou (0 = nunca). Estado antigo, sem o campo: vem do historico."""
+    return float(ps.get("quase_zero_em") or 0) or max(
+        (float(h.get("ts") or 0) for h in ps.get("historico") or [] if h.get("nivel") == "pausa" and "posts seguidos com menos de" in str(h.get("motivo"))),
+        default=0.0)
+
+
 def _evaluate(platform: str, cfg: Any, ps: dict) -> None:
     """Aplica as regras da pesquisa (docs/ideias/algoritmo_e_riscos.md 1.5) e atualiza ps."""
     S = "metricas.saude."
@@ -846,8 +853,10 @@ def _evaluate(platform: str, cfg: Any, ps: dict) -> None:
         ids = [int(p["id"]) for p in last]
         if ids != ps.get("gatilho_quase_zero"):
             ps["gatilho_quase_zero"] = ids
-            _set_pause(ps, cfg, f"{k} posts seguidos com menos de {thr} views em 24 h no {nome} "
-                                f"(possível distribuição limitada)")
+            if float(last[-1]["ts"]) > _quase_zero_em(ps):  # post de antes da pausa que so agora completou 24 h e o mesmo problema, nao um novo
+                ps["quase_zero_em"] = _now()
+                _set_pause(ps, cfg, f"{k} posts seguidos com menos de {thr} views em 24 h no {nome} "
+                                    f"(possível distribuição limitada)")
 
     # 2) post removido/indisponivel/privado/restrito ou com aviso de direitos -> ATENCAO; 2+ em 7 dias -> PAUSA
     week = _now() - 7 * 86400

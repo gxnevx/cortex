@@ -225,11 +225,57 @@ def test_health_rules():
     metrics.resume("youtube")
     h = metrics.account_health("youtube", cfg)
     assert h["nivel"] == "normal", h  # os mesmos 3 posts nao disparam de novo
-    # um 4o post ainda quase zerado -> nova trinca -> pausa de novo
+    # post feito ANTES da pausa que so depois completa 24 h: e o mesmo problema, nao pausa de novo (caso real de 25/11)
     add_clip("z3", "corte 3")
     pid = add_post("z3", "youtube", NOW - 25 * H, "https://youtube.com/shorts/ZZZZZZZZZZ3")
     metrics.record_reading(pid, views=1, ts=NOW - 1 * H)
-    assert metrics.account_health("youtube", cfg)["nivel"] == "pausa"
+    metrics._HEALTH_CACHE.clear()
+    assert metrics.account_health("youtube", cfg)["nivel"] == "normal"
+    # post feito DEPOIS da pausa e ainda quase zerado: pausa de novo (a protecao continua)
+    saude = paths.STATE / "saude_contas.json"
+    data = json.loads(saude.read_text(encoding="utf-8"))
+    data["youtube"]["quase_zero_em"] = NOW - 24.5 * H
+    saude.write_text(json.dumps(data), encoding="utf-8")
+    add_clip("z4", "corte 4")
+    pid = add_post("z4", "youtube", NOW - 24.2 * H, "https://youtube.com/shorts/ZZZZZZZZZZ4")
+    metrics.record_reading(pid, views=2, ts=NOW - 0.2 * H)
+    metrics._HEALTH_CACHE.clear()
+    h = metrics.account_health("youtube", cfg)
+    assert h["nivel"] == "pausa" and h["pausar_ate"] > NOW + 71 * H, h
+
+    # a pausa que esta valendo nao se estica com post de antes dela; estado antigo (sem quase_zero_em) usa o historico
+    fresh_env("saude_estica")
+    ids = []
+    for i, age in enumerate([40, 37, 34]):
+        add_clip(f"e{i}", f"corte {i}")
+        ids.append(add_post(f"e{i}", "tiktok", NOW - age * H))
+        metrics.record_reading(ids[-1], views=5, ts=NOW - (age - 22) * H)
+    inicio, fim = NOW - 14 * H, NOW + 58 * H
+    paths.STATE.mkdir(parents=True, exist_ok=True)
+    (paths.STATE / "saude_contas.json").write_text(json.dumps({"tiktok": {
+        "gatilho_quase_zero": ids, "pausar_ate": fim, "atencao_ate": fim + 120 * H, "atencao_desde": fim, "ultimo_nivel": "pausa", "motivo_pausa": "x",
+        "historico": [{"ts": inicio, "nivel": "pausa", "motivo": "3 posts seguidos com menos de 10 views em 24 h no TikTok"}]}}), encoding="utf-8")
+    add_clip("e3", "corte 3")
+    pid = add_post("e3", "tiktok", NOW - 21 * H)
+    metrics.record_reading(pid, views=3, ts=NOW - 0.1 * H)
+    metrics._HEALTH_CACHE.clear()
+    h = metrics.account_health("tiktok", cfg)
+    assert h["nivel"] == "pausa" and abs(h["pausar_ate"] - fim) < 1, h
+
+    # agenda: nada dentro da pausa; depois dela, volume reduzido
+    from datetime import date, datetime, timedelta
+
+    from fabrica import cronograma, policy
+    pcfg = cfg_with(publicacao__max_posts_por_dia={"tiktok": 3}, publicacao__aquecimento={"ativo": False})
+    prev = [t for k in range(6) for t in cronograma.horarios("tiktok", pcfg, date.today() + timedelta(days=k))]
+    assert prev and min(prev) >= fim, (datetime.fromtimestamp(min(prev)), datetime.fromtimestamp(fim))
+    por_dia: dict = {}
+    for t in prev:
+        por_dia.setdefault(datetime.fromtimestamp(t).date(), []).append(t)
+    assert all(len(v) == 1 for v in por_dia.values()), {str(k): len(v) for k, v in por_dia.items()}
+    assert policy.next_slot("tiktok", pcfg) == min(prev)
+    assert len(cronograma.horarios("youtube", cfg_with(publicacao__max_posts_por_dia={"youtube": 3}, publicacao__aquecimento={"ativo": False}),
+                                   date.today() + timedelta(days=1))) == 3
 
     # B) queda forte contra a mediana da conta -> atencao (0.5); depois de um ciclo inteiro -> pausa
     fresh_env("saude_queda")

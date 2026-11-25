@@ -85,7 +85,7 @@ def snapshot(cfg: Config | None = None) -> dict:
     for p in plats:
         pz = guard.paused_until(p)
         redes[p] = {"login": lg.get(p, False), "hoje": db.posts_today(p), "limite": policy.effective_limit(p, cfg),
-                    "plano": plan_line(p, cfg), "pausa": pz}
+                    "plano": plan_line(p, cfg), "pausa": pz, "descanso": policy.pausa_saude(p, cfg)}
         if pz:
             precisa.append(f"{NOMES.get(p, p)} parado até {datetime.fromtimestamp(pz[0]):%d/%m %H:%M}: entre em Contas e resolva")
         elif not lg.get(p):
@@ -171,6 +171,9 @@ def summary(s: dict) -> Text:
             line(NOMES.get(p, p), "parado, precisa de você", f"bold {ui.C_YEL}")
         elif not r["login"]:
             line(NOMES.get(p, p), "sem login", ui.C_RED)
+        elif r.get("descanso"):
+            line(NOMES.get(p, p), f"login ok | em pausa até {datetime.fromtimestamp(r['descanso']):%d/%m %H:%M} por poucas views | "
+                                  f"volta {when(r.get('proximo') or 0)}", ui.C_YEL)
         else:
             line(NOMES.get(p, p), f"login ok | {r['hoje']} de {r['limite']} hoje | próximo {when(r.get('proximo') or 0)}", ui.C_OK)
     for rot, txt, nivel in s.get("saude") or []:
@@ -254,6 +257,8 @@ def render(s: dict) -> Layout:
             st.append(f" | {datetime.fromtimestamp(x['proximo']):%d/%m %H:%M}", style=ui.C_YEL)
         if x["pausa"]:
             st.append(" PARADO", style=f"bold {ui.C_YEL}")
+        elif x.get("descanso"):
+            st.append(" EM PAUSA", style=f"bold {ui.C_YEL}")
         day.add_row(NOMES.get(p, p), st)
     mem = s["memoria"]
     day.add_row("Memória", Text(f"{mem['ram_livre']:.1f} GB livres", style=ui.C_OK if mem["reserva_livre"] > 3 else ui.C_YEL))
