@@ -126,7 +126,9 @@ RESPONDA SÓ COM ESTE JSON:
 {{"entende_sozinho":0,"comeca_bem":0,"termina_bem":0,"titulo_verdadeiro":0,"imagem_ok":0,"nota":0,"proibido":"","motivo":"..."}}"""
 
 
-def _prompt(clip: Any, fala: str) -> str:
+def _prompt(clip: Any, fala: str, cfg: Any = None) -> str:
+    from . import indicados
+
     p = clip.plan
     if p.tipo == "ranking" and p.itens:
         return _prompt_ranking(clip)
@@ -135,7 +137,7 @@ def _prompt(clip: Any, fala: str) -> str:
     il = [m for m in (p.imagens or []) if m.get("t") is not None and m.get("artigo")]
     ilus = ("\nA segunda imagem mostra as ilustrações que aparecem por 1,5 s quando a pessoa cita o nome: " + ", ".join(f"'{m['palavra']}' ({m['artigo']})" for m in il)
             + ". Se alguma não tem relação com o que é dito, imagem_ok é no máximo 3. Cobrir o rosto por 1,5 s com a ilustração NÃO é defeito.") if il else ""
-    return f"""Última conferência antes de publicar este corte. A imagem tem 8 quadros do vídeo pronto, em ordem (esquerda para a direita, de cima para baixo).{ilus}
+    return f"""Última conferência antes de publicar este corte. A imagem tem 8 quadros do vídeo pronto, em ordem (esquerda para a direita, de cima para baixo).{ilus}{indicados.para_revisao(clip, cfg)}
 
 Título do post: {p.title}
 Texto fixo na tela: {p.hook}
@@ -172,7 +174,7 @@ def perguntar(clip: Any, fala: str, cfg: Any) -> dict | None:
         return None
     img2 = folha_imagens(clip)
     try:
-        res = extract_json(b._run(_prompt(clip, fala), SYSTEM, images=[img] + ([img2] if img2 else [])))
+        res = extract_json(b._run(_prompt(clip, fala, cfg), SYSTEM, images=[img] + ([img2] if img2 else [])))
         if isinstance(res, list):
             res = next((x for x in res if isinstance(x, dict)), None)
         return res if isinstance(res, dict) and "nota" in res else None

@@ -208,6 +208,12 @@ GAMES: só vale (1) reação forte de verdade (rage quit, grito, xingamento, sus
     return out
 
 
+def _indicado(video: Candidate, cfg) -> str:
+    from .. import indicados
+
+    return indicados.bloco(video, cfg)
+
+
 _LANG_NAMES = {"en": "INGLÊS", "es": "ESPANHOL", "fr": "FRANCÊS", "it": "ITALIANO", "de": "ALEMÃO", "ja": "JAPONÊS"}
 
 
@@ -286,7 +292,7 @@ O QUE É UM BOM CORTE
 QUANTIDADE: {qty}
 PONTUAÇÃO ("pontuacao", de 0 a 100) = chance real de viralizar. Seja exigente: 85 ou mais só para momentos excepcionais; abaixo de {min_score} o corte será descartado.
 
-{kind_rules(video)}{learned_block()}
+{kind_rules(video)}{_indicado(video, cfg)}{learned_block()}
 TIPO DO CORTE (campo "tipo")
 {TIPO_RULES}
 
@@ -420,7 +426,7 @@ Prefira: treta, opinião forte, frase chocante, piada, revelação, lance absurd
 - "categoria": uma de {CATEGORIAS_TXT}.{foreign_block(video)}
 - A transcrição é automática e erra nomes: no título e no gancho escreva o nome certo. Nunca inclua despedida nem pedido de inscrição.
 - {short_tone(cfg)}
-{kind_rules(video)}
+{kind_rules(video)}{_indicado(video, cfg)}
 VÍDEO
 {_video_block(video)[:500]}
 

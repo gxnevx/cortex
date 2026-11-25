@@ -95,7 +95,9 @@ def _linha(i: int, c: Any, r: Any, agora: float) -> str:
     return f"{i}. {(c.title or '')[:110]} | {c.channel} | {dur} | {c.views or 0} views{vph} | há {idade} | {_nicho(c, r)}{alta}"
 
 
-def prompt(itens: list[tuple[Any, Any]], quantos: int) -> str:
+def prompt(itens: list[tuple[Any, Any]], quantos: int, cfg: Any = None) -> str:
+    from . import indicados
+
     agora = time.time()
     hist = historico_canais()
     nomes = {c.channel for c, _ in itens}
@@ -103,6 +105,7 @@ def prompt(itens: list[tuple[Any, Any]], quantos: int) -> str:
     ruins = [f"{k} (0 de {b})" for k, (a, b) in hist.items() if not a and b >= 3 and k in nomes]
     h = ("\nO que já aconteceu aqui (cortes aprovados por canal): " + "; ".join(bons) if bons else "") + \
         ("\nCanais que até agora só deram corte reprovado: " + "; ".join(ruins) + ". Só escolha de novo com motivo forte." if ruins else "")
+    h += indicados.para_escolha(itens, cfg)
     linhas = "\n".join(_linha(i, c, r, agora) for i, (c, r) in enumerate(itens, 1))
     return f"""Escolha os vídeos que vamos cortar agora. Cada corte tem de 30 a 58 segundos, é quase só fala, e precisa fazer sentido para quem nunca viu o vídeo.
 
@@ -124,8 +127,10 @@ RESPONDA SÓ COM ESTE JSON:
 {{"videos":[{{"n":1,"nota":80,"motivo":"até 10 palavras"}}]}}"""
 
 
-def aplicar(itens: list[tuple[Any, Any]], resp: list[dict], quantos: int) -> list[tuple[Any, Any]]:
-    """Os escolhidos, em ordem, com a nota guardada em extra['ia_nota']."""
+def aplicar(itens: list[tuple[Any, Any]], resp: list[dict], quantos: int, cfg: Any = None) -> list[tuple[Any, Any]]:
+    """Os escolhidos, em ordem, com a nota guardada em extra['ia_nota'] (canal indicado pelo dono ganha pontos)."""
+    from . import indicados
+
     vistos: set[int] = set()
     out = []
     for d in resp:
@@ -137,6 +142,7 @@ def aplicar(itens: list[tuple[Any, Any]], resp: list[dict], quantos: int) -> lis
             continue
         vistos.add(n)
         c, r = itens[n - 1]
+        nota += indicados.BONUS if indicados.do_video(c, cfg) else 0
         c.extra = dict(c.extra or {})
         c.extra["ia_nota"], c.extra["ia_motivo"] = min(100.0, nota), str(d.get("motivo") or "")[:100]
         out.append((c, r))
@@ -156,11 +162,11 @@ def escolher(pre: list[tuple[Any, Any]], cfg: Any, quantos: int = 14) -> list[tu
         return None
     itens = lista(pre)
     try:
-        resp = list_from_json(extract_json(b._run(prompt(itens, quantos), SYSTEM)), ("videos", "escolhidos"))
+        resp = list_from_json(extract_json(b._run(prompt(itens, quantos, cfg), SYSTEM)), ("videos", "escolhidos"))
     except Exception as e:
         _log.warning("a escolha dos videos nao respondeu: %s", str(e)[:150])
         return None
-    out = aplicar(itens, [d for d in resp if isinstance(d, dict)], quantos)
+    out = aplicar(itens, [d for d in resp if isinstance(d, dict)], quantos, cfg)
     for c, _ in out:
         _log.info("escolhido %.0f '%s' (%s): %s", c.extra["ia_nota"], (c.title or "")[:70], c.channel, c.extra["ia_motivo"])
     return out if len(out) >= 2 else None
@@ -178,11 +184,11 @@ def rapida(cands: list[Any], cfg: Any, minima: float = 70) -> list[Any]:
     if b.name != "claude":
         return []
     try:
-        resp = list_from_json(extract_json(b._run(prompt(itens, 3), SYSTEM)), ("videos", "escolhidos"))
+        resp = list_from_json(extract_json(b._run(prompt(itens, 3, cfg), SYSTEM)), ("videos", "escolhidos"))
     except Exception as e:
         _log.warning("a escolha da via rapida nao respondeu: %s", str(e)[:150])
         return []
-    out = [c for c, _ in aplicar(itens, [d for d in resp if isinstance(d, dict)], 3) if c.extra["ia_nota"] >= minima]
+    out = [c for c, _ in aplicar(itens, [d for d in resp if isinstance(d, dict)], 3, cfg) if c.extra["ia_nota"] >= minima]
     _log.info("via rapida: %d de %d passaram%s", len(out), len(itens), "".join(f" | {c.extra['ia_nota']:.0f} {(c.title or '')[:50]}" for c in out))
     return out
 

@@ -144,6 +144,8 @@ busca:
     twitch: ["cellbit", "felps", "casimiro"]
     kick: ["coringa", "paulinholokobr", "gaules", "tck10", "jonvlogs"]
     rumble: []
+  # Indicacoes do dono: entram sempre na busca, com preferencia, e a IA sabe que momentos procurar
+  indicados: []                   # ex.: - {canal: "@handle", nome: "NOME", gosto: "que momentos cortar"}
   # Nunca cortar (proibem cortes ou dao strike): so servem como sinal de assunto
   canais_bloqueados: ["alanzoka", "@tvsenado", "TV Senado", "@podpeopleanabeatriz", "PodPeople",
                       "@CazeTV", "CazeTV", "@afazenda", "A Fazenda"]

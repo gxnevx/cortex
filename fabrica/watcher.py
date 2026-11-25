@@ -132,7 +132,9 @@ def _channels(cfg) -> dict[str, list[tuple[str, bool, str | None]]]:
     out: dict[str, list] = {"youtube": [], "twitch": [], "kick": []}
     if fontes.get("youtube", True):
         seen: set[str] = set()
-        mon = ((_cfg(cfg, "busca.canais_monitorados", {}) or {}).get("youtube")) or []
+        from . import indicados
+
+        mon = [*(((_cfg(cfg, "busca.canais_monitorados", {}) or {}).get("youtube")) or []), *indicados.canais(cfg)]
         for h in mon:
             hh = _yt_handle(h)
             if hh.lower() not in seen and not _is_blocked_name(hh, blocked):

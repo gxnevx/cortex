@@ -217,7 +217,9 @@ def _channel_jobs(cfg) -> list[tuple[str, tuple[str, ...], bool, bool, str | Non
     invalid = _load_invalid()
     blocked = _blocked_list(cfg)
     jobs: dict[str, tuple] = {}
-    mon = (cfg.get("busca.canais_monitorados", {}) or {}).get("youtube") or []
+    from .. import indicados
+
+    mon = [*((cfg.get("busca.canais_monitorados", {}) or {}).get("youtube") or []), *indicados.canais(cfg)]
     for h in mon:
         hh = _yt_handle(h)
         if not _is_blocked_name(hh, blocked):

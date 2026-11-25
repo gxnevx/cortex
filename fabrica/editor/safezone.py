@@ -45,6 +45,8 @@ W_ZOOM, W_SHIFT, W_EYE, W_DX, W_K = 12.0, 5.0, 3.0, 12.0, 2.0
 W_CUT = 60.0                      # rosto empurrado para fora da tela (fracao da largura, alem do natural)
 TAG_OFFSETS = (0.0, 1.5, 3.0)     # a etiqueta pode entrar um pouco mais tarde se o lugar so abrir depois
 
+CAM_ESQ_Y = 1060       # marca no canto de cima da webcam (so no formato tela + webcam)
+
 
 Rect = tuple[float, float, float, float]
 
@@ -405,6 +407,8 @@ class Planner:
             x0, y0 = M, top
         elif slot == "base_esq":
             x0, y0 = M, _style.SAFE_BOTTOM_Y - _style.SPACE - bh
+        elif slot == "cam_esq":         # tela + webcam: canto de cima da webcam, ao lado da cabeca
+            x0, y0 = M, CAM_ESQ_Y if bh > 64 else CAM_ESQ_Y - 58      # a marca pequena cabe na faixa logo acima da webcam
         elif slot == "abaixo_legenda":
             x0, y0 = round(W / 2 - bw / 2), cap_rect[3] + _style.SPACE
         else:
@@ -509,7 +513,7 @@ class Planner:
                      ("topo_esq", "linha", 1.3), ("base_esq", "linha", 2.5), ("base_esq", "pilha", 2.8), ("abaixo_legenda", "linha", 3.0)]
             only = getattr(self, "brand_only", None)
             if only:
-                slots = [x for x in slots if x[0] in only]
+                slots = [x for x in [*slots, ("cam_esq", "linha", 2.6), ("cam_esq", "pilha", 2.9)] if x[0] in only]
             brand_opts = []
             for bi, br in enumerate(self.brands):
                 brand_opts += [(sl, ar, c + 4.0 * bi, br) for sl, ar, c in slots]

@@ -373,7 +373,7 @@ def render_clip(source: Path, start: float, end: float, plan: ClipPlan | None, c
                                    cta=cta, cta_s=cta_s, brand=brands, info=info, seam=_react.TITLE_Y if stack else layouts.split_seam(cfg))
         if stack:
             planner.zb_opts = (1.0,)      # o quadro montado nao se mexe
-            planner.brand_only = ("base_esq",)      # marca embaixo, fora do filme e do rosto
+            planner.brand_only = ("base_esq", "cam_esq")      # marca embaixo ou no canto da webcam, fora do filme e do rosto
             planner.title_only = ("emenda",)        # titulo so na faixa dele
         scene = planner.plan()
         timings["plano_s"] = round(time.time() - t_plan, 2)

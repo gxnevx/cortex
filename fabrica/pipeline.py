@@ -1222,7 +1222,9 @@ def run(cfg: Config, opts: RunOptions, rep: Reporter | None = None) -> dict:
             cands = discover(cfg, opts, brain_trends, rep, summary, run_id, n_videos)
             from .brain import games as _games
 
-            soltos = [] if opts.urls else [c for c in cands if _games.plain_gameplay(c)]
+            from . import indicados
+
+            soltos = [] if opts.urls else [c for c in cands if _games.plain_gameplay(c) and not indicados.do_video(c, cfg)]
             if soltos:
                 cands = [c for c in cands if c not in soltos]
                 rep.info(f"{len(soltos)} gameplay(s) comum(ns) de fora (sem reacao nem curiosidade)")

@@ -187,5 +187,36 @@ pl2 = ClipPlan(id="fome3", source_id="s", start=100, end=118, title="Reage ao ca
 pipeline.refine_with_captions(pl2, fome, cfg0)
 check("abertura: em react a sugestao solta tambem cai", "vagabundo" not in pl2.teaser_text, pl2.teaser_text)
 
+# ------------------------------------------------------------------ indicacoes do dono
+from fabrica import indicados  # noqa: E402
+from fabrica.brain import prompts as _pr  # noqa: E402
+
+ci = Config({"busca": {"indicados": [{"canal": "@RodrigoF", "nome": "EL GATO", "gosto": "ele falando com o Claude"}]}})
+eg = Candidate(id="youtube:eg", platform="youtube", url="u", title="LIVE", channel="El Gato", channel_url="https://www.youtube.com/channel/UC1")
+eh = Candidate(id="youtube:eh", platform="youtube", url="u", title="LIVE", channel="Outro", channel_url="https://www.youtube.com/@RodrigoF")
+ou = Candidate(id="youtube:ou", platform="youtube", url="u", title="LIVE", channel="Outro Gato", channel_url="https://www.youtube.com/@outro")
+check("indicado pelo nome ou pelo @, e so ele", indicados.do_video(eg, ci) and indicados.do_video(eh, ci) and not indicados.do_video(ou, ci))
+check("sem indicacao nada muda", indicados.do_video(eg, Config({})) is None and indicados.bloco(eg, Config({})) == "" and indicados.para_escolha([(eg, None)], Config({})) == "")
+check("a escolha sabe da indicacao", "EL GATO" in escolha.prompt([(eg, Raw("humor")), (ou, Raw("humor"))], 8, ci) and "Indicação do dono" not in escolha.prompt([(ou, Raw("humor"))], 8, ci))
+r_ = escolha.aplicar([(eg, None), (ou, None)], [{"n": 1, "nota": 70}, {"n": 2, "nota": 75}], 5, ci)
+check("indicado ganha pontos na escolha", [c.channel for c, _ in r_] == ["El Gato", "Outro Gato"] and r_[0][0].extra["ia_nota"] == 80, [(c.channel, c.extra["ia_nota"]) for c, _ in r_])
+check("indicado fraco continua fora", escolha.aplicar([(eg, None)], [{"n": 1, "nota": 40}], 5, ci) == [])
+check("quem escolhe os cortes sabe o gosto do dono", "ele falando com o Claude" in _pr.clips_prompt(eg, "x", "", ci, 3) and "INDICADO" not in _pr.clips_prompt(ou, "x", "", ci, 3))
+from fabrica import db, exclusivas, revisao  # noqa: E402
+from fabrica.models import ClipPlan, RenderedClip  # noqa: E402
+
+paths.DB_PATH = paths.STATE / "t.db"
+db._local.conn = None
+db.upsert_video(eg, "processado")
+db.upsert_video(ou, "processado")
+cg = RenderedClip(plan=ClipPlan(id="eg1", source_id="youtube:eg", start=0, end=40, title="T", hook="H", score=90.0), path="x", duration=40, layout="react")
+co = RenderedClip(plan=ClipPlan(id="ou1", source_id="youtube:ou", start=0, end=40, title="T", hook="H", score=60.0), path="x", duration=40, layout="react")
+check("o revisor sabe a graca do canal indicado", "ele falando com o Claude" in revisao._prompt(cg, "oi", ci) and "Contexto:" not in revisao._prompt(co, "oi", ci)
+      and "Contexto:" not in revisao._prompt(cg, "oi", Config({})))
+ci2 = Config({"busca": ci.data["busca"], "publicacao": {"plataformas": ["youtube", "tiktok", "instagram"], "redes_exclusivas": ["instagram"]}})
+ex = exclusivas.candidatos("instagram", ci2, [cg, co], ja={"eg1": set(), "ou1": set()}, fontes=[], guardar=0)
+check("o indicado sai primeiro no YouTube e no TikTok", [c.plan.id for c in ex] == ["ou1"], [c.plan.id for c in ex])
+check("o canal indicado entra na busca", any(j[0].lower().endswith("rodrigof") for j in candidates._channel_jobs(ci)))
+
 print("\n" + ("TUDO OK" if not fails else "FALHAS: " + ", ".join(fails)))
 sys.exit(1 if fails else 0)
