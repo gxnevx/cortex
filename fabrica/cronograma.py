@@ -15,7 +15,9 @@ from . import db, exclusivas, policy
 def horarios(rede: str, cfg: Any, dia: date) -> list[float]:
     """Horarios de post desta rede num dia (hoje: so os que ainda faltam)."""
     if dia == date.today():
-        hoje = [max(t, time.time()) for t, _ in policy.slots_today(rede, cfg)]
+        gap, hoje = policy.min_interval_s(rede, cfg), []
+        for t, _ in policy.slots_today(rede, cfg):      # janela atrasada sai agora e empurra as seguintes, como o automatico faz
+            hoje.append(max(t, time.time(), hoje[-1] + gap if hoje else 0.0))
         return hoje or (policy.slots_on(rede, cfg, dia) if policy.pausa_saude(rede, cfg) else [])
     return policy.slots_on(rede, cfg, dia)
 

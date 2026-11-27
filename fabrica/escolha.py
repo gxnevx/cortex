@@ -128,7 +128,7 @@ RESPONDA SÓ COM ESTE JSON:
 
 
 def aplicar(itens: list[tuple[Any, Any]], resp: list[dict], quantos: int, cfg: Any = None) -> list[tuple[Any, Any]]:
-    """Os escolhidos, em ordem, com a nota guardada em extra['ia_nota'] (canal indicado pelo dono ganha pontos)."""
+    """Os escolhidos, em ordem, com a nota guardada em extra['ia_nota'] (canal indicado pelo dono com prioridade ganha pontos)."""
     from . import indicados
 
     vistos: set[int] = set()
@@ -142,7 +142,7 @@ def aplicar(itens: list[tuple[Any, Any]], resp: list[dict], quantos: int, cfg: A
             continue
         vistos.add(n)
         c, r = itens[n - 1]
-        nota += indicados.BONUS if indicados.do_video(c, cfg) else 0
+        nota += indicados.BONUS if indicados.prioriza(indicados.do_video(c, cfg)) else 0
         c.extra = dict(c.extra or {})
         c.extra["ia_nota"], c.extra["ia_motivo"] = min(100.0, nota), str(d.get("motivo") or "")[:100]
         out.append((c, r))

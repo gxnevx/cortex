@@ -1,9 +1,12 @@
-"""Canais que o dono indicou (busca.indicados): entram sempre na busca, ganham preferencia na escolha dos videos e a IA que
-escolhe os cortes sabe que tipo de momento ele gosta daquele canal.
+"""Canais que o dono indicou (busca.indicados): entram sempre na busca e a IA que escolhe os cortes e a revisao sabem
+qual e a graca daquele canal.
+
+Com prioridade (o padrao) o canal ganha pontos na escolha dos videos, a IA corta esses momentos primeiro e o corte sai
+antes no YouTube e no TikTok. Com prioridade: false ele so concorre igual aos outros e os numeros decidem.
 
 busca:
   indicados:
-    - {canal: "@handle", nome: "NOME DO CANAL", gosto: "que momentos cortar"}
+    - {canal: "@handle", nome: "NOME DO CANAL", gosto: "que momentos cortar", prioridade: true}
 """
 from __future__ import annotations
 
@@ -15,6 +18,11 @@ BONUS = 10      # pontos na escolha dos videos (nao salva video fraco: a revisao
 def lista(cfg: Any) -> list[dict]:
     v = cfg.get("busca.indicados", []) if cfg is not None else []
     return [x for x in v or [] if isinstance(x, dict) and (x.get("canal") or x.get("nome"))]
+
+
+def prioriza(x: dict | None) -> bool:
+    """O dono quer este canal na frente (prioridade: true, o padrao) ou so quer que ele concorra igual aos outros."""
+    return bool(x) and x.get("prioridade", True) is not False
 
 
 def canais(cfg: Any) -> list[str]:
@@ -70,6 +78,9 @@ def bloco(video: Any, cfg: Any) -> str:
     x = do_video(video, cfg)
     if not x or not x.get("gosto"):
         return ""
+    if not prioriza(x):
+        return (f"\nCANAL QUE O DONO ACOMPANHA ({x.get('nome') or x.get('canal')}). A graça dele: {str(x['gosto']).strip()} "
+                "Use isso só para entender o humor: este canal concorre igual aos outros, então corte apenas se o momento for forte pelas regras gerais.\n")
     return (f"\nCANAL INDICADO PELO DONO ({x.get('nome') or x.get('canal')}). O que ele quer ver deste canal: {str(x['gosto']).strip()} "
             "Escolha esses momentos primeiro, mesmo que as regras gerais peçam outra coisa, e continue exigindo começo claro, desfecho e título verdadeiro.\n")
 
@@ -79,7 +90,7 @@ def para_escolha(itens: list, cfg: Any) -> str:
     achei = {}
     for c, _r in itens:
         x = do_video(c, cfg)
-        if x:
+        if prioriza(x):
             achei[str(x.get("nome") or x.get("canal"))] = str(x.get("gosto") or "")[:220]
     if not achei:
         return ""

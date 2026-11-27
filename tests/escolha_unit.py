@@ -216,6 +216,18 @@ check("o revisor sabe a graca do canal indicado", "ele falando com o Claude" in 
 ci2 = Config({"busca": ci.data["busca"], "publicacao": {"plataformas": ["youtube", "tiktok", "instagram"], "redes_exclusivas": ["instagram"]}})
 ex = exclusivas.candidatos("instagram", ci2, [cg, co], ja={"eg1": set(), "ou1": set()}, fontes=[], guardar=0)
 check("o indicado sai primeiro no YouTube e no TikTok", [c.plan.id for c in ex] == ["ou1"], [c.plan.id for c in ex])
+# o dono pode tirar a vantagem e deixar os numeros decidirem (prioridade: false)
+c3 = Config({"busca": {"indicados": [{"canal": "@RodrigoF", "nome": "EL GATO", "gosto": "ele falando com o Claude", "prioridade": False}]},
+             "publicacao": ci2.data["publicacao"]})
+r3 = escolha.aplicar([(eg, None), (ou, None)], [{"n": 1, "nota": 70}, {"n": 2, "nota": 75}], 5, c3)
+check("sem prioridade: nenhum ponto a mais", [c.channel for c, _ in r3] == ["Outro Gato", "El Gato"] and r3[1][0].extra["ia_nota"] == 70, [(c.channel, c.extra["ia_nota"]) for c, _ in r3])
+check("sem prioridade: a escolha nao pede o canal", indicados.para_escolha([(eg, None)], c3) == "")
+b3 = _pr.clips_prompt(eg, "x", "", c3, 3)
+check("sem prioridade: a IA so sabe o humor, sem furar as regras", "ele falando com o Claude" in b3 and "concorre igual" in b3 and "mesmo que as regras" not in b3)
+ex3 = exclusivas.candidatos("instagram", c3, [cg, co], ja={"eg1": set(), "ou1": set()}, fontes=[], guardar=0)
+check("sem prioridade: o corte dele entra no Instagram como os outros", sorted(c.plan.id for c in ex3) == ["eg1", "ou1"], [c.plan.id for c in ex3])
+check("sem prioridade: a revisao ainda sabe a graca", "ele falando com o Claude" in revisao._prompt(cg, "oi", c3))
+check("sem prioridade: continua na busca", any(j[0].lower().endswith("rodrigof") for j in candidates._channel_jobs(c3)))
 check("o canal indicado entra na busca", any(j[0].lower().endswith("rodrigof") for j in candidates._channel_jobs(ci)))
 
 print("\n" + ("TUDO OK" if not fails else "FALHAS: " + ", ".join(fails)))

@@ -16,7 +16,7 @@ def main() -> None:
     out = re.sub(r'\n\s+instagram:\s*\{criada_em:[^}]*\}', '\n    instagram: {criada_em: ""}', out)
     out = out.replace("plataformas: [youtube, tiktok, instagram]", "plataformas: [youtube, tiktok]   # + instagram para postar Reels")
     # indicacoes do dono: so o formato
-    out = re.sub(r'(\n  indicados:)\n(?:    .*\n)+', r'\1 []                   # ex.: - {canal: "@handle", nome: "NOME", gosto: "que momentos cortar"}\n', out)
+    out = re.sub(r'(\n  indicados:)\n(?:    .*\n)+', r'\1 []                   # ex.: - {canal: "@handle", nome: "NOME", gosto: "que momentos cortar", prioridade: true}\n', out)
     # marca
     out = re.sub(r'(\n\s+marca_dagua:\s*)"[^"]*"', r'\1""', out)
     # qualquer e-mail ou @ que tenha escapado em comentarios/valores

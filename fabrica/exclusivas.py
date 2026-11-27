@@ -153,10 +153,10 @@ def candidatos(rede: str, cfg: Any, fila: list, ja: dict[str, set[str]] | None =
     guardar = reserva(rede, cfg, restam, feitos, bool(rep)) if guardar is None else guardar
     if len(livres) <= guardar:
         return rep
-    # o ranking e o que o dono indicou saem primeiro no conjunto (onde ha mais publico); aqui entram repetidos
+    # o ranking e o que o dono indicou com prioridade saem primeiro no conjunto (onde ha mais publico); aqui entram repetidos
     from . import indicados
 
-    ok = [c for c in livres if not c.plan.part and c.plan.tipo != "ranking" and not indicados.do_clip(c, cfg) and (not real or db.failed_attempts(c.plan.id, rede) < 3)]
+    ok = [c for c in livres if not c.plan.part and c.plan.tipo != "ranking" and not indicados.prioriza(indicados.do_clip(c, cfg)) and (not real or db.failed_attempts(c.plan.id, rede) < 3)]
     return sorted(ok, key=lambda c: (nota(c, rec), c.plan.id), reverse=True) + rep
 
 
